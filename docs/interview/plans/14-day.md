@@ -1,3 +1,289 @@
 # 14 天主线
 
-> 内容建设中（下一任务填充）
+默认冲刺节奏。先读 [总览与侧重点矩阵](/interview/00-overview)，按公司类型标出加重模块，再按日执行。每天建议：**读题 → 遮答案口述 → 对标踩坑 → 完成口述任务 → 勾选 Checklist**。
+
+适用：有约 2 周备战窗口、目标 A/B/C 都要能接的资深前端。
+
+---
+
+## 阶段总览
+
+| 阶段 | 天数 | 重心 |
+| ---- | ---- | ---- |
+| 底座 | D1–D3 | JS/TS、Vue3、主项目故事骨架 |
+| 多端 | D4–D6 | Ant Design Vue、Vant、uni-app / 小程序 |
+| 工程与全栈 | D7–D9 | 工程化、性能、Java 全栈边界 |
+| Lead + AI | D10–D11 | 架构 Lead、AI vibe coding（Vue + Java） |
+| 模拟收敛 | D12–D14 | 模拟 ×2、弱项回炉、反问清单 |
+
+---
+
+## D1 — JS/TS 底座
+
+### 学习目标
+
+- 把类型系统说成「生产约束」：`unknown` / `any`、泛型边界、常用工具类型
+- 事件循环、闭包、`this`、Promise 并发控制能口述到边界，不背术语堆
+- 建立「先想 90 秒再对答案」的刷题节奏
+
+### 题库链接
+
+- [JS/TS 题库](/interview/questions/01-js-ts)
+
+### 口述任务
+
+用 3 分钟讲清：你在主项目里如何用 TypeScript 约束接口与组件 props；举一个「类型帮你拦下线上问题」的例子。
+
+---
+
+## D2 — Vue3 核心
+
+### 学习目标
+
+- Composition API、响应式边界（ref / reactive / computed / watch）说清楚
+- 生命周期、组件通信、Provide/Inject、Suspense 场景级掌握
+- 能对比 Options API 何时还值得用，以及迁移成本怎么讲
+
+### 题库链接
+
+- [Vue3 题库](/interview/questions/02-vue3)
+
+### 口述任务
+
+选一个真实页面（列表 + 详情或表单流），按「数据流 → 副作用 → 卸载清理」口述实现，控制在 4 分钟内。
+
+---
+
+## D3 — 主项目故事骨架
+
+### 学习目标
+
+- 用故事模板压出一条主线：背景 → 目标 → 方案 → 取舍 → 结果 → 复盘
+- 指标尽量量化（耗时、错误率、交付周期、包体积等）
+- 准备 2 个追问分支：失败经历与「如果重来」
+
+### 题库链接
+
+- [故事模板](/interview/stories/template)
+- [故事示例](/interview/stories/examples)
+- 回看 [Vue3](/interview/questions/02-vue3)、[JS/TS](/interview/questions/01-js-ts) 中与主项目相关的题
+
+### 口述任务
+
+完整录制（或对着镜子）主项目故事 **5 分钟版** + **90 秒电梯版**；写下来第二天还能复述。
+
+---
+
+## D4 — 中后台 Ant Design Vue
+
+### 学习目标
+
+- 表格、表单、权限、菜单与布局的「可维护拆分」能讲清
+- 大数据量表格、远程搜索、表单联动的性能与体验取舍
+- 组件库二次封装原则：何时封、何时不封
+
+### 题库链接
+
+- [中后台 AntDV 题库](/interview/questions/04-admin-antdv)
+
+### 口述任务
+
+讲一次「权限 + 动态路由 / 菜单」落地：数据从哪来、前端怎么裁、刷新后如何恢复。
+
+---
+
+## D5 — H5 与 Vant
+
+### 学习目标
+
+- 移动端适配、安全区、手势与滚动穿透等踩坑能点名
+- Vant 表单、列表、弹层组合拳；弱网与加载态策略
+- H5 与中后台在状态管理、路由、构建上的差异叙事
+
+### 题库链接
+
+- [H5 / Vant 题库](/interview/questions/05-h5-vant)
+
+### 口述任务
+
+口述一个 H5 活动页或业务页：首屏策略、缓存、返回栈问题你怎么处理。
+
+---
+
+## D6 — uni-app / 小程序
+
+### 学习目标
+
+- 条件编译、分包、生命周期与 Vue Web 端差异说清楚
+- 登录态、存储、分享、支付等能力边界（能做什么 / 不能承诺什么）
+- 多端同构的收益与坑：何时该拆仓库或拆包
+
+### 题库链接
+
+- [uni-app / 小程序题库](/interview/questions/06-uniapp-miniprogram)
+
+### 口述任务
+
+用 4 分钟讲「多端交付」：选型理由、一次真实踩坑、你如何保证回归成本可控。
+
+---
+
+## D7 — 工程化
+
+### 学习目标
+
+- 构建（Vite）、规范（ESLint/Prettier）、CI、Monorepo / 多包直觉到位
+- 环境变量、代理、sourcemap、发布回滚链路能画一遍
+- 质量门禁：单测、E2E、code review 在团队里怎么落地而不是空喊
+
+### 题库链接
+
+- [工程化题库](/interview/questions/03-engineering)
+
+### 口述任务
+
+讲清你负责过的一条流水线：从 MR 到生产，卡点在哪、你推动过什么改进。
+
+---
+
+## D8 — 性能与体验
+
+### 学习目标
+
+- 从指标出发：LCP、INP、CLS、包体积、长列表、接口瀑布
+- 会诊断：Chrome Performance / Network 怎么定位到「你的锅」
+- 优化要有前后对比；避免「无数据的感觉型优化」
+
+### 题库链接
+
+- [工程化题库（性能相关）](/interview/questions/03-engineering)
+- [前端系统设计](/interview/questions/11-frontend-system-design)（可先扫标题）
+
+### 口述任务
+
+准备一个性能案例 STAR：问题发现 → 假设 → 验证 → 手段 → 结果数字。
+
+---
+
+## D9 — Java 全栈边界
+
+### 学习目标
+
+- 对齐总览里的 Java 叙事：Spring Boot + MyBatis-Plus + MySQL 为主
+- 接口设计、鉴权协作、联调排障、事务与幂等「场景级」能讲
+- 明确不碰：JVM 调优、分布式事务论文级、与专职后端拼中间件
+
+### 题库链接
+
+- [Java 全栈题库](/interview/questions/07-java-fullstack)
+- 回看 [总览 · Java 叙事边界](/interview/00-overview)
+
+### 口述任务
+
+口述「前端主导的一次接口设计 / 联调」：字段、错误码、幂等、超时重试你们怎么约定。
+
+---
+
+## D10 — 架构 Lead
+
+### 学习目标
+
+- 技术决策：选型、债务、灰度、回滚；用业务语言讲清取舍
+- 带人与质量：评审、门禁、排期、风险上报
+- 前后端分工与协作机制，避免变成「纯执行者」叙事
+
+### 题库链接
+
+- [架构 / Lead 题库](/interview/questions/08-architecture-lead)
+
+### 口述任务
+
+准备一个 Lead 向故事：你如何推动一项不受欢迎但正确的技术决策（含阻力与结果）。
+
+---
+
+## D11 — AI vibe coding（Vue + Java）
+
+### 学习目标
+
+- AI 协作工作流：需求拆解 → Prompt → 审代码 → 测试 → 合入
+- 能讲「Vue 前端 + Spring Boot 简单后端」快速闭环，同时守住质量底线
+- 区分：提效工具 vs 不可替代的判断（安全、边界、架构）
+
+### 题库链接
+
+- [AI vibe coding 题库](/interview/questions/09-ai-vibe-coding)
+- [Java 全栈题库](/interview/questions/07-java-fullstack)
+
+### 口述任务
+
+用 5 分钟演示叙事：你如何用 AI 在一天内搭出「CRUD + 鉴权接口 + Vue 管理页」，以及你人工守住了哪些关卡。
+
+---
+
+## D12 — 模拟面试 #1
+
+### 学习目标
+
+- 按目标公司类型选一场完整模拟（大厂 / ToB / 外包 / 创业 / Lead）
+- 练开场自我介绍 + 主故事 + 至少 3 轮追问
+- 用评分表记下薄弱维度，不急着补全库
+
+### 题库链接
+
+- [模拟脚本](/interview/mocks/scripts)
+- [评分表](/interview/mocks/scorecard)
+- 按弱项回链对应题库模块
+
+### 口述任务
+
+完整走一场 45–60 分钟模拟（可找同伴或自问自答录音）；结束后只改「评分最低的两项」。
+
+---
+
+## D13 — 弱项回炉 + 模拟 #2
+
+### 学习目标
+
+- 针对 D12 评分表，集中回炉 1～2 个模块（原理 / 工程 / 多端 / Java 选一到二）
+- 第二场模拟换公司类型或换面试官画像，避免背稿感
+- 手写题若缺口大，从手写库抽 2～3 题限时练
+
+### 题库链接
+
+- [手写题库](/interview/questions/10-handwriting)
+- [模拟脚本](/interview/mocks/scripts)
+- [评分表](/interview/mocks/scorecard)
+- 弱项对应模块自选
+
+### 口述任务
+
+第二场模拟；对比两场评分，写出「上场三句必说」与「绝不主动展开的话题」。
+
+---
+
+## D14 — 反问与终检
+
+### 学习目标
+
+- 准备分层级的反问：团队、业务、技术债、协作、成长
+- 终检主故事 90 秒版与简历每一行的「证据句」
+- Checklist 扫尾，确认薄弱项有「够用答法」而非空白
+
+### 题库链接
+
+- [反问清单](/interview/mocks/reverse-questions)
+- [总览](/interview/00-overview)
+- [故事模板](/interview/stories/template)
+
+### 口述任务
+
+对着简历逐行过一遍：每行能在 30 秒内落到项目证据；准备 5 个高质量反问。
+
+---
+
+## 进度 Checklist
+
+勾选会写入浏览器 localStorage（键：`mianshi-plan:14-day`），与 7 天 / 30 天计划互不干扰。
+
+<PlanChecklist planId="14-day" :items='[{"id":"d1-read","label":"D1 读完 JS/TS 题库核心题并遮答案口述"},{"id":"d1-oral","label":"D1 完成 TS 约束接口/props 口述"},{"id":"d1-note","label":"D1 记下至少 3 个卡壳点"},{"id":"d2-read","label":"D2 读完 Vue3 核心题并口述数据流"},{"id":"d2-oral","label":"D2 完成真实页面 4 分钟口述"},{"id":"d2-edge","label":"D2 能讲清响应式边界与清理副作用"},{"id":"d3-story","label":"D3 写完主项目 STAR 骨架（含指标）"},{"id":"d3-oral5","label":"D3 录制/复述 5 分钟主故事"},{"id":"d3-oral90","label":"D3 练熟 90 秒电梯版"},{"id":"d4-read","label":"D4 过完 AntDV 中后台题库重点"},{"id":"d4-oral","label":"D4 口述权限+菜单/路由落地"},{"id":"d4-wrap","label":"D4 说清组件二次封装原则"},{"id":"d5-read","label":"D5 过完 H5/Vant 题库重点"},{"id":"d5-oral","label":"D5 口述首屏/缓存/返回栈方案"},{"id":"d5-pit","label":"D5 整理移动端踩坑清单"},{"id":"d6-read","label":"D6 过完 uni-app/小程序题库重点"},{"id":"d6-oral","label":"D6 口述多端交付选型与踩坑"},{"id":"d6-pack","label":"D6 说清分包与条件编译取舍"},{"id":"d7-read","label":"D7 过完工程化题库重点"},{"id":"d7-oral","label":"D7 口述 MR 到生产流水线"},{"id":"d7-gate","label":"D7 能讲质量门禁如何落地"},{"id":"d8-case","label":"D8 写完性能案例 STAR（含数字）"},{"id":"d8-oral","label":"D8 口述性能诊断与优化手段"},{"id":"d8-metric","label":"D8 熟悉 LCP/INP/包体积等指标口径"},{"id":"d9-read","label":"D9 过完 Java 全栈题库（边界内）"},{"id":"d9-oral","label":"D9 口述接口设计与联调约定"},{"id":"d9-bound","label":"D9 能清晰说出不做的 Java 话题"},{"id":"d10-read","label":"D10 过完架构/Lead 题库重点"},{"id":"d10-oral","label":"D10 口述一次技术决策故事"},{"id":"d10-lead","label":"D10 准备带人/排期/门禁话术"},{"id":"d11-read","label":"D11 过完 AI vibe coding 题库"},{"id":"d11-oral","label":"D11 口述 Vue+Java AI 协作闭环"},{"id":"d11-guard","label":"D11 说清人工质量关卡"},{"id":"d12-mock","label":"D12 完成模拟面试 #1 并填评分表"},{"id":"d12-fix","label":"D12 针对最低两项制定回炉计划"},{"id":"d12-intro","label":"D12 自我介绍开场稳定在 90 秒内"},{"id":"d13-weak","label":"D13 完成弱项模块回炉"},{"id":"d13-mock","label":"D13 完成模拟面试 #2（换画像）"},{"id":"d13-hand","label":"D13 限时完成 2～3 道手写（若缺口大）"},{"id":"d14-reverse","label":"D14 准备 5 个高质量反问"},{"id":"d14-resume","label":"D14 简历逐行证据句终检"},{"id":"d14-story","label":"D14 主故事 90 秒版终检通过"}]' />

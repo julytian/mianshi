@@ -4,8 +4,11 @@ export default defineConfig({
   title: '前端面试作战手册',
   description: 'Vue3 / Lead / Java 全栈偏前 · 面试方案与题库',
   lang: 'zh-CN',
+  // GitHub Pages 项目站：https://julytian.github.io/mianshi/
+  base: '/mianshi/',
   ignoreDeadLinks: true,
   srcExclude: ['**/superpowers/**'],
+  cleanUrls: true,
   themeConfig: {
     logo: undefined,
     nav: [

@@ -2,11 +2,19 @@
 
 面向 **Vue3 + TypeScript** 主栈、**前端 / Tech Lead**，并覆盖 **Java 全栈偏前** 与 **AI / vibe coding** 协作场景的本地面试知识库。基于 [VitePress](https://vitepress.dev/) 构建。
 
+## 在线站点
+
+部署地址（GitHub Pages）：[https://julytian.github.io/mianshi/](https://julytian.github.io/mianshi/)
+
+仓库：[https://github.com/julytian/mianshi](https://github.com/julytian/mianshi)
+
+推送到 `master` / `main` 后，GitHub Actions 会自动构建并发布。
+
 ## 快速开始
 
 ```bash
 pnpm install
-pnpm docs:dev        # 本地预览，默认 http://localhost:5173
+pnpm docs:dev        # 本地预览，默认 http://localhost:5173/mianshi/
 ```
 
 构建与预览静态站点：
@@ -16,16 +24,18 @@ pnpm docs:build
 pnpm docs:preview
 ```
 
+> 站点配置了 `base: '/mianshi/'`，与 GitHub Pages 项目路径一致；本地 dev 也走该前缀。
+
 ## 建议学习路径
 
 1. **总览与侧重点矩阵** → [`docs/interview/00-overview.md`](docs/interview/00-overview.md)  
-   （开发时：`http://localhost:5173/interview/00-overview`）
+   （本地：`/mianshi/interview/00-overview`；线上同路径）
 2. **14 天主线计划** → [`docs/interview/plans/14-day.md`](docs/interview/plans/14-day.md)  
    （压缩用 7 天，加练用 30 天）
 3. **核心题库** → 从 [`docs/interview/questions/02-vue3.md`](docs/interview/questions/02-vue3.md) 开始，再按矩阵补弱项
 4. **故事与模拟** → [`docs/interview/stories/template.md`](docs/interview/stories/template.md) → [`docs/interview/mocks/scripts.md`](docs/interview/mocks/scripts.md)
 
-> GitHub / 源码阅读请用上方 `docs/...` 相对路径；站点内以 `/interview/...` 为路由，需先 `pnpm docs:dev` 再在浏览器打开。
+> 源码阅读用 `docs/...` 相对路径；站点路由带 `/mianshi/` 前缀。
 
 ## 目录说明
 

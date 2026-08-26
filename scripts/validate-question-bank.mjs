@@ -40,6 +40,7 @@ export const EXPECTED_QUESTION_FILES = [
   '17-browser-web-api.md',
   '18-network-security.md',
   '19-hybrid-app.md',
+  '20-performance-ux.md',
 ]
 
 const PLACEHOLDER_PATTERNS = [

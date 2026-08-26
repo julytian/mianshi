@@ -90,9 +90,9 @@
 
 ::: details 参考答案
 
-最终值不是只比较选择器优先级。应先理解来源与重要性、层叠上下文中的 layer 顺序、选择器 specificity、作用域接近度和源码顺序，再经过继承与初始值形成计算值。`!important` 会改变同一来源中的优先级，并且层叠层对普通声明和 important 声明的排序方向不同，所以不能用「多写一个类」解释所有覆盖问题。
+最终值不是只比较选择器优先级。应先理解来源与重要性、同一来源内 cascade layer 顺序、选择器 specificity、作用域接近度和源码顺序，再经过继承与初始值形成计算值。`!important` 会改变同一来源中的优先级，并且层叠层对普通声明和 important 声明的排序方向不同，所以不能用「多写一个类」解释所有覆盖问题；cascade layer 与决定 `z-index` 竞争范围的 stacking context 是两套机制。
 
-`@layer reset, base, components, utilities, overrides;` 可以提前声明稳定顺序，让低 specificity 的工具类按架构意图覆盖组件，而不靠 ID、深层嵌套或不断追加 `!important`。第三方 CSS 可放入较低优先级层；`:where()` 把自身 specificity 置零，适合可覆盖的基础规则，`:is()` / `:not()` 则会采用参数中最高 specificity。自定义属性通常继承，但其 token 流在使用点解析，回退值也只有在变量无效或缺失时生效。
+`@layer reset, base, components, utilities, overrides;` 可以提前声明稳定顺序，让低 specificity 的工具类按架构意图覆盖组件，而不靠 ID、深层嵌套或不断追加 `!important`。第三方 CSS 可放入较低优先级层；`:where()` 把自身 specificity 置零，适合可覆盖的基础规则，`:is()` / `:not()` 则会采用参数中最高 specificity。自定义属性通常继承，但其 token 流在使用点解析；`var()` fallback 只在变量缺失或值为 guaranteed-invalid 时使用，不能兜住替换后才对目标属性无效的值。
 
 工程上用 layer 管大边界，用类或属性管组件状态，用 CSS Modules、scoped CSS 或命名约定管作用域。兼容旧浏览器时，不能把关键样式只放进不被识别的 `@layer` 块后假设会降级；应依据支持矩阵决定是否经构建工具降级，或先提供无层基础样式再增强。通过 DevTools 的 Computed / Cascade 面板、目标浏览器截图和最小复现定位覆盖来源。
 
@@ -188,7 +188,7 @@ Grid 面向二维轨道，适合页面区域、表单对齐、卡片矩阵和需
 
 优先让普通流、Flex 和 Grid 完成结构布局；相对定位适合建立局部定位参照或轻微偏移，绝对定位适合不占流的局部装饰和锚定元素，固定定位面向视口级 UI，sticky 则受最近滚动容器和 inset 约束。用绝对定位拼主布局会在文本放大、本地化和内容变化时迅速失效。
 
-`z-index` 只在层叠规则允许的范围内比较。根元素、定位元素配非 auto `z-index`、`opacity < 1`、`transform`、`filter`、`isolation: isolate`、部分 `contain` 等都会创建 stacking context；子元素的巨大 `z-index` 也不能逃出父上下文与外部兄弟竞争。原生 `dialog.showModal()`、Popover 等可进入 top layer，通常比全局堆叠数字更可靠，但语义、焦点与兼容回退仍需分别实现。
+`z-index` 只在层叠规则允许的范围内比较。根元素、定位元素配非 auto `z-index`、`opacity < 1`、`transform`、`filter`、`isolation: isolate`、部分 `contain` 等都会创建 stacking context；子元素的巨大 `z-index` 也不能逃出父上下文与外部兄弟竞争。原生 `dialog.showModal()` 会把 dialog 放入 top layer、使其外部内容 inert，并执行规范定义的聚焦步骤；关闭算法通常会在条件满足时恢复 previously focused element。Popover 也可进入 top layer。它们通常比全局堆叠数字可靠，但应用仍要选择合适的 `autofocus` 目标、处理特殊恢复目标和业务关闭路径，并做跨浏览器与辅助技术验证。
 
 工程上建立少量语义层级 Token，例如 base、sticky、overlay、toast，而不是不断加到 999999；组件内部可用 `isolation` 限定竞争。弹层要同时考虑 portal 宿主、滚动锁定、包含块、裁剪祖先和 top layer。排障时用 DevTools Layers / stacking context 信息，从目标元素逐级检查是谁创建上下文或裁剪，不能只反复提高 `z-index`。
 
@@ -234,7 +234,7 @@ Grid 面向二维轨道，适合页面区域、表单对齐、卡片矩阵和需
 
 ::: details 参考答案
 
-CSS 自定义属性适合在运行时继承和覆盖，设计系统应先定义语义 Token，如 `--color-text-primary`、`--surface-raised`，再映射到基础色板，而不是让业务到处引用 `--blue-500`。主题切换可在根节点或局部容器覆盖语义值；组件消费语义 Token，并为必要属性提供安全回退。自定义属性值不是静态类型，拼写错误、循环引用或在使用点无效会使声明失效，需要 lint 和视觉测试。
+CSS 自定义属性适合在运行时继承和覆盖，设计系统应先定义语义 Token，如 `--color-text-primary`、`--surface-raised`，再映射到基础色板，而不是让业务到处引用 `--blue-500`。主题切换可在根节点或局部容器覆盖语义值。`var(--token, fallback)` 只有在变量缺失或其值为 guaranteed-invalid 时才使用 fallback；变量存在但替换结果对目标属性无效时，声明会在 computed-value time 失效，并按该属性规则取继承值或初始值，不会改用 fallback。例如 `--gap: red; margin: var(--gap, 1rem)` 不会得到 `1rem`。因此自定义属性需要类型约束、lint 和渲染验证，不能把 fallback 当通用校验器。
 
 暗色模式可用 `prefers-color-scheme` 作为初始偏好，允许用户显式选择亮色、暗色或跟随系统，并持久化选择；用户选择应高于系统变化。设置 `color-scheme` 能让表单控件、滚动条等 UA UI 适配，但不能替代自己的颜色定义。主题不是把背景变黑，还要检查文本、边框、图标、焦点、禁用态和图表的对比与非颜色提示。
 
@@ -260,7 +260,7 @@ CSS 自定义属性适合在运行时继承和覆盖，设计系统应先定义�
 
 ::: details 参考答案
 
-WCAG 2.2 SC 2.1.1 要求功能可通过键盘接口操作且单次按键不依赖特定时序；例外是底层功能本质上依赖用户移动路径，而不只是起点和终点，例如自由手绘。即使命中该例外，工程上仍应优先提供等价的键盘替代操作。普通页面中 Tab / Shift+Tab 在可聚焦元素之间移动，DOM 顺序应与视觉和任务顺序一致；不要用正 `tabindex` 人工维护顺序。原生 button 用 Enter 和 Space 激活，链接用 Enter。组合控件遵循 APG 模式：通常只有一个 Tab 停靠点，进入后用方向键在内部选项移动，Escape 关闭或撤销；不能让 Tab 穿过菜单、Tablist 或 listbox 的每个内部项。
+WCAG 2.2 SC 2.1.1 要求功能可通过键盘接口操作且单次按键不依赖特定时序；例外是底层功能本质上依赖用户移动路径，而不只是起点和终点，例如自由手绘。即使命中该例外，工程上仍应优先提供等价的键盘替代操作。普通页面中 Tab / Shift+Tab 在可聚焦元素之间移动，DOM 顺序应与视觉和任务顺序一致；不要用正 `tabindex` 人工维护顺序。原生 button 用 Enter 和 Space 激活，链接用 Enter。组合控件通常只有一个 Tab 停靠点，进入后按对应 APG pattern 使用方向键等按键在内部移动；Escape 只在弹出式或临时组合控件的模式中承担关闭或撤销，持久 Tablist 没有通用的 Escape 行为。不能让 Tab 穿过 Menu、Tablist 或 Listbox 的每个内部项。
 
 焦点必须始终可见且不被 sticky 区域遮挡。使用 `:focus-visible` 提供清晰指示，不要无替代地 `outline: none`。DOM 删除、路由切换、弹窗关闭或异步刷新后要把焦点放到逻辑位置，避免落到 `body`。焦点样式还要在暗色、强制颜色和高缩放下检查。
 
@@ -363,11 +363,11 @@ Roving `tabindex` 会把 DOM 焦点移动到当前项，适合 Toolbar、Tabs �
 
 #### 原理深挖
 
-Modal 打开时焦点进入内部合适位置，Tab / Shift+Tab 不离开，背景对所有用户不可交互，关闭后通常恢复到触发者。`aria-modal="true"` 是语义声明，不会自动让背景 inert。MenuButton 用按钮暴露展开状态，Menu 内部使用方向键、Home / End、Escape；普通网站导航通常不是 ARIA Menu。Combobox 要同步 expanded、controls、value / selected 状态和活动项，`aria-activedescendant` 方案还要手动滚动活动项可见。
+Modal 打开时焦点进入内部合适位置，Tab / Shift+Tab 不离开，背景对所有用户不可交互。对原生 dialog 调用 `showModal()` 会进入 top layer、使外部内容 inert 并执行规范聚焦步骤；关闭时，如果焦点仍在 dialog 内且 previously focused element 仍可作为恢复目标，规范通常会把焦点恢复过去。`aria-modal="true"` 只是语义声明，不会自动产生这些行为。MenuButton 用按钮暴露展开状态，Menu 内部按其 APG pattern 使用方向键、Home / End、Escape；普通网站导航通常不是 ARIA Menu。Combobox 要同步 expanded、controls、value / selected 状态和活动项，`aria-activedescendant` 方案还要手动滚动活动项可见。
 
 #### 工程场景
 
-建立独立状态机与组件契约：记录 opener，打开后在渲染完成时设置初始焦点；原生 `inert` 或可靠 polyfill 禁用背景；关闭路径统一执行清理和焦点恢复。Menu 采用 roving tabindex 或活动后代之一。Combobox 处理输入法组合、异步结果过期、空结果、Escape、Enter 选择和触摸点击。Portal 只解决裁剪与层叠，不替代这些行为。
+建立独立状态机与组件契约。优先让 `showModal()` 承担 top layer、背景 inert、规范聚焦与通常的焦点恢复；应用负责选择合适的 `autofocus` 目标、在触发者被删除或工作流改变时指定特殊恢复目标，以及统一处理提交、取消等业务关闭路径。自绘方案才需要完整实现背景 inert、焦点闭环和恢复。Menu 采用 roving tabindex 或活动后代之一。Combobox 按对应 APG pattern 处理输入法组合、异步结果过期、空结果、Escape、Enter 选择和触摸点击。Portal 只解决裁剪与层叠，不替代这些行为。
 
 #### 反例 / 踩坑
 
@@ -392,7 +392,7 @@ Modal 打开时焦点进入内部合适位置，Tab / Shift+Tab 不离开，背�
 
 **2. `aria-modal="true"` 是否等于已经实现背景 inert？**
 
-不等于。它向辅助技术声明模态语义，不会阻止背景鼠标、触摸、键盘或脚本交互。实现仍需让背景真正 inert、限制 Tab、管理滚动，并保证 dialog 不位于被隐藏的祖先中。原生 `showModal()` 能提供 top layer 和部分模态行为，但焦点初始策略、恢复、业务关闭路径与跨浏览器测试仍由应用负责。
+不等于。它向辅助技术声明模态语义，不会阻止背景鼠标、触摸、键盘或脚本交互。自绘实现仍需让背景真正 inert、限制 Tab、管理滚动，并保证 dialog 不位于被隐藏的祖先中。原生 `showModal()` 会进入 top layer、使外部内容 inert 并执行规范聚焦步骤；关闭时通常按条件恢复 previously focused element。应用仍负责选择 `autofocus` 目标、特殊工作流的恢复目标、业务关闭路径，以及跨浏览器和辅助技术验证，而不是重复接管原生已经提供的全部行为。
 
 **3. Combobox 中 Tab 和方向键分别负责什么？**
 
@@ -424,7 +424,7 @@ CSS 的全局性来自层叠、继承和选择器匹配。构建时哈希只能�
 
 #### 资深回答模板
 
-我会先画样式依赖图，再确定 layer 顺序、局部作用域和 Token 所有权。覆盖必须通过公开变体或指定 overrides 层，禁止依赖 DOM 深度。CI 检查无界 `!important`、选择器复杂度、重复 Token 和 CSS 体积；迁移按页面灰度，用视觉回归与 computed style 采样证明没有顺序漂移。
+我会先画样式依赖图，再确定同一来源内 cascade layer 顺序、局部作用域和 Token 所有权。覆盖必须通过公开变体或指定 overrides 层，禁止依赖 DOM 深度。CI 检查无界 `!important`、选择器复杂度、重复 Token 和 CSS 体积；迁移按页面灰度，用视觉回归与 computed style 采样证明没有顺序漂移。
 
 :::
 
@@ -657,15 +657,15 @@ Design Token 是跨设计与代码的命名契约，CSS 变量只是 Web 运行�
 
 #### 原理深挖
 
-成功准则要转成可复现检查。例如 2.5.8 Target Size (Minimum) 的 AA 要求是指针目标至少可容纳 24 × 24 CSS px，或满足 spacing、inline、user agent control、essential 等例外；不是把所有控件一律写成 24 px。1.4.4 检查文本通过 200% 浏览器缩放或等效方式放大后是否丢失内容或功能；1.4.10 对水平书写内容检查约 320 CSS px 宽时有无非必要二维滚动，两者不能混为同一个响应式断点。结构上检查标题层级是否有意义，但不把单个 `h1` 当硬性 WCAG 条款。
+成功准则要转成可复现检查。例如 2.5.8 Target Size (Minimum) 的 AA 基线是指针目标自身至少 24 × 24 CSS px；尺寸不足时不能泛化为「有间距即可」，必须逐项满足 Equivalent、Spacing、Inline、User agent control 或 Essential 例外。Spacing 例外要求以每个小目标 bounding box 中心为圆心放置直径 24 CSS px 的圆，该圆既不与其他目标相交，也不与其他小目标的对应圆相交。1.4.4 检查文本通过 200% 浏览器缩放或等效方式放大后是否丢失内容或功能；1.4.10 对水平书写内容检查约 320 CSS px 宽时有无非必要二维滚动，两者不能混为同一个响应式断点。结构上检查标题层级是否有意义，但不把单个 `h1` 当硬性 WCAG 条款。
 
 #### 工程场景
 
-需求阶段标注键盘、名称、状态和错误契约；组件层用 Testing Library 类查询和 axe 检查角色、名称及合法关系；E2E 走 Tab、方向键、Escape、焦点恢复与错误流程。发布前分别检查 200% 浏览器缩放和 400% 页面缩放所形成的约 320 CSS px 窄视口，再检查对比度、强制颜色与减少动画，并在关键流程用 NVDA / JAWS + Chrome / Firefox、VoiceOver + Safari 等目标组合抽测。缺陷按阻断任务和影响范围分级。
+需求阶段标注键盘、名称、状态和错误契约；组件层用 Testing Library 类查询和 axe 检查角色、名称及合法关系；E2E 走 Tab，并按对应 APG pattern 测方向键，只有弹出式或临时控件再覆盖 Escape 关闭 / 撤销，同时检查焦点恢复与错误流程。发布前分别检查 200% 浏览器缩放和 400% 页面缩放所形成的约 320 CSS px 窄视口，再检查对比度、强制颜色与减少动画，并在关键流程用 NVDA / JAWS + Chrome / Firefox、VoiceOver + Safari 等目标组合抽测。缺陷按阻断任务和影响范围分级。
 
 #### 反例 / 踩坑
 
-把 Lighthouse 100 分当合规证明会漏掉大量语义和交互错误；只测 Tab 会漏掉组合控件方向键。看到目标小于 24 px 就报错而不核对 spacing / inline 等例外，会产生错误结论；反过来滥用 essential 例外也不可接受。用 ARIA 修复 axe 告警却不实现功能，会让树看似正确、操作仍失败。
+把 Lighthouse 100 分当合规证明会漏掉大量语义和交互错误；只测 Tab 会漏掉组合控件方向键。看到目标小于 24 px 就直接报错而不核对标准例外会产生错误结论，但仅观察到视觉间距也不能证明满足 Spacing 的圆形几何条件；滥用 Essential 例外同样不可接受。用 ARIA 修复 axe 告警却不实现功能，会让树看似正确、操作仍失败。
 
 #### 资深回答模板
 
@@ -682,7 +682,7 @@ Design Token 是跨设计与代码的命名契约，CSS 变量只是 Web 运行�
 
 **1. WCAG 2.2 AA 的 24 CSS px 目标尺寸有哪些重要例外？**
 
-2.5.8 允许尺寸不足但周围 spacing 满足规定、目标位于行内文本、尺寸由 user agent 决定且作者未修改，或特定呈现属于 essential 等例外；等价目标也可能满足条件。检查时以实际可点击区域和 CSS px 为准，不能把视觉图标尺寸等同于 target，也不能靠用户缩放补足。即使满足例外，重要高频控件仍应尽量提供更大命中区。
+2.5.8 的基线是目标自身至少 24 × 24 CSS px。尺寸不足时，Equivalent 例外要求同一页面另有执行相同功能且满足尺寸要求的目标；Spacing 例外要求以小目标 bounding box 中心为圆心的直径 24 CSS px 圆，不与其他目标或其他小目标的对应圆相交。其余标准例外是目标位于行内文本、尺寸由 user agent 决定且作者未修改，或该呈现对信息传达属于 Essential。检查以实际可点击目标和 CSS px 为准，不能用视觉图标尺寸或用户缩放代替；即使满足例外，高频控件仍应尽量扩大命中区。
 
 **2. 200% zoom 与 320 CSS px reflow 应怎样分别验证？**
 

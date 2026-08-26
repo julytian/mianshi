@@ -8,17 +8,60 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  EXPECTED_QUESTION_FILES,
   REPO_ROOT,
   buildDeepSectionPattern,
   extractAnswerDetails,
+  extractFollowupAnswerDetails,
   findQuestionHeadings,
+  findFollowupSection,
   hasDeepSection,
+  parseFollowupArgs,
   parseLimit,
   parseQuestionLimits,
+  validateFollowupSection,
   validateQuestionBank,
 } from './validate-question-bank.mjs'
 
 const scriptPath = path.join(REPO_ROOT, 'scripts/validate-question-bank.mjs')
+
+const singleFollowup = `### Q1. 示例
+
+::: details 参考答案
+主答案
+:::
+
+**追问：** 单个追问如何回答？
+
+::: details 追问参考答案
+
+单个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+
+:::
+`
+
+const followupChain = `### D1. 示例
+
+::: details 参考答案
+主答案
+:::
+
+**追问链：**
+1. 第一个追问？
+2. 第二个追问？
+
+::: details 追问参考答案
+
+**1. 第一个追问？**
+
+第一个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+
+**2. 第二个追问？**
+
+第二个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+
+:::
+`
 
 function testParseLimit() {
   assert.equal(parseLimit('201', 'MIN_TOTAL_QUESTIONS'), 201)
@@ -133,6 +176,194 @@ function testExtractAnswerDetails() {
     failures.push('参考答案为空')
   }
   assert.deepEqual(failures, ['参考答案容器未闭合'])
+}
+
+function testFollowupParsingAndValidation() {
+  assert.equal(findFollowupSection(singleFollowup).questions.length, 1)
+  assert.equal(validateFollowupSection(singleFollowup).failures.length, 0)
+  assert.equal(findFollowupSection(followupChain).questions.length, 2)
+  assert.equal(validateFollowupSection(followupChain).failures.length, 0)
+
+  const nested = singleFollowup.replace(
+    '单个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。',
+    `::: info 补充
+嵌套容器里的说明不应导致外层容器提前闭合。
+:::
+单个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。`,
+  )
+  const details = extractFollowupAnswerDetails(nested)
+  assert.equal(details.found, true)
+  assert.equal(details.closed, true)
+  assert.match(details.content, /嵌套容器里的说明/)
+  assert.equal(validateFollowupSection(nested).failures.length, 0)
+}
+
+function testInlineFollowupChain() {
+  const inlineChain = `### D1. 示例
+
+::: details 参考答案
+主答案
+:::
+
+**追问链：** 第一个追问？→ 第二个追问？→ 第三个追问？
+
+::: details 追问参考答案
+**1. 第一个追问？**
+第一个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+**2. 第二个追问？**
+第二个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+**3. 第三个追问？**
+第三个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+:::
+`
+  assert.equal(findFollowupSection(inlineChain).questions.length, 3)
+  assert.equal(validateFollowupSection(inlineChain).failures.length, 0)
+}
+
+function testFollowupFailures() {
+  const withoutDetails = singleFollowup.replace(
+    /\n::: details 追问参考答案[\s\S]*$/,
+    '\n',
+  )
+  assert.match(
+    validateFollowupSection(withoutDetails).failures.join('\n'),
+    /缺少追问参考答案/,
+  )
+
+  const unclosed = singleFollowup.replace(/\n:::\n$/, '\n')
+  assert.match(
+    validateFollowupSection(unclosed).failures.join('\n'),
+    /追问参考答案容器未闭合/,
+  )
+
+  const countMismatch = followupChain.replace(
+    /\n\*\*2\. 第二个追问？\*\*[\s\S]*?(?=\n:::)/,
+    '',
+  )
+  assert.match(
+    validateFollowupSection(countMismatch).failures.join('\n'),
+    /追问数量 2 与答案数量 1 不一致/,
+  )
+
+  const numberMismatch = followupChain.replace(
+    '**2. 第二个追问？**',
+    '**3. 第二个追问？**',
+  )
+  assert.match(
+    validateFollowupSection(numberMismatch).failures.join('\n'),
+    /第 2 个追问编号与答案编号不一致/,
+  )
+
+  const textMismatch = followupChain.replace(
+    '**2. 第二个追问？**',
+    '**2. 不同的追问？**',
+  )
+  assert.match(
+    validateFollowupSection(textMismatch).failures.join('\n'),
+    /第 2 个追问文本与答案标题不一致/,
+  )
+
+  const empty = followupChain.replace(
+    /(\*\*1\. 第一个追问？\*\*\n\n)[\s\S]*?(?=\n\*\*2\.)/,
+    '$1',
+  )
+  assert.match(
+    validateFollowupSection(empty).failures.join('\n'),
+    /第 1 个追问答案少于 40 个有效字符/,
+  )
+
+  const placeholder = singleFollowup.replace(
+    '单个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。',
+    'TODO：稍后补充完整答案。',
+  )
+  assert.match(
+    validateFollowupSection(placeholder).failures.join('\n'),
+    /追问参考答案含占位文案/,
+  )
+
+  const tooShort = singleFollowup.replace(
+    '单个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。',
+    '这是一个过短的答案。',
+  )
+  assert.match(
+    validateFollowupSection(tooShort).failures.join('\n'),
+    /第 1 个追问答案少于 40 个有效字符/,
+  )
+}
+
+function testFollowupParsingSkipsCodeFence() {
+  const block = `### Q1. 示例
+
+\`\`\`md
+**追问：** 代码块中的伪追问？
+::: details 追问参考答案
+伪答案
+:::
+\`\`\`
+
+**追问：** 真实追问？
+
+::: details 追问参考答案
+真实追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+:::
+`
+  const section = findFollowupSection(block)
+  assert.equal(section.questions.length, 1)
+  assert.equal(section.questions[0].text, '真实追问？')
+  assert.equal(validateFollowupSection(block).failures.length, 0)
+}
+
+function testParseFollowupArgs() {
+  assert.deepEqual(parseFollowupArgs([]), {
+    requireFollowups: false,
+    followupFiles: null,
+  })
+  assert.deepEqual(
+    parseFollowupArgs([
+      '--require-followups',
+      '--followup-files=01-js-ts.md, 02-vue3.md',
+    ]),
+    {
+      requireFollowups: true,
+      followupFiles: ['01-js-ts.md', '02-vue3.md'],
+    },
+  )
+  assert.throws(
+    () => parseFollowupArgs(['--followup-files=01-js-ts.md']),
+    /必须与 --require-followups 同时使用/,
+  )
+  assert.throws(
+    () =>
+      parseFollowupArgs([
+        '--require-followups',
+        '--followup-files=99-unknown.md',
+      ]),
+    /未知题库文件：99-unknown\.md/,
+  )
+}
+
+async function testFollowupFileSelection() {
+  const selected = await validateQuestionBank({
+    min: 0,
+    max: 999_999,
+    requireFollowups: true,
+    followupFiles: ['01-js-ts.md'],
+  })
+  assert.ok(
+    selected.failures.some((failure) => failure.startsWith('01-js-ts.md ')),
+    '应校验指定题库的追问',
+  )
+  assert.equal(
+    selected.failures.some((failure) =>
+      EXPECTED_QUESTION_FILES.slice(1).some((file) => failure.startsWith(`${file} `)),
+    ),
+    false,
+    '不应校验未指定题库的追问',
+  )
+  assert.match(
+    selected.fileStats.find((line) => line.startsWith('01-js-ts.md:')) ?? '',
+    /followups=\d+ answered=\d+/,
+  )
 }
 
 function testHasDeepSection() {
@@ -260,10 +491,16 @@ testParseLimit()
 testParseQuestionLimits()
 testFindQuestionHeadingsSkipsCodeFence()
 testExtractAnswerDetails()
+testFollowupParsingAndValidation()
+testInlineFollowupChain()
+testFollowupFailures()
+testFollowupParsingSkipsCodeFence()
+testParseFollowupArgs()
 testHasDeepSection()
 testInvalidEnvExitsOne()
 await testWorksFromNonRepoRoot()
 await testRejectsWrongQuestionFileSet()
 await testExactQuestionTotal()
+await testFollowupFileSelection()
 
-console.log('validate-question-bank 边界自测通过（9 组）')
+console.log('validate-question-bank 边界自测通过（15 组）')

@@ -1205,15 +1205,15 @@ type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
 
 **1. 如何实现 `Mutable<T>`？**
 
-策略：浅层版用 `type Mutable<T> = { -readonly [K in keyof T]: T[K] }`；深层版先区分函数、tuple、数组和对象再递归，避免破坏调用签名。复杂度：运行时为零，编译期工作近似 O(n)，递归占类型深度。边界：readonly 只影响类型检查，不会解冻对象；tuple 信息需保留。测试：用应通过赋值和 `@ts-expect-error` 反例运行 `tsc --noEmit`。
+策略：浅层版用 `type Mutable<T> = { -readonly [K in keyof T]: T[K] }`；深层版先区分函数、tuple、数组和对象再递归。复杂度：运行时为零；编译期取决类型实例化图，分发条件类型和联合组合可能显著膨胀。边界：readonly 不会解冻对象，tuple 信息需保留。测试：用正例和 `@ts-expect-error` 反例执行项目 typecheck。
 
 **2. 为什么类型测试不能只看 IDE hover？**
 
-策略：hover 只是展示，必须把正例和 `@ts-expect-error` 反例交给锁定版本的 `tsc --noEmit`。复杂度：类型检查取决于实例化图，递归条件类型与联合分发可能组合膨胀，不能简单记 O(n)。边界：any 会掩盖错误，never、tuple 和可选属性语义需单测。测试：覆盖 tuple/union、any/never，并分别开启 `exactOptionalPropertyTypes` 验证 XOR。
+策略：建立独立 `.test-d.ts`/`.ts` 夹具并纳入 CI。复杂度：取决类型实例化图，分发条件类型和联合组合可能显著膨胀。边界：用项目 tsconfig 覆盖 `exactOptionalPropertyTypes`。测试：以 `Expect<Equal<...>>` 验证 tuple/union/any/never 正例，以 `@ts-expect-error` 验证反例，执行 `tsc --noEmit` 或现有 typecheck 脚本。
 
 **3. 何时应直接使用 TypeScript 内置 `Awaited`？**
 
-策略：业务优先内置 `Awaited<T>`，它随 TypeScript 维护 PromiseLike、递归 thenable、null/undefined 等语义；仅教学、旧版本兼容或不同契约时自定义。复杂度：运行时为零，编译期取决于解包深度。边界：any、never、联合类型的传播可能不同，递归过深会触发限制。测试：与内置类型做双向 assignability 断言，覆盖嵌套 Promise 和 thenable。
+策略：优先内置 `Awaited<T>`，它随 TypeScript 维护 PromiseLike、thenable、null/undefined 等语义；仅教学或不同契约时自定义。复杂度：运行时为零；编译期取决类型实例化图，分发条件类型和联合组合可能显著膨胀。边界：any、never 的传播和递归限制需关注。测试：与内置类型做双向 assignability 断言，覆盖联合、嵌套 Promise 和 thenable。
 
 :::
 

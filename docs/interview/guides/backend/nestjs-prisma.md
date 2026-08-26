@@ -69,7 +69,7 @@ Prisma 7 使用根目录 `prisma.config.ts` 配置 CLI：
 ```ts
 // prisma.config.ts
 import 'dotenv/config';
-import { defineConfig, env } from 'prisma/config';
+import { defineConfig } from 'prisma/config';
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -78,10 +78,12 @@ export default defineConfig({
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    url: process.env.DATABASE_URL!,
   },
 });
 ```
+
+这里按 Prisma 7 官方的 optional environment variables 指南直接读取 `process.env`。`env('DATABASE_URL')` 会在加载配置时立即抛错，连不需要数据库的 `prisma generate` 也会失败；非空断言 `!` 只告诉 TypeScript 此处接受字符串，不做运行时校验。`generate` / 应用构建不会连接数据库，不应为此向 Docker build arg 注入生产 Secret。真正访问数据库的 `migrate *`、`db *` 和应用运行阶段必须由部署环境注入并校验 `DATABASE_URL`。
 
 Schema 中的数据源只声明数据库类型，URL 不再写在 `schema.prisma`：
 
@@ -121,7 +123,6 @@ model Tenant {
   name      String   @db.VarChar(100)
   users     User[]
   roles     Role[]
-  orders    Order[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -132,12 +133,13 @@ model User {
   email     String     @db.VarChar(191)
   name      String     @db.VarChar(100)
   tenant    Tenant     @relation(fields: [tenantId], references: [id])
-  roles     UserRole[]
-  orders    Order[]
+  roles     UserRole[] @relation("UserRoleUser")
+  orders    Order[]    @relation("OrderUser")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
   @@unique([tenantId, email])
+  @@unique([tenantId, id])
   @@index([tenantId, createdAt, id])
 }
 
@@ -147,18 +149,19 @@ model Role {
   code      String     @db.VarChar(50)
   name      String     @db.VarChar(100)
   tenant    Tenant     @relation(fields: [tenantId], references: [id])
-  users     UserRole[]
+  users     UserRole[] @relation("UserRoleRole")
   createdAt DateTime   @default(now())
 
   @@unique([tenantId, code])
+  @@unique([tenantId, id])
 }
 
 model UserRole {
   tenantId Int
   userId   Int
   roleId   Int
-  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user     User @relation("UserRoleUser", fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  role     Role @relation("UserRoleRole", fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
 
   @@id([tenantId, userId, roleId])
   @@index([tenantId, roleId])
@@ -171,12 +174,13 @@ model Order {
   orderNo     String      @db.VarChar(64)
   amountCents Int
   status      OrderStatus @default(PENDING)
-  tenant      Tenant      @relation(fields: [tenantId], references: [id])
-  user        User        @relation(fields: [userId], references: [id])
+  paymentKey  String?     @db.VarChar(64)
+  user        User        @relation("OrderUser", fields: [tenantId, userId], references: [tenantId, id])
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@unique([tenantId, orderNo])
+  @@unique([tenantId, paymentKey])
   @@index([tenantId, userId, createdAt, id])
 }
 ```
@@ -186,7 +190,8 @@ model Order {
 - 邮箱和订单号都按租户唯一，数据库约束才是并发下的最终兜底。
 - `UserRole` 使用显式关联表，便于增加租户键、授权时间、授权人等字段。
 - `amountCents` 用最小货币单位，避免 JavaScript 浮点数参与最终财务计算；多币种系统还应增加币种和舍入规则。
-- `tenantId` 在关联表中不自动证明三张表属于同一租户。服务层必须带租户条件，必要时再用复合外键、触发器或数据库权限强化。
+- `User` / `Role` 的 `(tenantId, id)` 复合唯一约束是复合外键的引用目标。`UserRole` 的两条关系都复用 `tenantId`，并用显式 relation name 区分；因此数据库会拒绝把不同租户的 User 与 Role 关联。`Order` 也必须用 `(tenantId, userId)` 引用同租户 User，不能只依赖全局 `userId`。
+- 复合外键保证持久化关系不跨租户，但不能替代服务层授权。应用仍须从可信身份取得 `tenantId`，在所有查询和写入条件中携带它；数据库约束负责最后一道完整性兜底。
 - 索引应来自查询模式；上线前用真实数据量和 `EXPLAIN ANALYZE` 验证，而不是因为字段常用就全部加索引。
 
 ## 4. 生成 Client 和迁移
@@ -588,32 +593,87 @@ await prisma.$transaction([
 import { ConflictException } from '@nestjs/common';
 import { Prisma, OrderStatus } from '../generated/prisma/client';
 
+const MAX_TRANSACTION_ATTEMPTS = 3;
+
+class PaymentRetryExhaustedError extends Error {
+  readonly code = 'PAYMENT_RETRY_EXHAUSTED';
+
+  constructor() {
+    super('支付暂时繁忙，请稍后重试');
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function payOrder(
   prisma: PrismaService,
   tenantId: number,
   orderId: number,
+  paymentKey: string,
 ) {
-  return prisma.$transaction(
-    async (tx) => {
-      const order = await tx.order.findFirstOrThrow({
-        where: { id: orderId, tenantId },
-      });
-      if (order.status !== OrderStatus.PENDING) {
-        throw new ConflictException('订单状态不允许支付');
+  for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const order = await tx.order.findFirstOrThrow({
+            where: { id: orderId, tenantId },
+          });
+
+          if (
+            order.status === OrderStatus.PAID
+            && order.paymentKey === paymentKey
+          ) {
+            return order; // 相同幂等键重放，返回已成功结果。
+          }
+          if (order.status !== OrderStatus.PENDING) {
+            throw new ConflictException('订单状态不允许支付');
+          }
+
+          const updated = await tx.order.updateMany({
+            where: {
+              id: orderId,
+              tenantId,
+              status: OrderStatus.PENDING,
+            },
+            data: {
+              status: OrderStatus.PAID,
+              paymentKey,
+            },
+          });
+          if (updated.count !== 1) {
+            throw new ConflictException('订单状态已变化');
+          }
+
+          return tx.order.findFirstOrThrow({
+            where: { id: orderId, tenantId },
+          });
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 2_000,
+          timeout: 5_000,
+        },
+      );
+    } catch (error) {
+      const retryable =
+        error instanceof Prisma.PrismaClientKnownRequestError
+        && error.code === 'P2034';
+      if (!retryable) {
+        throw error;
+      }
+      if (attempt === MAX_TRANSACTION_ATTEMPTS) {
+        throw new PaymentRetryExhaustedError();
       }
 
-      return tx.order.update({
-        where: { id: order.id },
-        data: { status: OrderStatus.PAID },
-        select: { id: true, orderNo: true, status: true },
-      });
-    },
-    {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      maxWait: 2_000,
-      timeout: 5_000,
-    },
-  );
+      const exponentialBackoffMs = 50 * 2 ** (attempt - 1);
+      const jitterMs = Math.floor(Math.random() * 50);
+      await sleep(exponentialBackoffMs + jitterMs);
+    }
+  }
+
+  throw new PaymentRetryExhaustedError();
 }
 ```
 
@@ -622,8 +682,8 @@ async function payOrder(
 - 回调内所有数据库操作都使用 `tx`，不要偷偷调用外层 `prisma`。
 - 事务应短小；不要在回调内等待外部 HTTP、消息服务、文件上传或人工输入。
 - 数据库事务无法回滚已经成功的外部 HTTP。需要跨系统一致性时，先在同一数据库事务写业务数据和 Outbox，再由异步发布器重试发送；消费端实现幂等。
-- `Serializable` 不能消灭所有业务竞态，仍需唯一约束、条件更新、幂等键和有限重试。
-- 只对死锁、序列化冲突等可重试错误做带抖动的有限重试；不要无差别重试校验错误或未知错误。
+- `Serializable` 不能消灭所有业务竞态，仍需唯一幂等键和带状态条件的更新。示例的 `(tenantId, paymentKey)` 唯一约束避免同一支付请求落到不同订单。
+- Prisma 用 `P2034` 表示事务写冲突或死锁。必须在事务回调**外部**重试整个 `$transaction`，不能只重试回调中的一段读写；仅对 `P2034` 做有限次数、指数退避加抖动的重试，耗尽后抛稳定领域错误，其他错误原样交给上层映射。
 
 ## 9. Prisma 错误到 HTTP 错误契约的映射
 
@@ -1016,18 +1076,22 @@ describe('Users API', () => {
 
 ## 12. migrate deploy、灰度、回滚与生产检查
 
-推荐流水线：
+推荐把无数据库 Secret 的构建和需要数据库连接的发布分开：
 
 ```bash
+# Build Job：不注入生产 DATABASE_URL
 pnpm install --frozen-lockfile
 pnpm exec prisma generate
 pnpm test
-pnpm exec prisma migrate status
+
+# Release Job：由部署环境注入 DATABASE_URL
 pnpm exec prisma migrate deploy
 node dist/main.js
 ```
 
-迁移文件应先在与生产同 major 的 MySQL 临时库验证。`migrate deploy` 只应用待执行迁移，不检测生产 drift；因此还要有备份、变更审计和数据库侧检查。
+不要在 `migrate deploy` 前串行执行 `prisma migrate status`：当存在待应用迁移时，`status` 会以退出码 1 结束，反而阻断正常 deploy。发布步骤直接执行 `migrate deploy`；如需状态审计，在 deploy 成功后执行，或放到独立只读 Job 中。`status` 适合报告未应用、失败或迁移历史分歧，不负责应用迁移。
+
+迁移文件应先在与生产同 major 的 MySQL 临时库验证。`migrate deploy` 只应用待执行迁移，不检测生产 drift，也不生成 Client；因此还要有备份、变更审计和数据库侧检查。
 
 ### 12.1 Expand-and-contract
 

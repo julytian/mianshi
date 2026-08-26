@@ -764,7 +764,7 @@ export class HealthController {
 }
 ```
 
-存活检查不依赖数据库，避免数据库短故障导致容器重启风暴；就绪检查有严格超时，并从负载均衡摘除不能访问依赖的实例。响应不返回主机、库名或底层错误。
+存活检查不依赖数据库，避免数据库短故障导致容器重启风暴；就绪失败时由负载均衡摘除实例。平台可以给 readiness HTTP 请求设置超时，但请求超时只限制探针等待时间，**不保证取消已经发给 MySQL 的 SQL**，因此这里不使用会制造取消假象的 `Promise.race`。示例通过 adapter 的 `acquireTimeout` / `connectTimeout` 限制获取连接和建连等待；SQL 执行截止时间要按锁定的 MySQL、MariaDB driver 和代理能力单独设计。响应不返回主机、库名或底层错误。
 
 ## 11. Seed、测试数据库与集成测试
 
@@ -830,18 +830,98 @@ DATABASE_URL=mysql://test_user:test_password@127.0.0.1:3307/interview_test
 测试前应用已提交迁移，而不是使用生产库或共享开发库：
 
 ```bash
-DATABASE_URL="$TEST_DATABASE_URL" pnpm exec prisma migrate deploy
+DATABASE_URL='mysql://test_user:test_password@127.0.0.1:3307/interview_test' \
+  pnpm exec prisma migrate deploy
 ```
 
-### 11.3 NestJS 集成测试
+这里与 `prisma.config.ts`、`.env.test` 始终使用同一个变量名 `DATABASE_URL`。CI 应把测试库 URL 作为 Secret 注入 `DATABASE_URL`；若团队选择 `dotenv-cli`，也可执行 `dotenv -e .env.test -- pnpm exec prisma migrate deploy`，不再额外维护测试 URL 别名。
+
+### 11.3 可运行的 NestJS HTTP E2E
+
+先提供 Controller 与租户 Guard。真实认证 Guard 应校验 token / session 并写入可信租户上下文；测试会覆盖该 Guard，不读取客户端提交的租户 ID：
+
+```ts
+// src/users/users.controller.ts
+import {
+  Body,
+  CanActivate,
+  Controller,
+  ExecutionContext,
+  Injectable,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
+import type { Request } from 'express';
+import { mapPrismaError } from '../prisma/prisma-error.mapper';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UsersService } from './users.service';
+
+type TenantRequest = Request & {
+  tenantId?: number;
+  auth?: { tenantId?: number };
+};
+
+@Injectable()
+export class TenantGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<TenantRequest>();
+    const tenantId = request.auth?.tenantId;
+    if (
+      typeof tenantId !== 'number'
+      || !Number.isInteger(tenantId)
+      || tenantId <= 0
+    ) {
+      throw new UnauthorizedException();
+    }
+    request.tenantId = tenantId;
+    return true;
+  }
+}
+
+@Controller('users')
+@UseGuards(TenantGuard)
+export class UsersController {
+  constructor(private readonly users: UsersService) {}
+
+  @Post()
+  async create(
+    @Req() request: TenantRequest,
+    @Body() dto: CreateUserDto,
+  ) {
+    try {
+      return await this.users.create(request.tenantId!, dto);
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }
+}
+```
+
+测试模块显式注册 Controller、Service、Guard、配置模块和 `PrismaModule`。`overrideGuard()` 提供测试租户上下文，数据库仍是真实 MySQL：
+
+```bash
+pnpm add -D @nestjs/testing supertest @types/supertest
+```
 
 ```ts
 // test/users.e2e-spec.ts
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
+import { PrismaModule } from '../src/prisma/prisma.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  TenantGuard,
+  UsersController,
+} from '../src/users/users.controller';
+import { UsersService } from '../src/users/users.service';
 
 describe('Users API', () => {
   let app: INestApplication;
@@ -850,12 +930,35 @@ describe('Users API', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          envFilePath: '.env.test',
+        }),
+        PrismaModule,
+      ],
+      controllers: [UsersController],
+      providers: [UsersService, TenantGuard],
+    })
+      .overrideGuard(TenantGuard)
+      .useValue({
+        canActivate(context: ExecutionContext) {
+          const httpRequest = context
+            .switchToHttp()
+            .getRequest<{ tenantId?: number }>();
+          httpRequest.tenantId = tenantId;
+          return true;
+        },
+      })
+      .compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
-      new ValidationPipe({ transform: true, whitelist: true }),
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -880,10 +983,26 @@ describe('Users API', () => {
   it('rejects an invalid email before Prisma', async () => {
     await request(app.getHttpServer())
       .post('/users')
-      // 测试 Guard 将此 header 映射为租户上下文；生产必须使用受验 token / session。
-      .set('x-tenant-id', String(tenantId))
       .send({ email: 'not-an-email', name: 'Alice' })
       .expect(400);
+  });
+
+  it('maps a tenant-scoped unique conflict to HTTP 409', async () => {
+    const body = { email: 'alice@example.com', name: 'Alice' };
+
+    await request(app.getHttpServer())
+      .post('/users')
+      .send(body)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/users')
+      .send(body)
+      .expect(409)
+      .expect({
+        code: 'RESOURCE_CONFLICT',
+        message: '资源已存在',
+      });
   });
 });
 ```

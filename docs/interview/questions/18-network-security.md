@@ -124,11 +124,11 @@ QUIC 不是「UDP 天生更快」：首次连接、CPU、丢包、网络设备�
 
 ::: details 参考答案
 
-缓存先根据方法、状态码、响应指令和缓存键判断可存储性，再用 `Cache-Control: max-age` / `s-maxage`、`Expires`、`Date`、`Age` 等计算新鲜度。新鲜响应可直接复用；过期后携带 `If-None-Match` / `If-Modified-Since` 再验证，源站可返回 304。强 ETag 适合字节级一致，弱 ETag 只表示语义等价，`Last-Modified` 精度和时钟边界较弱。
+缓存先根据方法、状态码、响应指令和缓存键判断可存储性，再用 `Cache-Control: max-age` / `s-maxage`、`Expires`、`Date`、`Age` 等计算新鲜度。新鲜响应可直接复用；过期后携带 `If-None-Match` / `If-Modified-Since` 再验证，源站可返回 304。强 ETag 表示所选表示逐字节等价，不同 `Content-Encoding` 产生不同表示，必须使用不同强 ETag；若只想表达解码后语义等价，应使用弱 ETag。`Last-Modified` 的精度和时钟边界较弱。
 
-内容编码通过请求的 `Accept-Encoding` 协商，响应以 `Content-Encoding` 声明实际表示，例如 gzip 或 br；同一 URL 的不同编码是不同表示。源站或 CDN 若按请求动态选择编码，应返回 `Vary: Accept-Encoding`，避免共享缓存把 br 响应发给不支持的客户端。CDN 可把等价的 `Accept-Encoding` 值规范化为有限变体，并统一决定在边缘压缩还是缓存源站压缩结果；但不能丢失实际能力差异，也要避免源站与边缘重复压缩。表示级 ETag 是否随编码变化取决于生成位置和验证语义，必须保证客户端验证的是所收表示。
+内容编码通过请求的 `Accept-Encoding` 协商，响应以 `Content-Encoding` 声明实际表示，例如 gzip 或 br；同一 URL 的不同编码是不同表示。源站或 CDN 若按请求动态选择编码，应返回 `Vary: Accept-Encoding`，避免共享缓存把 br 响应发给不支持的客户端。CDN 可把等价的 `Accept-Encoding` 值规范化为有限变体，并统一决定在边缘压缩还是缓存源站压缩结果；但不能丢失实际能力差异，也要避免源站与边缘重复压缩。强 ETag 必须在最终编码表示确定后生成或按编码分别改写，不能让 gzip、br 和 identity 共用同一个强验证器。
 
-`no-cache` 表示使用前必须再验证，不等于不存；`no-store` 才是要求不存储。`private` 限制共享缓存，不能单独替代敏感数据治理。`Vary` 会扩展缓存键，遗漏鉴权、编码或语言维度可能串数据，维度过多又会降低命中。浏览器缓存、Service Worker、CDN 和应用缓存是不同层，必须分别定义失效和观测。
+`no-cache` 表示使用前必须再验证，不等于不存；`no-store` 才是要求不存储。含 `Authorization` 的请求默认受共享缓存存储限制，只有响应显式满足规范允许共享的指令时才可共享；Cookie 请求没有同等的自动禁存规则，Cookie 也不会自动成为缓存键。用户私有或敏感内容应优先 `private` 或 `no-store`；确需共享时，必须先证明响应与用户无关，再显式设计完整缓存键和授权边界。`Vary` 会扩展缓存键，遗漏编码或语言维度可能串数据，维度过多又会降低命中。浏览器缓存、Service Worker、CDN 和应用缓存是不同层，必须分别定义失效和观测。
 
 :::
 
@@ -150,7 +150,7 @@ QUIC 不是「UDP 天生更快」：首次连接、CPU、丢包、网络设备�
 
 CDN 在边缘 PoP 接收请求，按主机、路径、查询、请求头及供应商规则构造缓存键；命中直接返回，未命中或过期则回源并缓存。它可终止 TLS、压缩、做 WAF 和请求合并，但每项能力都是具体部署配置，不是 CDN 这一名称自动保证。
 
-风险集中在错误缓存键、把私有响应当公开内容、Host / 查询参数投毒、失效传播延迟和回源风暴。应明确可缓存状态码、认证与 Cookie 行为，规范化键但保留影响响应的维度；源站只允许受信 CDN 访问并验证真实客户端 IP 头。发布优先采用版本化 URL，purge 作为补救，并用 `Age`、`Via`、供应商缓存状态及多地域探测验证。
+风险集中在错误缓存键、把私有响应当公开内容、Host / 查询参数投毒、失效传播延迟和回源风暴。应区分 `Authorization` 请求的默认共享缓存限制与 Cookie 不会自动禁存、也不会自动入键的事实；私有内容优先 `private` / `no-store`，只有确认用户无关时才显式共享并设计完整键。还要明确可缓存状态码，规范化键但保留影响响应的维度；源站只允许受信 CDN 访问并验证真实客户端 IP 头。发布优先采用版本化 URL，purge 作为补救，并用 `Age`、`Via`、供应商缓存状态及多地域探测验证。
 
 :::
 
@@ -194,7 +194,7 @@ Session 通常把会话状态放在服务端，浏览器仅持有随机会话 ID
 
 ::: details 参考答案
 
-同源策略限制脚本读取跨源响应。满足有限方法、头部和 Content-Type 条件的请求可直接发送，响应仍需 `Access-Control-Allow-Origin` 才能被脚本读取；其他请求通常先发 OPTIONS 预检，询问允许的方法、头部和凭证。预检成功只表示浏览器允许后续跨源读取，不代表用户已认证或请求安全。
+同源策略限制脚本读取跨源响应。满足有限方法、头部和 Content-Type 条件的请求可直接发送，响应仍需 `Access-Control-Allow-Origin` 才能被脚本读取；其他请求通常先发 OPTIONS 预检，询问允许的方法、头部和凭证。预检成功只允许浏览器发送正式请求；正式响应仍要通过 `Access-Control-Allow-Origin`、凭证场景下的 `Access-Control-Allow-Credentials` 等 CORS 检查后才会暴露给脚本。任何一步都不表示用户已认证或请求安全。
 
 带凭证请求需要客户端设置 credentials，服务端返回精确 Origin 和 `Access-Control-Allow-Credentials: true`，不能用 `*` 放行凭证；动态回显 Origin 前必须白名单校验，并正确设置 `Vary: Origin` 避免共享缓存串响应。CORS 不阻止普通表单、图片等跨站发送请求，因此不是 CSRF 防护；非浏览器客户端也不受浏览器 CORS 执行约束。
 
@@ -276,17 +276,19 @@ nonce 必须由服务端为每个响应生成，不能写进静态 bundle、缓�
 
 ---
 
-### Q13. OAuth 2.1、OIDC 与 Authorization Code + PKCE 分别解决什么问题？
+### Q13. OAuth 2.1 草案、OIDC 与 Authorization Code + PKCE 分别解决什么问题？
 
 **考察点：** 授权与认证、Code Flow、PKCE、state、nonce、公开客户端
 
 ::: details 参考答案
 
-OAuth 定义委托授权，让客户端获得受限访问令牌；OIDC 在其上增加 ID Token、UserInfo 和身份声明，用于认证。浏览器 SPA 属于 public client，发布的代码和配置可被读取，不能安全保存 `client_secret`；若需机密客户端能力，应由受控后端或 BFF 持有秘密。
+OAuth 定义委托授权，让客户端获得受限访问令牌；OIDC 在其上增加 ID Token、UserInfo 和身份声明，用于认证。截至本文基线，OAuth 2.1 仍是 Internet-Draft，不应写成已发布 RFC；正式协议基线是 OAuth 2.0 RFC 6749、Bearer Token RFC 6750，并按 OAuth 2.0 Security Best Current Practice RFC 9700 收紧安全实践。浏览器 SPA 属于 public client，发布的代码和配置可被读取，不能安全保存 `client_secret`；若需机密客户端能力，应由受控后端或 BFF 持有秘密。
 
-Authorization Code 流先经授权端点得到短期 code，再在令牌端点交换 Token。PKCE 由客户端生成 `code_verifier` 和派生的 `code_challenge`，把 code 绑定到发起者，降低 code 被截获后兑换的风险。`state` 用于把回调绑定到发起会话并防登录 CSRF；OIDC `nonce` 把 ID Token 绑定到认证请求并缓解重放。PKCE 不替代 state 或 nonce，因为三者角色不同。
+Authorization Code 流先经授权端点得到短期 code，再在令牌端点交换 Token。PKCE 由客户端生成 `code_verifier` 和派生的 `code_challenge`，把 code 绑定到发起者，降低 code 注入或截获后兑换的风险；客户端确认授权服务器支持 PKCE 时，按 RFC 9700 可依赖 PKCE 承担授权回调的 CSRF 防护，不必机械叠加 `state`。未满足该前提或还需关联本地事务时，使用不可预测、一次性的 `state`。OIDC `nonce` 把 ID Token 绑定到本次认证请求并缓解重放，PKCE 不能替代这一角色；也不能反过来要求所有 OAuth / OIDC 场景总是同时使用三者。
 
-授权服务器应预先精确注册 `redirect_uri`，在授权和换 Token 时按协议要求精确比较，不为 Web 客户端配置域名通配、任意子路径或可参数化的链式跳转。应用回调收到业务 `returnTo` 等回跳参数时，只能把不可信值映射到预定义的站内允许目标，不能再次跳到用户提供的绝对 URL；否则攻击者可借可信授权域制造开放重定向并泄露 code 或诱导钓鱼。回调还必须校验 issuer、audience、签名、过期和一次性 state / nonce。
+授权服务器应预先精确注册并比较 `redirect_uri`，不为 Web 客户端配置域名通配、任意子路径或可参数化的链式跳转。客户端在 Token 请求中携带与授权请求相同的 `redirect_uri`，由授权服务器比较。应用回调收到业务 `returnTo` 等参数时，只能映射到预定义的站内允许目标，不能跳到用户提供的绝对 URL。
+
+校验角色必须分开：授权回调校验选定的 CSRF 机制，使用 `state` 时校验其一次性绑定；存在多授权服务器或混淆风险时校验授权响应 `iss`。OIDC 客户端对 ID Token 校验签名、`iss`、`aud`、`exp` 及请求使用了 nonce 时的 `nonce`。资源服务器负责验证 Access Token；它可能是不透明引用 Token，需要内省，也可能是可本地验证的结构化 Token。回调中的 code 本身不具有供客户端校验的 `aud`、签名或 `exp`。
 
 :::
 
@@ -306,7 +308,7 @@ Authorization Code 流先经授权端点得到短期 code，再在令牌端点�
 
 ::: details 参考答案
 
-HSTS 告诉支持的浏览器在有效期内仅用 HTTPS 访问该主机，可减少协议降级和首次访问后的 SSL stripping；`includeSubDomains` 与 preload 影响范围大，启用前必须确保所有子域长期支持 HTTPS，首次未受保护访问仍是边界。`X-Content-Type-Options: nosniff` 要求按声明 MIME 处理，需同时返回正确 `Content-Type`，尤其避免上传内容被当脚本或 HTML。
+HSTS 告诉支持的浏览器在有效期内仅用 HTTPS 访问该主机，可减少协议降级和 SSL stripping；`includeSubDomains` 与 preload 影响范围大，启用前必须确保所有子域长期支持 HTTPS。只有在主机未 preload 且浏览器没有既有 HSTS 状态时，首次 HTTP 访问才是未受 HSTS 保护的边界。`X-Content-Type-Options: nosniff` 要求按声明 MIME 处理，需同时返回正确 `Content-Type`，尤其避免上传内容被当脚本或 HTML。
 
 CSP `frame-ancestors` 控制哪些父页面可嵌入当前页面，是现代点击劫持防护；`X-Frame-Options` 可作旧客户端回退，但能力较弱。`Referrer-Policy` 限制跨站泄漏，`Permissions-Policy` 限制文档和 iframe 使用敏感能力。安全头必须与资源、嵌入和 OAuth 流程一起测试；扫描器显示「存在」不等于策略正确，反向代理和 CDN 也可能覆盖或只给部分状态码添加。
 
@@ -432,11 +434,11 @@ Resource Timing 中阶段可能因连接复用而为零，也受跨源 Timing-Al
 
 #### 原理深挖
 
-PKCE 绑定 code 兑换者，state 绑定发起会话，OIDC nonce 绑定 ID Token，三者不能互相替代。Access Token 应短期、限定 audience / scope；refresh token rotation 每次刷新更换凭证，旧凭证重放触发 token family 撤销。并发刷新需要服务端或客户端协调，否则会误判重放。
+PKCE 绑定 code 兑换者；确认授权服务器支持 PKCE 时，RFC 9700 允许客户端依赖它承担回调 CSRF 防护。`state` 可在其他场景防 CSRF 或关联本地事务，OIDC `nonce` 则把 ID Token 绑定到认证请求，PKCE 不替代 nonce。应按流程选择机制，不要求三者永远同时存在。Access Token 应短期、限定 audience / scope；refresh token rotation 每次刷新更换凭证，旧凭证重放触发 token family 撤销。并发刷新需要服务端或客户端协调，否则会误判重放。
 
 #### 工程场景
 
-回调精确校验 issuer、签名、audience、state、nonce 和 redirect URI。前端对同时 401 做 single-flight 刷新并限制重试，失败后清理状态并重新认证；BFF 同时做 CSRF 防护。会话支持撤销、设备列表和密钥轮换，日志只记录 token 指纹、会话 ID 的不可逆关联和事件原因。
+按角色拆分验证：授权回调验证选定的 CSRF 机制，使用 state 时校验一次性绑定，必要时验证授权响应 `iss`；Token 请求携带相同 `redirect_uri` 供授权服务器比较。OIDC 客户端验证 ID Token 的签名、`iss`、`aud`、`exp` 和已使用的 `nonce`；资源服务器按 Token 类型做本地验证或内省。不要对回调 code 校验它不存在的 `aud`、签名或 `exp`。前端对同时 401 做 single-flight 刷新并限制重试，失败后清理状态并重新认证；BFF 同时做 CSRF 防护。会话支持撤销、设备列表和密钥轮换，日志只记录 token 指纹、会话 ID 的不可逆关联和事件原因。
 
 #### 反例 / 踩坑
 
@@ -444,7 +446,7 @@ PKCE 绑定 code 兑换者，state 绑定发起会话，OIDC nonce 绑定 ID Tok
 
 #### 资深回答模板
 
-我先按客户端是否能保密选 BFF 或 public client 流程。授权码使用 PKCE，state 和 nonce 各守其协议边界；令牌最小权限、短期、轮换并检测重放。刷新并发受控，失败可收敛到重新登录，所有日志和前端存储都不出现原始凭证。
+我先按客户端是否能保密选 BFF 或 public client 流程。授权码使用 PKCE，并按授权服务器能力和协议流程选择 state；OIDC nonce 独立承担 ID Token 请求绑定。回调、Token 端点、OIDC 客户端和资源服务器各自验证所属对象；令牌最小权限、短期、轮换并检测重放。刷新并发受控，失败可收敛到重新登录，所有日志和前端存储都不出现原始凭证。
 
 :::
 
@@ -679,19 +681,19 @@ SRI 让浏览器按 `integrity` 中的 hash 验证下载字节。跨源脚本的
 
 #### 原理深挖
 
-WebSocket 先 HTTP Upgrade，服务端必须验证 Origin，因为浏览器会自动携带 Cookie，恶意站点可尝试 Cross-Site WebSocket Hijacking。SSE 是单向文本流，浏览器会自动重连并发送 Last-Event-ID；WebSocket 没有内建可靠重连、确认或背压协议，浏览器 `WebSocket` API 的发送缓冲也需应用监控。
+WebSocket 从 HTTP opening handshake 开始：HTTP/1.1 使用 Upgrade，HTTP/2 和 HTTP/3 使用 Extended CONNECT，具体可用性取决于客户端、服务端和中间代理。服务端必须验证 Origin，因为浏览器会自动携带 Cookie，恶意站点可尝试 Cross-Site WebSocket Hijacking。原生 `EventSource` 是单向文本流，只暴露用户代理自动重连和服务端 `retry` 字段设置重连时间；构造器不能配置自定义请求头，也没有指数退避或 jitter 选项。WebSocket 没有内建可靠重连、确认或背压协议，浏览器 `WebSocket` API 的发送缓冲也需应用监控。
 
 #### 工程场景
 
-握手校验会话、Origin、短期票据和频道权限，连接关联用户、设备与过期时间。消息带 event id / sequence，客户端指数退避加 jitter，SSE 按 Last-Event-ID 补发，WebSocket 重连后重新鉴权和订阅并对账。服务端限制连接数、消息速率、大小和队列，慢消费者降级或断开。
+opening handshake 校验会话、Origin、短期票据和频道权限，连接关联用户、设备与过期时间。WebSocket 由应用实现指数退避加 jitter，重连后重新鉴权、订阅并按业务序列对账。SSE 的 `Last-Event-ID` 是 EventSource 内部维护的最后一个非空事件 `id`，不是业务已提交确认；手动创建新的 EventSource 不会继承旧实例游标。需要可控退避、自定义头或业务确认时，使用 fetch 流、受审查的 polyfill，或持久化业务游标并通过受控 URL 参数恢复。服务端限制连接数、消息速率、大小和队列，慢消费者降级或断开。
 
 #### 反例 / 踩坑
 
-把长期 Token 放查询串并进入 CDN / 网关日志；只在首次连接鉴权，用户登出后连接永久有效；所有客户端固定 1 秒重连造成惊群；无消息大小与订阅权限限制；SSE 经代理缓冲导致消息迟迟不达；把客户端发送成功等同服务端已处理。
+把长期 Token 放查询串并进入 CDN / 网关日志；只在首次连接鉴权，用户登出后连接永久有效；为原生 EventSource 虚构不可配置的指数退避参数，或手动重建后假设旧 Last-Event-ID 自动继承；所有客户端固定 1 秒重连造成惊群；无消息大小与订阅权限限制；SSE 经代理缓冲导致消息迟迟不达；把客户端发送成功等同服务端已处理。
 
 #### 资深回答模板
 
-我先按单向或双向选择 SSE / WebSocket，再围绕浏览器头部限制设计同源 Cookie 或一次性票据。握手与频道都鉴权，重连带退避、序列和补偿；服务端做 Origin、连接、速率、大小和背压治理，凭证不进 URL 日志。
+我先按单向或双向选择 SSE / WebSocket，再围绕浏览器头部限制设计同源 Cookie 或一次性票据。WebSocket opening handshake 与频道都鉴权，应用重连带退避、序列和补偿；原生 EventSource 只依赖 UA 重连与服务端 retry，需要更多控制时改用 fetch / polyfill 或业务游标。服务端做 Origin、连接、速率、大小和背压治理，凭证不进 URL 日志。
 
 :::
 
@@ -708,7 +710,7 @@ WebSocket 先 HTTP Upgrade，服务端必须验证 Origin，因为浏览器会�
 
 **2. SSE 如何避免重连后漏消息或重复处理？**
 
-服务端为事件分配单调 ID，客户端保留最后已处理 ID；EventSource 重连会携带 Last-Event-ID，服务端从可保留窗口补发。客户端按 event id 幂等去重，若缺口超出窗口则触发快照对账。不能假设 TCP 断开位置等于业务已处理位置。
+服务端可为事件分配 ID；同一原生 EventSource 自动重连时，用户代理把内部最后一个非空事件 `id` 作为 `Last-Event-ID` 发送，服务端可从保留窗口补发。但该值表示已解析到的事件，不表示业务已提交；客户端仍需按业务 event id 幂等处理，必要时持久化独立确认游标。手动新建 EventSource 不继承旧内部值，应把持久化游标放入受控 URL，或改用 fetch / polyfill 自定义恢复。缺口超出窗口时执行快照对账。
 
 **3. 浏览器 WebSocket 如何处理背压？**
 

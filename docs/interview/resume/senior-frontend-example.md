@@ -26,7 +26,7 @@
 ## 技术能力
 
 - **前端主栈：** Vue 3、TypeScript、Vite、Pinia、Vue Router；能够处理复杂表单、权限模型、组件抽象和类型边界。
-- **业务与多端：** Ant Design Vue、Vant、uni-app、小程序；关注端能力差异、包体、弱网与发布流程。
+- **业务与多端：** Ant Design Vue、Vant、uni-app、微信小程序；关注端能力差异、包体、弱网与发布流程。
 - **工程与架构：** Monorepo、CI/CD、微前端、组件库、前端可观测性；根据组织边界选择方案，不为架构而架构。
 - **性能与稳定性：** Web Vitals、错误监控、资源加载分析、灰度和回滚；能说明数据源、口径与限制。
 - **AI 辅助研发：** Cursor Rules、Skills；用于规范加载、任务拆分和重复检查，不以“使用 AI”替代工程结果。
@@ -68,11 +68,11 @@
 ### 示例统一业务平台（示例）｜前端 Tech Lead（示例）
 
 `2022.02—2024.12（示例）`  
-技术栈：Vue 3、TypeScript、Ant Design Vue、Vant、uni-app、小程序、Java Spring Boot、NestJS（均为示例）
+技术栈：Vue 3、TypeScript、Ant Design Vue、Vant、uni-app、微信小程序、Java Spring Boot、NestJS（均为示例）
 
 **背景**
 
-多个示例业务线分别维护后台、H5 和小程序，权限、表单、状态与接口错误处理不一致。本人示例职责为前端方案、关键模块和跨团队协作，不代表独立完成全部系统。
+多个示例业务线分别维护后台、H5 和微信小程序，权限、表单、状态与接口错误处理不一致。本人示例职责为前端方案、关键模块和跨团队协作，不代表独立完成全部系统。
 
 **难点**
 

@@ -290,7 +290,7 @@ Schema Form 只解决受控字段、布局、联动、校验和提交转换，�
 
 **3. 权限变更后如何热更新，要不要强制重新登录？**
 
-401 只表示凭证缺失或不可接受，只有明确为可续期过期才刷新。页内用 single-flight；多标签用 Web Locks 选主、BroadcastChannel 广播结果；持锁页崩溃后浏览器释放锁，等待方超时重试，不兼容则用 localStorage 短租约降级。refresh rotation 遇旧 token 冲突先同步最新结果，确认复用攻击或刷新失败才退出。只重放确认服务端未执行的请求；写操作须带幂等键。
+普通权限热更新：版本/事件拉权，重建菜单/路由/按钮并关闭失权页；服务端始终最终鉴权。主体变化、refresh 撤销/过期、会话安全策略变化、降权不收敛则强制重登。页内 single-flight，跨标签 Web Locks 互斥；BroadcastChannel 只通知结果。无 Web Locks 靠服务端 rotation 原子、幂等/宽限，`invalid_grant` 后单次重登。仅重放确认未执行请求，写操作带幂等键。
 
 :::
 

@@ -85,7 +85,7 @@ Provider 默认只在宿主模块内可见。消费模块必须 `import` 提供�
 
 **3. 如何定位同名 token 冲突？**
 
-先从报错消费点确认实际注入 token，再沿宿主模块检查注册、导出和导入路径；对字符串 token 搜索所有定义，确认是否被重复绑定或被后导入模块覆盖。工程上集中导出 `Symbol` 常量，为 Provider 增加装配测试，并避免全局模块，可显著减少同名字符串碰撞。
+从消费 Provider 所在的宿主模块上下文检查解析：本模块注册的 Provider 通常优先，导入模块中的同名 token 可以共存，不能假定后导入者按顺序覆盖。再核对实际 token、导出与导入路径。跨模块使用唯一 `Symbol`，动态模块用显式配置区分实例，并以装配测试锁定解析结果。
 
 :::
 
@@ -820,7 +820,7 @@ cursor 排序必须确定，例如 `createdAt DESC, id DESC`；查询条件和�
 
 **3. 直传对象存储如何防止越权覆盖？**
 
-服务端先鉴权并生成不可预测、绑定租户与用户的对象 key，签名只允许指定 bucket、key、方法、大小、类型和很短有效期；不要让客户端自由指定覆盖路径。上传完成后由服务端校验对象元数据、签名和病毒扫描，再原子关联业务记录，旧对象删除也需独立授权。
+presigned PUT 通常不能像 POST policy 那样声明 `content-length-range`；POST 才能用 policy 约束。两者都先写不可变隔离区 key，后端读取实际大小、magic bytes 并病毒扫描。扫描结果绑定 `versionId` / ETag，或复制到只读最终 key 后再关联业务，防止 URL 有效期内覆盖产生 TOCTOU。
 
 :::
 
@@ -1005,7 +1005,7 @@ Nest 生命周期钩子本身不自动保证 Kubernetes 已摘流或所有在途
 
 **2. `beforeApplicationShutdown()` 前后连接状态如何变化？**
 
-官方顺序是先执行 `onModuleDestroy()`，再执行 `beforeApplicationShutdown()`，随后关闭 Nest 管理的现有连接，最后执行 `onApplicationShutdown()`。因此 before 阶段连接通常尚未由框架关闭，可停止拉取新任务并完成有界清理；不要依赖未声明的第三方连接顺序，资源所有者应显式关闭。
+`beforeApplicationShutdown()` 在全部 `onModuleDestroy()` 之后执行，所以某个模块若已在 destroy 钩子关闭资源，before 阶段连接可能已经断开。应由统一协调器先停止取新、限时排空，再按依赖顺序关闭 Redis、数据库和 broker；排空仍需使用的连接不得由分散钩子提前关闭。
 
 **3. readiness 摘流与在途排空由谁协作完成？**
 
@@ -1129,7 +1129,7 @@ NestJS 为多种 transporter 提供统一编程抽象，并支持 request-respon
 
 **1. `send()` 不订阅会怎样？**
 
-`ClientProxy.send()` 返回 cold Observable，创建它只描述请求响应流，没有订阅、`firstValueFrom()` 或等价消费就不会真正发送。订阅后还必须设置超时并处理错误，否则下游不回复会长期占用资源。多次订阅可能触发多次请求，因此带副作用的 RPC 仍需幂等键。
+`ClientProxy.send()` 返回 cold Observable；没有订阅或 `firstValueFrom()` 就不会发送。订阅后的 timeout / unsubscribe 通常只结束客户端等待，是否向服务端传播取消取决于 transport；即使 gRPC 取消，已启动的 Promise、SQL 或副作用也不会自动停止。应下传 deadline / signal、让底层协作取消，并保持幂等。
 
 **2. Kafka reply partition 如何预算？**
 

@@ -35,6 +35,7 @@ export const EXPECTED_QUESTION_FILES = [
   '12-microfrontend.md',
   '13-nestjs.md',
   '14-frontend-architecture.md',
+  '15-database-prisma.md',
 ]
 
 const PLACEHOLDER_PATTERNS = [

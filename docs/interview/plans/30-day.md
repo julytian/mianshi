@@ -21,8 +21,8 @@
 | ---- | -------------- | -------- |
 | W1（D1–D7） | 底座 + 多端前半 | 手写打底、第 1 场模拟 |
 | W2（D8–D14） | 多端收尾 + 工程/性能/Java | 系统设计 #1、第 2 场模拟 |
-| W3（D15–D21） | Lead + AI + 回炉 | 系统设计 #2、可选 CRUD 闭环启动、第 3 场模拟 |
-| W4（D22–D30） | 弱项收敛 + 终检 | 系统设计 #3、第 4 场模拟、反问与简历终检 |
+| W3（D15–D21） | Lead + AI + 架构专项 | 系统设计 #2、微前端、NestJS 基础与高级、第 3 场模拟 |
+| W4（D22–D30） | 架构实践 + 终检 | 前端架构、Cursor + Vue、简历 / ATS、综合架构模拟 |
 
 下方按日给出目标；与 14 天同名的「主题日」内容对齐主线，加练日标注 **【加练】**。
 
@@ -332,57 +332,60 @@ MR → 生产流水线口述。
 
 ---
 
-### D18 —【加练】手写日 H + 弱项回炉 A
+### D18 — 微前端专项
 
 #### 学习目标
 
-- 手写 2 题
-- 按模拟评分回炉最弱模块半天
+- 判断微前端是否值得引入，区分组织问题、构建问题与运行时问题
+- 讲清应用边界、样式 / JS 隔离、路由、通信、共享依赖和降级
+- 将原弱项回炉并入本日最后 30 分钟，只修正评分最低的一个架构回答
 
 #### 题库链接
 
-- [手写](/interview/questions/10-handwriting)
-- 弱项自选题库
+- [微前端](/interview/questions/12-microfrontend)
+- [工程化](/interview/questions/03-engineering)
 
 #### 口述任务
 
-弱项模块产出「够用答法」卡片 5 张。
+完成一次「单体前端是否拆微前端」8 分钟评审：约束 → 备选 → 风险 → 试点 → 回退。
 
 ---
 
-### D19 — 弱项回炉 B（原理或工程）
+### D19 — NestJS 基础与生产
 
 #### 学习目标
 
-- 继续挖评分第二弱项
-- 主故事穿插新证据句（若本周项目/CRUD 有新素材）
+- Module、Controller、Provider、依赖注入与请求生命周期能画图说明
+- 掌握 DTO 校验、异常、鉴权、配置、日志、健康检查与优雅停机
+- 明确 NestJS BFF 与 Spring Boot 服务的选型边界
 
 #### 题库链接
 
-- 自选；建议回看 [Vue3](/interview/questions/02-vue3) 或 [工程化](/interview/questions/03-engineering)
-
-#### 口述任务
-
-针对第二弱项做 3 轮自问自答。
-
----
-
-### D20 —【加练】手写日 I +（可选）CRUD 闭环收口
-
-#### 学习目标
-
-- 手写 2 题
-- **可选**：给 CRUD 补鉴权/校验/错误码，并整理口述稿
-
-#### 题库链接
-
-- [手写](/interview/questions/10-handwriting)
-- [AI vibe coding](/interview/questions/09-ai-vibe-coding)
+- [NestJS](/interview/questions/13-nestjs)
 - [Java 全栈](/interview/questions/07-java-fullstack)
 
 #### 口述任务
 
-可选：完整讲一遍「表结构 → API → Vue 页 → 联调坑」。
+口述一条请求从网关进入 Controller、Guard、Pipe、Interceptor、Provider 到响应与日志的完整链路。
+
+---
+
+### D20 — NestJS 高级
+
+#### 学习目标
+
+- 掌握 Provider scope、循环依赖、事务边界、缓存、队列、限流与幂等
+- 能设计可测试、可观测、可发布和可回滚的 NestJS 服务
+- 合并原 CRUD 收口：给已有闭环补一项生产能力，不另开新项目
+
+#### 题库链接
+
+- [NestJS](/interview/questions/13-nestjs)
+- [AI vibe coding](/interview/questions/09-ai-vibe-coding)
+
+#### 口述任务
+
+从限流、队列、缓存、事务中任选一项，讲清触发条件、失败路径、监控指标与回退方案。
 
 ---
 
@@ -406,76 +409,83 @@ MR → 生产流水线口述。
 
 ## W4 · 收敛与终检
 
-### D22 — 多端 / 业务栈查漏
+### D22 — 前端架构专项
 
 #### 学习目标
 
-- 回看 AntDV、Vant、uni-app 三章踩坑，补缺口
+- 从业务目标、团队、规模、合规与存量系统提取约束
+- 用质量属性决定边界、依赖方向、发布策略和可观测性
+- 将多端 / 业务栈查漏合并进案例：只补与目标 JD 相关的一个缺口
 
 #### 题库链接
 
-- [AntDV](/interview/questions/04-admin-antdv)
-- [Vant](/interview/questions/05-h5-vant)
-- [uni-app](/interview/questions/06-uniapp-miniprogram)
-
-#### 口述任务
-
-按目标 JD 只深挖一条业务栈，其余保持「够用」。
-
----
-
-### D23 —【加练】手写日 J + 系统设计 #3
-
-#### 学习目标
-
-- 手写 2～3 题（可复盘错题变体）
-- 第三道系统设计，强调演进与降级
-
-#### 题库链接
-
-- [手写](/interview/questions/10-handwriting)
+- [前端架构](/interview/questions/14-frontend-architecture)
 - [前端系统设计](/interview/questions/11-frontend-system-design)
+- [架构 / Lead](/interview/questions/08-architecture-lead)
 
 #### 口述任务
 
-系统设计口述加入「监控与回滚」段落。
+输出一页架构决策记录：约束、候选方案、决策、证据、风险、演进触发器。
 
 ---
 
-### D24 — 性能与工程终检
+### D23 — Cursor Rules / Skills + Vue 实践
 
 #### 学习目标
 
-- 流水线 + 性能案例再压一遍时间
-- 对照大厂/ToB 矩阵确认加重项已覆盖
+- 为 Vue 3 项目编写一条短、可执行、按文件生效的 Rule
+- 用一个 Skill 固化「读取约束 → 修改 → 验证 → 复盘」流程
+- 将系统设计 #3 合并为实践评审，检查 AI 修改的架构边界、降级与验证
 
 #### 题库链接
 
-- [工程化](/interview/questions/03-engineering)
-- [总览矩阵](/interview/00-overview)
+- [Cursor Rules](/interview/guides/ai-coding/rules)
+- [Cursor Skills](/interview/guides/ai-coding/skills)
+- [Vue 项目实践](/interview/guides/ai-coding/vue-project-example)
 
 #### 口述任务
 
-计时：流水线 3 分钟 + 性能 3 分钟，连续录。
+展示一次可复现实践：Rule 拦住什么偏差、Skill 复用了什么步骤、人工审查发现了什么风险。
 
 ---
 
-### D25 —【加练】手写日 K + Java/AI 终检
+### D24 — 简历 / ATS 专项
 
 #### 学习目标
 
-- 手写 2 题
-- Java 边界话术 + AI 关卡话术连练
+- 确认单一岗位定位、关键词覆盖、时间线与项目证据一致
+- 用动作、约束、方案和量化结果改写项目经历
+- 检查 ATS 可解析性；删除无法在追问中证明的架构名词
 
 #### 题库链接
 
-- [手写](/interview/questions/10-handwriting)
-- [Java](/interview/questions/07-java-fullstack)
-- [AI](/interview/questions/09-ai-vibe-coding)
+- [资深前端简历指南](/interview/resume/senior-frontend-guide)
+- [ATS 检查清单](/interview/resume/ats-checklist)
+- [项目改写检查清单](/interview/resume/project-rewrite-checklist)
 
 #### 口述任务
 
-连说：接口约定 2 分钟 → AI 闭环 3 分钟，中间不停顿。
+对简历逐行做 30 秒证据检验，并用目标 JD 完成一次关键词与可信度终检。
+
+---
+
+### D25 — 综合架构模拟
+
+#### 学习目标
+
+- 完成一场融合微前端、NestJS、前端架构、AI 治理的架构模拟
+- 回答必须覆盖约束识别、原理深度、故障治理与演进能力
+- 合并 Java / AI 终检：只在选型与质量关卡中对比，不单独背题
+
+#### 题库链接
+
+- [模拟脚本](/interview/mocks/scripts)
+- [评分表](/interview/mocks/scorecard)
+- [前端架构](/interview/questions/14-frontend-architecture)
+
+#### 口述任务
+
+完成 75 分钟高级前端架构模拟；按评分表记录红线、最低维度和下一次演进回答。
 
 ---
 
@@ -573,4 +583,4 @@ MR → 生产流水线口述。
 
 勾选写入 localStorage（键：`mianshi-plan:30-day`），与 7 / 14 天互不干扰。条目覆盖每日核心动作；可选 CRUD 单独勾选。
 
-<PlanChecklist planId="30-day" :items='[{"id":"d1-read","label":"D1 JS/TS 核心口述与卡壳点记录"},{"id":"d2-hand","label":"D2 手写日 A 完成 2～3 题"},{"id":"d3-vue","label":"D3 Vue3 核心与页面口述完成"},{"id":"d4-hand","label":"D4 手写日 B + 主故事大纲"},{"id":"d5-story","label":"D5 主故事 5 分钟/90 秒定稿"},{"id":"d6-hand","label":"D6 手写日 C + AntDV 权限口述"},{"id":"d7-mock","label":"D7 周模拟 #1 完成并填评分表"},{"id":"d8-uni","label":"D8 uni-app/小程序口述完成"},{"id":"d9-hand","label":"D9 手写日 D 完成"},{"id":"d9-sd","label":"D9 系统设计 #1 方案口述完成"},{"id":"d10-eng","label":"D10 工程化流水线口述完成"},{"id":"d11-hand","label":"D11 手写日 E 完成"},{"id":"d11-perf","label":"D11 性能 STAR（含数字）定稿"},{"id":"d12-java","label":"D12 Java 边界与联调口述完成"},{"id":"d13-hand","label":"D13 手写日 F 完成"},{"id":"d13-crud","label":"D13 可选：CRUD+Vue 闭环启动"},{"id":"d14-mock","label":"D14 周模拟 #2 完成"},{"id":"d15-lead","label":"D15 Lead/决策故事口述完成"},{"id":"d16-hand","label":"D16 手写日 G 完成"},{"id":"d16-sd","label":"D16 系统设计 #2 口述完成"},{"id":"d17-ai","label":"D17 AI vibe coding 闭环口述完成"},{"id":"d18-hand","label":"D18 手写日 H + 弱项回炉 A"},{"id":"d19-weak","label":"D19 弱项回炉 B 完成"},{"id":"d20-hand","label":"D20 手写日 I 完成"},{"id":"d20-crud","label":"D20 可选：CRUD 闭环收口口述"},{"id":"d21-mock","label":"D21 周模拟 #3 完成"},{"id":"d22-biz","label":"D22 业务栈查漏按 JD 完成"},{"id":"d23-hand","label":"D23 手写日 J 完成"},{"id":"d23-sd","label":"D23 系统设计 #3 口述完成"},{"id":"d24-eng","label":"D24 工程+性能终检计时通过"},{"id":"d25-hand","label":"D25 手写日 K 完成"},{"id":"d25-ai","label":"D25 Java/AI 连练口述完成"},{"id":"d26-resume","label":"D26 简历证据句与主故事联调"},{"id":"d27-hand","label":"D27 手写日 L + 半场彩排"},{"id":"d28-mock","label":"D28 周模拟 #4 终场完成"},{"id":"d29-reverse","label":"D29 反问定稿与弱项够用答法"},{"id":"d30-final","label":"D30 材料与 90 秒故事终检"}]' />
+<PlanChecklist planId="30-day" :items='[{"id":"d1-read","label":"D1 JS/TS 核心口述与卡壳点记录"},{"id":"d2-hand","label":"D2 手写日 A 完成 2～3 题"},{"id":"d3-vue","label":"D3 Vue3 核心与页面口述完成"},{"id":"d4-hand","label":"D4 手写日 B + 主故事大纲"},{"id":"d5-story","label":"D5 主故事 5 分钟/90 秒定稿"},{"id":"d6-hand","label":"D6 手写日 C + AntDV 权限口述"},{"id":"d7-mock","label":"D7 周模拟 #1 完成并填评分表"},{"id":"d8-uni","label":"D8 uni-app/小程序口述完成"},{"id":"d9-hand","label":"D9 手写日 D 完成"},{"id":"d9-sd","label":"D9 系统设计 #1 方案口述完成"},{"id":"d10-eng","label":"D10 工程化流水线口述完成"},{"id":"d11-hand","label":"D11 手写日 E 完成"},{"id":"d11-perf","label":"D11 性能 STAR（含数字）定稿"},{"id":"d12-java","label":"D12 Java 边界与联调口述完成"},{"id":"d13-hand","label":"D13 手写日 F 完成"},{"id":"d13-crud","label":"D13 可选：CRUD+Vue 闭环启动"},{"id":"d14-mock","label":"D14 周模拟 #2 完成"},{"id":"d15-lead","label":"D15 Lead/决策故事口述完成"},{"id":"d16-hand","label":"D16 手写日 G 完成"},{"id":"d16-sd","label":"D16 系统设计 #2 口述完成"},{"id":"d17-ai","label":"D17 AI vibe coding 闭环口述完成"},{"id":"d18-hand","label":"D18 微前端专项与最低弱项修正"},{"id":"d19-weak","label":"D19 NestJS 基础与生产口述完成"},{"id":"d20-hand","label":"D20 NestJS 高级机制复习完成"},{"id":"d20-crud","label":"D20 CRUD 闭环补一项生产能力"},{"id":"d21-mock","label":"D21 周模拟 #3 完成"},{"id":"d22-biz","label":"D22 前端架构决策记录完成"},{"id":"d23-hand","label":"D23 Cursor Rules / Skills + Vue 实践完成"},{"id":"d23-sd","label":"D23 AI 修改架构评审完成"},{"id":"d24-eng","label":"D24 简历 / ATS 专项终检通过"},{"id":"d25-hand","label":"D25 综合架构模拟完成"},{"id":"d25-ai","label":"D25 Java / AI 选型与质量关卡复盘"},{"id":"d26-resume","label":"D26 简历证据句与主故事联调"},{"id":"d27-hand","label":"D27 手写日 L + 半场彩排"},{"id":"d28-mock","label":"D28 周模拟 #4 终场完成"},{"id":"d29-reverse","label":"D29 反问定稿与弱项够用答法"},{"id":"d30-final","label":"D30 材料与 90 秒故事终检"}]' />

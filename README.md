@@ -15,6 +15,8 @@
 ```bash
 pnpm install
 pnpm docs:dev        # 本地预览，默认 http://localhost:5173/mianshi/
+pnpm docs:validate   # 校验 14 个题库的结构、题号与统计
+pnpm docs:check      # 依次执行 validate 与 build
 ```
 
 构建与预览静态站点：
@@ -37,6 +39,43 @@ pnpm docs:preview
 
 > 源码阅读用 `docs/...` 相对路径；站点路由带 `/mianshi/` 前缀。
 
+## 14 个题库
+
+当前共 382 题（约 400 题）。Q 题用于高频覆盖，D 题用于原理、故障治理和架构演进追问。
+
+1. [JS / TS](docs/interview/questions/01-js-ts.md) — [线上](https://julytian.github.io/mianshi/interview/questions/01-js-ts)
+2. [Vue 3](docs/interview/questions/02-vue3.md) — [线上](https://julytian.github.io/mianshi/interview/questions/02-vue3)
+3. [工程化](docs/interview/questions/03-engineering.md) — [线上](https://julytian.github.io/mianshi/interview/questions/03-engineering)
+4. [Ant Design Vue 中后台](docs/interview/questions/04-admin-antdv.md) — [线上](https://julytian.github.io/mianshi/interview/questions/04-admin-antdv)
+5. [H5 / Vant](docs/interview/questions/05-h5-vant.md) — [线上](https://julytian.github.io/mianshi/interview/questions/05-h5-vant)
+6. [uni-app / 小程序](docs/interview/questions/06-uniapp-miniprogram.md) — [线上](https://julytian.github.io/mianshi/interview/questions/06-uniapp-miniprogram)
+7. [Java 全栈偏前](docs/interview/questions/07-java-fullstack.md) — [线上](https://julytian.github.io/mianshi/interview/questions/07-java-fullstack)
+8. [架构 / Lead](docs/interview/questions/08-architecture-lead.md) — [线上](https://julytian.github.io/mianshi/interview/questions/08-architecture-lead)
+9. [AI / vibe coding](docs/interview/questions/09-ai-vibe-coding.md) — [线上](https://julytian.github.io/mianshi/interview/questions/09-ai-vibe-coding)
+10. [手写题](docs/interview/questions/10-handwriting.md) — [线上](https://julytian.github.io/mianshi/interview/questions/10-handwriting)
+11. [前端系统设计](docs/interview/questions/11-frontend-system-design.md) — [线上](https://julytian.github.io/mianshi/interview/questions/11-frontend-system-design)
+12. [微前端](docs/interview/questions/12-microfrontend.md) — [线上](https://julytian.github.io/mianshi/interview/questions/12-microfrontend)
+13. [NestJS](docs/interview/questions/13-nestjs.md) — [线上](https://julytian.github.io/mianshi/interview/questions/13-nestjs)
+14. [前端架构](docs/interview/questions/14-frontend-architecture.md) — [线上](https://julytian.github.io/mianshi/interview/questions/14-frontend-architecture)
+
+## AI 实践与简历
+
+AI 实践 5 篇：
+
+- [Cursor 工作流](docs/interview/guides/ai-coding/cursor-workflow.md) — [线上](https://julytian.github.io/mianshi/interview/guides/ai-coding/cursor-workflow)
+- [Cursor Rules](docs/interview/guides/ai-coding/rules.md) — [线上](https://julytian.github.io/mianshi/interview/guides/ai-coding/rules)
+- [Cursor Skills](docs/interview/guides/ai-coding/skills.md) — [线上](https://julytian.github.io/mianshi/interview/guides/ai-coding/skills)
+- [Hooks 与 MCP](docs/interview/guides/ai-coding/hooks-mcp.md) — [线上](https://julytian.github.io/mianshi/interview/guides/ai-coding/hooks-mcp)
+- [Vue 项目实践](docs/interview/guides/ai-coding/vue-project-example.md) — [线上](https://julytian.github.io/mianshi/interview/guides/ai-coding/vue-project-example)
+
+简历 5 篇：
+
+- [资深前端简历指南](docs/interview/resume/senior-frontend-guide.md) — [线上](https://julytian.github.io/mianshi/interview/resume/senior-frontend-guide)
+- [资深前端简历模板](docs/interview/resume/senior-frontend-template.md) — [线上](https://julytian.github.io/mianshi/interview/resume/senior-frontend-template)
+- [资深前端简历示例](docs/interview/resume/senior-frontend-example.md) — [线上](https://julytian.github.io/mianshi/interview/resume/senior-frontend-example)
+- [ATS 检查清单](docs/interview/resume/ats-checklist.md) — [线上](https://julytian.github.io/mianshi/interview/resume/ats-checklist)
+- [项目改写检查清单](docs/interview/resume/project-rewrite-checklist.md) — [线上](https://julytian.github.io/mianshi/interview/resume/project-rewrite-checklist)
+
 ## 目录说明
 
 ```text
@@ -45,7 +84,9 @@ docs/
   interview/
     00-overview.md         # 总览、侧重点矩阵、Java 边界
     plans/                 # 7 / 14 / 30 天冲刺计划
-    questions/             # 分域题库（含可折叠参考答案）
+    questions/             # 14 个分域题库（Q / D 分层）
+    guides/ai-coding/      # 5 篇 Cursor / AI 实践
+    resume/                # 5 篇简历与 ATS 指南
     stories/               # STAR 模板与示例
     mocks/                 # 模拟脚本、评分表、反问清单
   .vitepress/              # VitePress 配置与主题

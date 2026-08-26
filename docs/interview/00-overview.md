@@ -58,9 +58,9 @@
 推荐路径（可按时间压力裁剪）：
 
 1. **选公司类型** —— 对照上方矩阵，标出加重模块  
-2. **对齐矩阵** —— 决定本轮复习「写透」与「扫标题」的边界  
+2. **先 Q 后 D** —— Q 题用于建立知识面与高频答法，D 题用于原理、故障和架构追问
 3. **进冲刺计划** —— 默认走 [14 天主线](/interview/plans/14-day)  
-4. **题库对答案** —— 从核心模块开始，例如 [Vue3 题库](/interview/questions/02-vue3)；先想再展开参考答案  
+4. **题库对答案** —— 先完成主栈 Q 题，再按岗位矩阵补专项 D 题；先想再展开参考答案
 5. **故事与模拟** —— 用 [故事模板](/interview/stories/template) 打磨项目口述，再用 [模拟脚本](/interview/mocks/scripts) 按公司类型过场
 
 时间不够或需要加练时：
@@ -72,9 +72,31 @@
 
 ---
 
+## 14 个题库与 382 题
+
+当前共 **382 题，约 400 题**。建议按「主栈基础 → 工程与业务 → 架构专项 → 项目证据与模拟」推进，不要求从第 1 题顺序刷到最后。
+
+| 学习层 | 题库 |
+| ------ | ---- |
+| 语言与框架 | [JS / TS](/interview/questions/01-js-ts) · [Vue 3](/interview/questions/02-vue3) |
+| 工程与业务 | [工程化](/interview/questions/03-engineering) · [Ant Design Vue 中后台](/interview/questions/04-admin-antdv) · [H5 / Vant](/interview/questions/05-h5-vant) · [uni-app / 小程序](/interview/questions/06-uniapp-miniprogram) |
+| 全栈与协作 | [Java 全栈偏前](/interview/questions/07-java-fullstack) · [AI / vibe coding](/interview/questions/09-ai-vibe-coding) · [NestJS](/interview/questions/13-nestjs) |
+| 资深与架构 | [架构 / Lead](/interview/questions/08-architecture-lead) · [前端系统设计](/interview/questions/11-frontend-system-design) · [微前端](/interview/questions/12-microfrontend) · [前端架构](/interview/questions/14-frontend-architecture) |
+| 输出训练 | [手写题](/interview/questions/10-handwriting) |
+
+### Q / D 分层与学习顺序
+
+- **Q 题：** 高频基础与场景判断。先遮住答案口述 1～2 分钟，目标是覆盖完整、结论准确。
+- **D 题：** 深层追问。按「基础结论 → 原理深挖 → 工程场景 → 反例 / 踩坑 → 演进条件」回答，目标是证明资深判断力。
+- **第一轮：** 主栈题库只做 Q 题，快速建立地图并标记卡壳点。
+- **第二轮：** 按 JD 选择微前端、NestJS、前端架构等专项，完成高频 Q 题与计划指定 D 题。
+- **第三轮：** 把 D 题答案接到项目故事、简历证据和模拟面试，不再孤立背诵。
+
+---
+
 ## 题型说明
 
-题库每道题统一五段结构，保证「先想后对」和「能追问」：
+题库以 Q / D 分层组织，并用以下结构保证「先想后对」和「能追问」：
 
 | 段落 | 作用 |
 | ---- | ---- |

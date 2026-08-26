@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: 前端面试作战手册
-  text: Vue3 + Java · vibe coding
-  tagline: 面向真实面试节奏的结构化冲刺：侧重点矩阵、分域题库、故事线与模拟面脚本。主身份是前端 / Lead，Java 用来补齐全栈偏前闭环。
+  text: 14 个题库 · 382 题
+  tagline: 约 400 题覆盖 Vue 3、微前端、NestJS、前端架构、AI 实践与简历优化；按 Q / D 分层完成从基础复习到资深追问的闭环。
   actions:
     - theme: brand
       text: 总览
@@ -13,24 +13,26 @@ hero:
       text: 14 天计划
       link: /interview/plans/14-day
     - theme: alt
-      text: Vue3 题库
-      link: /interview/questions/02-vue3
+      text: 微前端
+      link: /interview/questions/12-microfrontend
     - theme: alt
-      text: 模拟面
-      link: /interview/mocks/scripts
+      text: NestJS
+      link: /interview/questions/13-nestjs
 
 features:
   - title: 先对齐再开刷
     details: 从总览对照岗位与公司类型，标出加重 / 可弱化，再选 7 / 14 / 30 天计划，少背多打准。
   - title: 分域题库可展开
-    details: JS/TS、Vue3、工程化、中后台、H5、小程序、Java 偏前、架构 Lead、AI 协作、手写与系统设计。
+    details: 14 个题库共 382 题。Q 题先建立知识面，D 题再练原理、约束、故障治理与演进。
+  - title: 架构与 AI 专项
+    details: 微前端、NestJS、前端架构与 Cursor Rules / Skills 实践形成可落地的资深岗位学习路径。
   - title: 故事与模拟闭环
-    details: STAR 模板与示例练口述，模拟脚本 + 评分表 + 反问清单按公司类型过场。
+    details: STAR 模板、简历证据、模拟脚本、评分表与反问清单按岗位画像串成闭环。
 ---
 
 ## 建议路径
 
-1. **[总览](/interview/00-overview)** —— 定岗位叙事与 Java 边界  
+1. **[总览](/interview/00-overview)** —— 定岗位叙事、Q / D 学习顺序与后端边界
 2. **[14 天主线](/interview/plans/14-day)** —— 按天推进（时间紧用 [7 天](/interview/plans/7-day)，加练用 [30 天](/interview/plans/30-day)）  
-3. **题库对答案** —— 优先 [Vue3](/interview/questions/02-vue3)，再按矩阵补弱项  
-4. **[故事](/interview/stories/template) → [模拟面](/interview/mocks/scripts)** —— 把项目证据说圆、过完一场完整面
+3. **题库分层** —— 先做各域 Q 题，再按岗位加练 D 题；专项入口：[微前端](/interview/questions/12-microfrontend) · [NestJS](/interview/questions/13-nestjs) · [前端架构](/interview/questions/14-frontend-architecture)
+4. **实践与投递** —— [AI 实践](/interview/guides/ai-coding/cursor-workflow) · [简历指南](/interview/resume/senior-frontend-guide) · [模拟面](/interview/mocks/scripts)

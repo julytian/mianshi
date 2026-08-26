@@ -15,7 +15,7 @@
 | D3 | 工程化 + 性能案例一条 |
 | D4 | 业务面补强（AntDV 或 Vant/多端二选一加重） |
 | D5 | Java 边界 + AI vibe coding |
-| D6 | Lead 要点（可弱化）+ 模拟彩排 |
+| D6 | 架构与 AI 专项 + Lead / 模拟彩排 |
 | D7 | 正式模拟 ×1 + 反问终检 |
 
 ---
@@ -117,23 +117,29 @@
 
 ---
 
-## D6 — Lead 要点 + 模拟彩排
+## D6 — 架构与 AI 专项 + Lead / 模拟彩排
 
 ### 学习目标
 
-- Lead 面若相关：决策、带人、排期、门禁各准备一个短例子
-- 非 Lead 岗：只保留「技术决策取舍」一段，不硬撑管理八股
-- 过一遍模拟脚本结构，熟悉开场与转场
+- 微前端完成 2 道高频 Q 题：适用边界、隔离或通信机制
+- NestJS 完成 2 道高频 Q 题：Module / Controller / Provider、请求链路
+- 前端架构完成 D1、D2，重点练约束识别、质量属性与依赖边界
+- 完成 1 次 Cursor Rules / Skills 实践：为 Vue 项目写一条 Rule，并用一个 Skill 执行可复用检查
+- 将原 Lead 要点压成 1 个决策短例子，并用 15 分钟完成开场 + 主故事彩排
 
 ### 题库链接
 
-- [架构 / Lead](/interview/questions/08-architecture-lead)（按需）
+- [微前端](/interview/questions/12-microfrontend)
+- [NestJS](/interview/questions/13-nestjs)
+- [前端架构](/interview/questions/14-frontend-architecture)
+- [Cursor Rules](/interview/guides/ai-coding/rules) · [Cursor Skills](/interview/guides/ai-coding/skills)
+- [架构 / Lead](/interview/questions/08-architecture-lead)（只补决策短例子）
 - [模拟脚本](/interview/mocks/scripts)
 - [评分表](/interview/mocks/scorecard)
 
 ### 口述任务
 
-彩排：自我介绍 90 秒 → 主故事 5 分钟 → 自问 3 个追问；计时录音。
+专项口述：用 6 分钟回答「何时上微前端、NestJS BFF 如何分层、前端架构如何识别约束」；随后彩排自我介绍 90 秒 → 主故事 5 分钟 → 自问 3 个追问。
 
 ---
 
@@ -162,4 +168,4 @@
 
 勾选写入 localStorage（键：`mianshi-plan:7-day`），与 14 / 30 天互不干扰。
 
-<PlanChecklist planId="7-day" :items='[{"id":"d1-vue","label":"D1 Vue3 核心题遮答案口述完成"},{"id":"d1-js","label":"D1 JS/TS 高频坑扫完并记下卡壳点"},{"id":"d1-oral","label":"D1 完成复杂组件 4 分钟口述"},{"id":"d2-star","label":"D2 主项目 STAR 与指标写完"},{"id":"d2-oral5","label":"D2 5 分钟主故事录音通过"},{"id":"d2-oral90","label":"D2 90 秒电梯版练熟"},{"id":"d3-eng","label":"D3 工程化流水线口述完成"},{"id":"d3-perf","label":"D3 性能 STAR（含数字）准备好"},{"id":"d3-gate","label":"D3 质量门禁落地说法能讲清"},{"id":"d4-focus","label":"D4 按 JD 选定加重业务栈并读透"},{"id":"d4-oral","label":"D4 业务技术点 4 分钟口述完成"},{"id":"d4-skip","label":"D4 非加重侧仅扫标题与踩坑"},{"id":"d5-java","label":"D5 Java 边界内题库过完"},{"id":"d5-ai","label":"D5 AI+Vue+Java 闭环口述完成"},{"id":"d5-guard","label":"D5 说清人工质量关卡"},{"id":"d6-lead","label":"D6 Lead/决策短例子准备好（按需）"},{"id":"d6-rehearse","label":"D6 模拟彩排（介绍+故事+追问）完成"},{"id":"d6-timer","label":"D6 彩排全程计时并回听一遍"},{"id":"d7-mock","label":"D7 正式模拟 ×1 完成并填评分表"},{"id":"d7-fix","label":"D7 针对评分短板做上场急救"},{"id":"d7-reverse","label":"D7 5 个反问 + 简历证据句终检"}]' />
+<PlanChecklist planId="7-day" :items='[{"id":"d1-vue","label":"D1 Vue3 核心题遮答案口述完成"},{"id":"d1-js","label":"D1 JS/TS 高频坑扫完并记下卡壳点"},{"id":"d1-oral","label":"D1 完成复杂组件 4 分钟口述"},{"id":"d2-star","label":"D2 主项目 STAR 与指标写完"},{"id":"d2-oral5","label":"D2 5 分钟主故事录音通过"},{"id":"d2-oral90","label":"D2 90 秒电梯版练熟"},{"id":"d3-eng","label":"D3 工程化流水线口述完成"},{"id":"d3-perf","label":"D3 性能 STAR（含数字）准备好"},{"id":"d3-gate","label":"D3 质量门禁落地说法能讲清"},{"id":"d4-focus","label":"D4 按 JD 选定加重业务栈并读透"},{"id":"d4-oral","label":"D4 业务技术点 4 分钟口述完成"},{"id":"d4-skip","label":"D4 非加重侧仅扫标题与踩坑"},{"id":"d5-java","label":"D5 Java 边界内题库过完"},{"id":"d5-ai","label":"D5 AI+Vue+Java 闭环口述完成"},{"id":"d5-guard","label":"D5 说清人工质量关卡"},{"id":"d6-lead","label":"D6 Lead/决策短例子准备好（按需）"},{"id":"d6-rehearse","label":"D6 模拟彩排（介绍+故事+追问）完成"},{"id":"d6-timer","label":"D6 彩排全程计时并回听一遍"},{"id":"d6-architecture-microfrontend","label":"D6 微前端高频 Q 题完成 2 道"},{"id":"d6-architecture-nestjs","label":"D6 NestJS 高频 Q 题完成 2 道"},{"id":"d6-architecture-deep","label":"D6 前端架构 D1、D2 口述完成"},{"id":"d6-architecture-cursor","label":"D6 Cursor Rules / Skills 实践完成 1 次"},{"id":"d7-mock","label":"D7 正式模拟 ×1 完成并填评分表"},{"id":"d7-fix","label":"D7 针对评分短板做上场急救"},{"id":"d7-reverse","label":"D7 5 个反问 + 简历证据句终检"}]' />

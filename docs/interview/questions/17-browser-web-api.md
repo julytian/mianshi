@@ -2,7 +2,7 @@
 
 > **怎么用：** 普通题按「规范语义 → 浏览器机制 → 工程边界 → 兼容回退」口述 1～2 分钟；深层题按「结论 → 原理 → 场景 → 失败模式 → 验证」展开。Web Platform 能力以 HTML、DOM、Web API 标准和 MDN 当前说明为基线，具体可用性仍以目标浏览器矩阵、权限策略和真机验证为准。
 
-> **关键边界：** 一个 task 执行结束后，事件循环通常会执行 microtask checkpoint；之后用户代理才可能获得 rendering opportunity，并按需更新渲染。渲染不是每轮事件循环、每个 task 或每次微任务检查点之后都必然发生。本文区分规范语义与常见实现，不把 DevTools 观察结果当成跨浏览器保证。
+> **关键边界：** 普通 task 执行结束后，事件循环通常会执行 microtask checkpoint，但不会因此直接进入渲染。用户代理并行判断 rendering opportunity，并在需要时把「update the rendering」排入 rendering task source；事件循环选中该 task 后，才在其中执行 `requestAnimationFrame` 回调及样式、布局、绘制等更新。持续续排的微任务会阻止当前 task 完成，进而推迟已排队的 rendering task。本文区分规范语义与常见实现，不承诺每轮事件循环或每个普通 task 后都渲染。
 
 > **模块边界：** 本模块聚焦浏览器运行机制与原生 Web API；网络协议与 Web 安全由后续模块展开，加载性能与用户体验指标由性能模块展开。新 API 默认采用能力检测、渐进增强和可用基础路径，不用 UA 字符串推断能力。
 
@@ -16,7 +16,7 @@
 
 ::: details 参考答案
 
-导航会经历 URL 处理、网络获取和响应提交；是否复用连接、命中 HTTP 缓存、由 Service Worker 响应或恢复 BFCache，都会改变实际路径。得到 HTML 字节后，解析器增量构建 DOM，并触发样式表、脚本、图片、字体等子资源发现。外部经典脚本默认会阻塞解析；`defer` 脚本在文档解析后、`DOMContentLoaded` 前按顺序执行，模块脚本默认具有类似 defer 的执行时机；`async` 脚本下载完成即可执行，不保证顺序。
+导航会经历 URL 处理、网络获取和响应提交；是否复用连接、命中 HTTP 缓存、由 Service Worker 响应或恢复 BFCache，都会改变实际路径。得到 HTML 字节后，解析器增量构建 DOM，并触发样式表、脚本、图片、字体等子资源发现。外部经典脚本默认会阻塞解析；`defer` 脚本在文档解析后、`DOMContentLoaded` 前按顺序执行，模块脚本默认具有类似 defer 的调度。静态模块依赖会先加载并进入求值，`DOMContentLoaded` 等待模块同步求值部分执行或让出；若 top-level await 暂停求值，则不等待其后的异步续体。`async` 脚本下载完成即可执行，不保证顺序。
 
 CSS 解析形成 CSSOM，浏览器结合 DOM 计算样式和布局，再生成绘制信息并合成到屏幕。不同引擎会并行或增量处理，不能把流程理解成严格串行瀑布。DOM 可访问、内容首次绘制、`DOMContentLoaded`、`load` 和业务可交互是不同里程碑；主线程被长脚本占用时，即使资源已到达，输入仍可能延迟。
 
@@ -28,7 +28,7 @@ CSS 解析形成 CSSOM，浏览器结合 DOM 计算样式和布局，再生成�
 
 ::: details 追问参考答案
 
-`DOMContentLoaded` 表示文档已解析完成，且需要等待的 defer 与模块脚本已经执行；它不等待普通图片等所有子资源。`load` 通常在文档及依赖资源完成后触发，但也不等于页面已经流畅可交互，长任务、延迟水合和后续字体替换仍可能影响体验。业务初始化应依赖真正需要的条件，而不是统一等待 `load`；脚本若已在事件之后执行，还要检查 `document.readyState`。
+`DOMContentLoaded` 表示文档已解析完成，defer 脚本已执行，初始模块图也已加载并完成其同步求值边界；它不等待模块因 top-level await 挂起后的异步续体，也不等待普通图片等所有子资源。因此不能泛称「所有模块都执行完」。`load` 通常还等待文档依赖资源，但也不等于页面已流畅可交互。异步续体、动态 import 或其他异步脚本若可能晚于该事件，应先检查 `document.readyState`，并为业务依赖建立自己的就绪 Promise。
 
 :::
 
@@ -42,7 +42,7 @@ CSS 解析形成 CSSOM，浏览器结合 DOM 计算样式和布局，再生成�
 
 事件分为捕获、目标和冒泡阶段，传播路径在分发开始时确定，并受 Shadow DOM 重定向影响。`event.target` 是经过 retargeting 后暴露的目标，`currentTarget` 是当前监听器所在节点；`composedPath()` 可查看允许暴露的传播路径。并非所有事件都冒泡，也并非所有事件都能跨 Shadow 边界，不能把点击事件的经验套给所有事件。
 
-`preventDefault()` 取消的是可取消事件的默认行为，不会停止传播；`stopPropagation()` 停止继续传播，`stopImmediatePropagation()` 还阻止同一目标后续监听器。`passive: true` 表示监听器不会取消默认行为，适合滚动相关输入；`once` 自动移除；`signal` 可用 `AbortController` 统一清理。默认行为的时机由具体事件规范定义，不能一概声称总在冒泡后同步执行。
+`preventDefault()` 取消的是可取消事件的默认行为，不会停止传播；`stopPropagation()` 停止继续传播，`stopImmediatePropagation()` 还阻止同一目标后续监听器。`passive: true` 承诺监听器不取消默认行为，其中调用 `preventDefault()` 无效，并可能产生控制台警告。确需取消滚动时要显式注册 `{ passive: false }`，但应先评估 CSS `touch-action` 等声明式方案，并验证目标浏览器、事件类型、监听目标和 `event.cancelable` 的默认差异；不能依赖各浏览器对 touch / wheel 的被动默认值一致。`once` 自动移除，`signal` 可统一清理。默认行为时机也由具体事件规范定义。
 
 事件委托利用冒泡在稳定祖先上处理动态子项，但要用 `closest()` 和容器边界确认合法目标，并考虑键盘、非冒泡事件和 Shadow DOM。兼容旧环境时保留直接绑定或功能降级；用真实输入而非只调用 `.click()` 验证默认行为、焦点和事件顺序。
 
@@ -64,9 +64,9 @@ Shadow DOM 通过 retargeting 隐藏封装细节，外部监听器看到的 `eve
 
 ::: details 参考答案
 
-`MutationObserver` 观察 DOM 变化，通知通过微任务机制在 microtask checkpoint 中交付，适合整合第三方 DOM，不适合替代应用状态管理。`ResizeObserver` 观察元素尺寸，通知发生在渲染更新流程的特定阶段；回调里继续改变被观察尺寸可能形成 resize loop，浏览器会限制并报告未交付通知。`IntersectionObserver` 异步报告目标与根的交叉状态，适合懒加载、曝光候选和预取，不提供逐像素同步保证。
+`MutationObserver` 观察 DOM 变化，通知通过微任务机制在 microtask checkpoint 中交付，适合整合第三方 DOM，不适合替代应用状态管理。`ResizeObserver` 观察元素尺寸，通知发生在渲染更新流程的特定阶段；回调里继续改变被观察尺寸可能形成 resize loop，浏览器会限制并报告未交付通知。默认模式下，`IntersectionObserver` 只异步报告目标与根的几何交叉，适合懒加载、曝光候选和预取，不提供逐像素同步保证。
 
-Observer 都可能批量、延迟或合并通知，回调记录不等于用户刚刚看到那一帧。曝光统计还需叠加可见时长、页面可见性和业务去重，交叉也不证明元素未被遮挡。回调应轻量，并在组件卸载时 `disconnect()` / `unobserve()`。
+Observer 都可能批量、延迟或合并通知，回调记录不等于用户刚刚看到那一帧。默认 IntersectionObserver 的交叉也不证明元素未被遮挡。实验性的 `trackVisibility` / `IntersectionObserverEntry.isVisible` 属于 Limited Availability；启用时 `delay` 至少为 100 ms，且算法会保守判断「未受视觉损害」，可能把实际可见元素判为不可保证可见，不能作为精确曝光或安全依据。曝光统计还需叠加可见时长、页面可见性和业务去重。回调应轻量，并在卸载时 `disconnect()` / `unobserve()`。
 
 工程上先做能力检测：无 IntersectionObserver 时可直接加载内容，无 ResizeObserver 时用弹性 CSS 和受控 resize 回退。正确性不能依赖 Observer 必然在某个毫秒触发；测试要覆盖后台页、快速滚动、DOM 移除和尺寸反馈循环。
 
@@ -234,7 +234,7 @@ Service Worker 注册绑定 scope，浏览器发现新脚本后会下载并比�
 
 ::: details 参考答案
 
-BroadcastChannel 让同源且位于兼容存储分区的窗口、标签页、iframe 和 Worker 按频道名交换消息。发送方不会收到自己发送的消息；消息使用结构化克隆，不支持函数和 DOM，也不提供持久队列、确认、全局顺序或事务语义。页面关闭或进程休眠时，它不能用于可靠恢复。
+BroadcastChannel 让同源且位于兼容存储分区的窗口、标签页、iframe 和 Worker 按频道名交换消息。调用 `postMessage()` 的那个 BroadcastChannel 对象本身不会收到该消息；同一 JavaScript 上下文中另一个连接到同名频道的 BroadcastChannel 对象可以收到，不能把对象级排除误写成整个发送页面都收不到。消息使用结构化克隆，不支持函数和 DOM，也不提供持久队列、确认、全局顺序或事务语义。
 
 它适合登出通知、缓存失效和轻量状态提示，不应把整份大状态高频广播。协议应包含类型、版本、来源实例和序号，并以服务器或 IndexedDB 中的持久状态作为真相；收到消息后重新读取真相，避免 last-write-wins 被误当强一致。
 
@@ -260,7 +260,7 @@ BroadcastChannel 让同源且位于兼容存储分区的窗口、标签页、ifr
 
 ::: details 参考答案
 
-Web Components 主要包括 Custom Elements、Shadow DOM、template / slot 等能力。自定义元素名称必须含连字符；构造函数应保持轻量，DOM 连接后的初始化放在 `connectedCallback()`，断开时清理监听和资源，并考虑节点被移动后再次连接。属性变化通过 `observedAttributes` / `attributeChangedCallback` 接收，属性、property 与内部状态要定义明确反射规则。
+Web Components 主要包括 Custom Elements、Shadow DOM、template / slot 等能力。自定义元素名称必须含连字符；构造函数应保持轻量，DOM 连接后的初始化放在 `connectedCallback()`，断开时清理监听和资源。传统 `insertBefore()` / `appendChild()` 移动会按移除再插入处理，通常依次触发 disconnected / connected 回调；支持 `moveBefore()` 时，组件可实现 `connectedMoveCallback()`，以状态保持移动替代这两个回调，并只更新依赖新祖先的逻辑。该能力需检测 `moveBefore`，旧浏览器继续走传统移动及可重入的连接/断开回退。属性变化通过 `observedAttributes` / `attributeChangedCallback` 接收，属性、property 与内部状态要定义明确反射规则。
 
 Shadow DOM 提供 DOM 与样式封装，但不是安全边界。外部普通选择器通常不能穿透 shadow root，内部样式也不直接泄漏；继承属性和 CSS 自定义属性仍可跨宿主传递，组件可用 `::part` 暴露受控样式面。slot 只投影 light DOM 节点，事件会按 `composed` 和 retargeting 规则跨边界，可访问名称、表单关联和焦点仍需实际验证。
 
@@ -314,7 +314,7 @@ Service Worker 常用于离线与可控缓存，但 Web App Manifest 规范本�
 
 #### 原理深挖
 
-HTML 解析器与预加载扫描器可并行发现资源，CSS 可能阻塞渲染和依赖样式的脚本，经典同步脚本阻塞解析；样式计算、布局、绘制、栅格化与合成也可增量执行。task 结束后的 microtask checkpoint 不保证立刻渲染，用户代理只在合适的 rendering opportunity 更新。
+HTML 解析器与预加载扫描器可并行发现资源，CSS 可能阻塞渲染和依赖样式的脚本，经典同步脚本阻塞解析；样式计算、布局、绘制、栅格化与合成也可增量执行。普通 task 结束后执行 microtask checkpoint，不直接渲染；用户代理并行发现 rendering opportunity 后排入 update-the-rendering task，事件循环选中它时才运行 rAF 和渲染更新。
 
 #### 工程场景
 
@@ -339,11 +339,11 @@ HTML 解析器与预加载扫描器可并行发现资源，CSS 可能阻塞渲�
 
 **1. HTML 流式返回为什么可能提前显示内容？**
 
-浏览器可边接收边解析并构建部分 DOM，发现样式和资源后在获得渲染机会时更新屏幕，不必等待整个响应结束。但阻塞样式、同步脚本、缓冲代理或过小分块可能延迟呈现。验证要观察响应分块、解析与 Paint 时间线，不能只看 TTFB。
+浏览器可边接收边解析并构建部分 DOM，发现样式和资源；当 rendering opportunity 使 update-the-rendering task 入队且被事件循环选中时，就可能更新屏幕，不必等待整个响应结束。但阻塞样式、同步脚本、缓冲代理或过小分块可能延迟呈现。验证要观察响应分块、解析与 Paint 时间线，不能只看 TTFB。
 
 **2. 脚本 `defer` 与 `async` 如何影响顺序？**
 
-经典 defer 脚本并行下载，在解析完成后按文档顺序、`DOMContentLoaded` 前执行；async 脚本下载完成即可执行，相互顺序不保证。模块脚本默认延后执行，但依赖图和 top-level await 会影响完成时机。依赖顺序的代码不应使用多个互不协调的 async。
+经典 defer 脚本并行下载，在解析完成后按文档顺序、`DOMContentLoaded` 前执行；async 脚本下载完成即可执行，相互顺序不保证。模块脚本默认延后，先加载静态依赖图并进入求值；`DOMContentLoaded` 不等待 top-level await 让出后的异步续体。依赖顺序的代码不应使用多个互不协调的 async，依赖异步模块结果时要等待自己的就绪契约。
 
 **3. 怎样证明瓶颈在主线程而不是网络？**
 
@@ -359,11 +359,11 @@ HTML 解析器与预加载扫描器可并行发现资源，CSS 可能阻塞渲�
 
 #### 基础结论
 
-事件循环选择可运行的 task 执行，task 结束后通常进行 microtask checkpoint；之后用户代理可能获得 rendering opportunity，按需执行动画回调和渲染更新。规范不保证每轮循环都渲染，也不能说微任务属于另一个 task。
+事件循环从可运行任务中选择一个执行，普通 task 结束后通常进行 microtask checkpoint。rendering opportunity 由用户代理并行判断，并据此向 rendering task source 排入 update-the-rendering task；只有事件循环选中该任务时，才运行 `requestAnimationFrame` 回调和样式、布局、绘制等更新。普通 task 后不存在一个必然直达渲染的阶段。
 
 #### 原理深挖
 
-计时器、事件、消息等进入不同 task source，选择策略不等于开发者可依赖的全局 FIFO。Promise reaction 与 `queueMicrotask` 属于微任务，微任务可继续排入微任务，耗尽前会阻塞后续 task 和渲染。`requestAnimationFrame` 面向下一次渲染更新前的动画工作，但后台页会被节流或暂停。
+计时器、事件、消息和 rendering task 分属不同 task source，选择策略不等于开发者可依赖的全局 FIFO。Promise reaction 与 `queueMicrotask` 属于微任务，微任务可继续排入微任务；microtask checkpoint 不结束，当前 task 就不能完成，已排队的 rendering task 也无法被选中。`requestAnimationFrame` 回调由 update-the-rendering task 运行，但后台页会被节流或暂停。
 
 #### 工程场景
 
@@ -375,7 +375,7 @@ HTML 解析器与预加载扫描器可并行发现资源，CSS 可能阻塞渲�
 
 #### 资深回答模板
 
-我会先区分 task、microtask 和 rendering opportunity，再看是哪类队列持续占住主线程。优化目标是让关键输入尽快开始并完成，不是追求某个 API 的理论顺序；通过分片、Worker 和每帧预算治理，并在前后台与高刷新率设备验证。
+我会先区分普通 task、microtask、rendering opportunity 与 rendering task source，再看哪类工作持续占住主线程。优化目标是让关键输入和 update-the-rendering task 及时获得调度，不是追求某个 API 的理论顺序；通过分片、Worker 和每帧预算治理，并在前后台与高刷新率设备验证。
 
 :::
 
@@ -388,7 +388,7 @@ HTML 解析器与预加载扫描器可并行发现资源，CSS 可能阻塞渲�
 
 **1. 为什么大量 Promise 会让页面不渲染？**
 
-Promise reaction 作为微任务执行，microtask checkpoint 通常会持续处理到队列清空；若微任务不断续排，事件循环迟迟不能进入后续 task 或渲染机会。应停止无界续排，把工作切到 task、按预算分片或迁移 Worker，并用 trace 验证输入和 Paint 得到执行。
+Promise reaction 作为微任务执行，microtask checkpoint 通常会持续处理到队列清空；若微任务不断续排，当前 task 迟迟不能完成，事件循环就无法选取已排队的 rendering task。应停止无界续排，把工作切到 task、按预算分片或迁移 Worker，并用 trace 验证输入和 Paint 得到执行。
 
 **2. `requestAnimationFrame` 是否保证每 16.7 ms 执行？**
 
@@ -396,7 +396,7 @@ Promise reaction 作为微任务执行，microtask checkpoint 通常会持续处
 
 **3. `setTimeout(0)` 能否稳定让出一帧？**
 
-它只安排一个未来 task，受嵌套最小延迟、后台节流和其他 task 竞争影响；task 之间用户代理可能渲染，但没有「必定一帧」保证。若目的是动画，用 rAF；若目的是分片，按时间预算并允许取消，同时用真实 trace 确认渲染和输入确实获得机会。
+它只安排一个未来 timer task，受嵌套最小延迟、后台节流和其他 task source 竞争影响；它既不会直接触发渲染，也不保证下一个被选中的是 rendering task。若目的是动画，用 rAF；若目的是分片，按时间预算并允许取消，同时用真实 trace 确认 update-the-rendering task 和输入确实获得调度。
 
 :::
 

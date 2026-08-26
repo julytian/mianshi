@@ -6,6 +6,8 @@
 
 ---
 
+## 基础题
+
 ### Q1. `unknown` 和 `any` 怎么选？
 
 **考察点：** 类型安全边界、收窄习惯、与第三方脏数据对接
@@ -99,6 +101,8 @@ console.log('d')
 ```
 
 `async/await` 在 `await` 之后的代码本质是微任务续体。别背「所有 Promise 都比 setTimeout 早」的绝对口号——嵌套、`await` 拆分、以及 Node 与浏览器细节会变；面试给「同步 → 微任务清空 → 宏任务」就够用，再补一句「别用定时器做精确时序」。
+
+本题只保留执行顺序判断；渲染机会、微任务饥饿、Long Tasks 与切片诊断见 D2。
 :::
 
 **追问：**
@@ -197,6 +201,8 @@ console.log('d')
 `async` 函数返回的是 Promise——别忘了调用方 `await` 或 `.catch()`，否则变成 unhandled rejection。并行用 `Promise.all` 时一个失败整组挂，看要不要 `allSettled`。在循环里 `await` 是串行，故意并发要用 `map` + 限制。
 
 空 `catch (e) {}` 是事故温床；至少打日志或上报，并决定是否 rethrow。
+
+本题只回答错误处理惯例；Promise 链式传播差异、可观测分层和取消语义见 D3。
 :::
 
 **追问：**
@@ -216,6 +222,8 @@ CJS：`require`/`module.exports`，运行时加载，同步为主。ESM：`impor
 坑在互操作：`import x from 'cjs-pkg'` 到底拿到 `module.exports` 还是 `.default`，取决于打包器与 `esModuleInterop`；Node 的 `"type": "module"`、双包（CJS+ESM 两份入口）容易「instanceof 失效」或加载到两份拷贝。
 
 前端 Vite/现代工具链默认 ESM 心智；写库时注意 `exports` 字段条件导出。面试讲清楚「静态结构 vs 运行时导出」比背语法有用。
+
+本题只做 ESM/CJS 基础区分；ESM live binding、循环求值与 TDZ 诊断见 D6。
 :::
 
 **踩坑：** 同一依赖被打进两份（CJS/ESM 各一），Vue 插件或 context 对不上号——很像「玄学 bug」。
@@ -232,6 +240,8 @@ CJS：`require`/`module.exports`，运行时加载，同步为主。ESM：`impor
 `export * from './x'` 的大 barrel 经常让分析变钝，开发爽、体积疼。副作用标注（`sideEffects` in package.json）是库作者的责任；业务侧少写「为了方便全部 re-export」。
 
 直觉口令：能静态看到「没用到的绑定」且模块无副作用 → 可摇；靠运行时才能知道用啥 → 难摇。
+
+本题只保留 tree-shaking 基础判断；与 ESM 循环依赖、副作用证明和构建保留链的组合诊断见 D6。
 :::
 
 **追问：**
@@ -507,11 +517,13 @@ TS 的价值在边界：外部数据 `unknown` + 校验；内部用联合与穷�
 
 ---
 
+## 深度题
+
 ### D1. V8 隐藏类与内联缓存如何影响热点 JavaScript？为什么不能当语言规范背？
 
 ::: details 参考答案
 #### 基础结论
-隐藏类（Hidden Class）和内联缓存（Inline Cache）是 V8 等引擎的实现策略，不属于 ECMAScript 语义。对象形状稳定、同一调用点接收少量形状，通常更利于引擎复用属性查找结果；正确性绝不能依赖这些细节。
+承接 Q27 的数据结构性能直觉：隐藏类（Hidden Class）和内联缓存（Inline Cache）是 V8 等引擎的实现策略，不属于 ECMAScript 语义。D1 只扩展引擎优化假设、诊断证据和失效边界。
 
 #### 原理深挖
 引擎可为属性添加顺序相同的对象复用内部形状，并让热点访问点从未初始化走向单态、多态乃至超多态。形状频繁变化或同一访问点混入许多无关对象，会使优化收益下降；具体阈值和退化方式随 V8 版本变化，不能编造固定数字。
@@ -537,7 +549,7 @@ TS 的价值在边界：外部数据 `unknown` + 校验；内部用联合与穷�
 
 ::: details 参考答案
 #### 基础结论
-浏览器从任务队列取任务执行，任务结束后会执行微任务检查点，随后才可能进入样式、布局、绘制等渲染步骤。渲染不是每轮必然发生；单个任务或连续微任务占满主线程，都会推迟输入响应与绘制。
+承接 Q5 的事件循环基础判断：浏览器从任务队列取任务执行，任务结束后会执行微任务检查点，随后才可能进入样式、布局、绘制等渲染步骤。D2 只扩展渲染机会、长任务诊断与切片约束。
 
 #### 原理深挖
 ECMAScript 规定 Job 与 Promise 相关抽象，事件循环、任务来源和渲染时机主要由 HTML 标准定义。`await` 续体通常进入微任务；递归追加微任务可能让渲染长期得不到机会。超过约 50 ms 的主线程任务会被 Long Tasks API 识别，但 50 ms 是观测口径，不是「低于就不卡」的保证。
@@ -563,7 +575,7 @@ ECMAScript 规定 Job 与 Promise 相关抽象，事件循环、任务来源和�
 
 ::: details 参考答案
 #### 基础结论
-`throw` 在 `async` 函数中会变成返回 Promise 的拒绝；`await` 会在当前函数中重新抛出拒绝。错误应在能补充上下文或做恢复的边界捕获，其余层保留 `cause` 上抛；每个启动但不等待的 Promise 都要有明确的错误归宿。
+承接 Q10 的错误处理惯例：`throw` 在 `async` 函数中会变成返回 Promise 的拒绝；`await` 会在当前函数中重新抛出拒绝。D3 只扩展链式传播差异、分层可观测和取消语义。
 
 #### 原理深挖
 `.then(onFulfilled, onRejected)` 的 `onRejected` 捕不到同一个 `then` 的 `onFulfilled` 新抛出的错误，链尾 `.catch` 才能接住。`finally` 不改变原结果，除非自身抛错或返回拒绝。`Promise.all` 只是在首个拒绝时让聚合 Promise 拒绝，不会自动取消其他任务。
@@ -589,7 +601,7 @@ ECMAScript 规定 Job 与 Promise 相关抽象，事件循环、任务来源和�
 
 ::: details 参考答案
 #### 基础结论
-条件类型 `T extends U ? X : Y` 用可赋值关系选择分支。被检查项是裸类型参数时，传入联合会按成员分布；写成 `[T] extends [U]` 可关闭分布。`infer` 只能在条件类型的 `extends` 子句中声明待推断部分。
+承接 Q2/Q3 的泛型约束与 Utility Types：条件类型 `T extends U ? X : Y` 用可赋值关系选择分支。D4 只扩展分布规则、`infer` 模式匹配和复杂度边界。
 
 #### 原理深挖
 `type Element<T> = T extends readonly (infer U)[] ? U : T` 是结构模式匹配。分布式条件可实现联合过滤，但 `never` 在分布中会被消去。对重载函数做 `infer` 通常从最后一个签名推断，并不会执行真正的重载解析。
@@ -615,23 +627,49 @@ ECMAScript 规定 Job 与 Promise 相关抽象，事件循环、任务来源和�
 
 ::: details 参考答案
 #### 基础结论
-生产者通常对类型参数协变，消费者通常逆变，同时读写则常需要不变。TypeScript 是结构类型系统，方差多由结构自然推断；`strictFunctionTypes` 下函数参数检查更严格，但方法签名等历史兼容点需谨慎。
+承接 Q2/Q28 的泛型 API 与 TS 工程边界：类型论上，纯生产者通常协变、纯消费者通常逆变、同时读写常要求不变；但 TypeScript 的实际可赋值行为不等于完全安全模型。D5 只扩展方差与兼容性例外。
 
 #### 原理深挖
-若 `Producer<Cat>` 可用于 `Producer<Animal>`，这是协变；若 `Consumer<Animal>` 可用于 `Consumer<Cat>`，这是逆变。官方提供 `in`/`out` 方差标注，但强调它们极少需要，不能用来强行改变结构行为，只应与真实结构一致并用于特定性能或循环推断问题。
+最小对照：
+
+```ts
+interface Animal { name: string }
+interface Dog extends Animal { bark(): void }
+
+type FunctionProperty<T> = { consume: (value: T) => void }
+type Method<T> = { consume(value: T): void }
+
+declare let animalFn: FunctionProperty<Animal>
+declare let dogFn: FunctionProperty<Dog>
+dogFn = animalFn // 安全：能处理 Animal，自然能处理 Dog
+// animalFn = dogFn // strictFunctionTypes 下报错
+
+declare let animalMethod: Method<Animal>
+declare let dogMethod: Method<Dog>
+animalMethod = dogMethod // 方法参数保留双变兼容；可赋值不代表类型论安全
+
+declare const dogs: ReadonlyArray<Dog>
+const animals: ReadonlyArray<Animal> = dogs // 只读观察可协变
+
+const writableDogs: Dog[] = []
+const writableAnimals: Animal[] = writableDogs // TS 允许，但 mutable Array 并非严格不变
+writableAnimals.push({ name: 'cat' }) // 破坏 writableDogs 的元素假设
+```
+
+官方提供 `in`/`out` 方差标注，但强调它们极少需要，不能强行改变结构比较，只应与真实结构一致。
 
 #### 工程场景
 事件总线、回调注册、只读容器和状态写入器最能暴露方差问题。设计 API 时分离 `ReadonlyState<T>` 与 `Dispatch<TAction>`，比把可读写大对象到处传更安全；用 `tsd`、`expectTypeOf` 等验证正反例。
 
 #### 反例 / 踩坑
-为消除报错直接双断言，会掩盖消费者只能处理子类型却被当成能处理父类型的运行时风险。复杂递归映射、字符串路径全推导若让 IDE 卡顿或错误不可读，就已越过收益边界。
+把「TS 允许赋值」说成「类型论证明安全」会误导；方法双变和可写数组协变都可能留下运行时洞。为消除报错直接双断言同样会掩盖风险。复杂递归映射若让 IDE 卡顿或错误不可读，就已越过收益边界。
 
 #### 资深回答模板
-「我用输入/输出位置解释方差，用只读与写入接口拆边界。TS 会推断大多数方差，显式 `in/out` 不是日常装饰；当类型复杂度损害构建、提示或团队理解时，我会退回命名接口与运行时校验。」
+「我先讲类型论方向，再明确 TS 的兼容性例外：函数属性受 `strictFunctionTypes` 约束，方法/构造仍双变，可写数组也非严格不变。API 用只读与写入接口拆边界；类型复杂度损害工具链时退回命名接口和运行时校验。」
 
 #### 追问链
-1. 函数参数为什么需要逆变直觉？
-2. 数组可写为何会让协变直觉变得危险？
+1. 函数属性和方法语法为什么得到不同检查结果？
+2. `ReadonlyArray<Dog>` 为何比 `Dog[]` 的协变更安全？
 3. 你如何量化类型体操对 `tsc` 与编辑器的成本？
 :::
 
@@ -641,7 +679,7 @@ ECMAScript 规定 Job 与 Promise 相关抽象，事件循环、任务来源和�
 
 ::: details 参考答案
 #### 基础结论
-ESM import 指向导出绑定的实时只读视图，而非导入时复制值；导入方不能重新赋值，但能观察导出方后续更新。循环模块会先链接再按依赖图求值，过早读取尚未初始化的 `let`/`const` 绑定可能触发 TDZ 错误。
+承接 Q11 的 ESM/CJS 区分和 Q12 的 tree-shaking 直觉：ESM import 指向导出绑定的实时只读视图，而非导入时复制值。D6 只扩展循环图求值、TDZ、保留链诊断与副作用证明。
 
 #### 原理深挖
 静态 import/export 让工具建立模块图并做 tree-shaking，但 live binding 不等于「任意循环都安全」。顶层副作用、动态不可分析路径、CJS 边界、保守的 `sideEffects` 标注与大范围聚合导出，都会迫使打包器保留代码。
@@ -667,7 +705,7 @@ ESM import 指向导出绑定的实时只读视图，而非导入时复制值；
 
 ::: details 参考答案
 #### 基础结论
-泄漏是对象已无业务用途却仍被强引用。常见根因是全局监听、定时器、缓存、脱离 DOM、订阅和闭包链。`WeakMap` 适合对象元数据；`WeakRef`/`FinalizationRegistry` 不保证何时甚至是否观察到回收，不能承担正确性逻辑。
+承接 Q4 的闭包生命周期与 Q18 的弱集合：泄漏是对象已无业务用途却仍被强引用。D7 只扩展堆快照诊断、持有链和 WeakRef/FinalizationRegistry 的非确定性边界。
 
 #### 原理深挖
 GC 从根集合追踪强引用；Heap Snapshot 的 retained size 与 retaining path 比单看对象数量更有价值。弱引用目标可在任意未来时刻消失，规范刻意不给确定回收时序，终结回调也不可作为释放关键资源的唯一机制。
@@ -693,7 +731,7 @@ GC 从根集合追踪强引用；Heap Snapshot 的 retained size 与 retaining p
 
 ::: details 参考答案
 #### 基础结论
-Worker 适合可独立、CPU 密集且不直接操作 DOM 的工作，如解析、压缩、搜索和图像处理。它不会让总计算量消失，只是把工作移出主线程；通信、启动、序列化和额外内存都有成本。
+承接 Q21 的结构化克隆：Worker 适合可独立、CPU 密集且不直接操作 DOM 的工作。D8 只扩展线程迁移成本、消息协议、transfer、取消和容错。
 
 #### 原理深挖
 主线程与 Worker 通过消息传递，普通数据走结构化克隆；`ArrayBuffer` 等可转移对象可转移所有权以减少复制，转移后发送方缓冲区会失效。SharedArrayBuffer 需要跨源隔离等安全条件，并引入 Atomics 与并发正确性成本。
@@ -719,13 +757,13 @@ Worker 适合可独立、CPU 密集且不直接操作 DOM 的工作，如解析�
 
 ::: details 参考答案
 #### 基础结论
-大数据问题要分获取、解析、计算、存储和展示五段预算。不要一次下载、一次 `JSON.parse`、一次深响应式、一次渲染全部；优先服务端分页/聚合，前端只保留当前任务需要的窗口。
+承接 Q17/Q27 的集合与热点路径选择：大数据问题要分获取、解析、计算、存储和展示五段预算。D9 只扩展端到端峰值、分块、Worker 与虚拟化约束。
 
 #### 原理深挖
 复杂度和峰值内存同样重要：多次 `map/filter/sort` 会制造中间数组；JSON 文本与解析对象可能短时并存；全量排序通常是 `O(n log n)`；DOM 数量最终会成为独立瓶颈。流式响应只有配合增量格式与流式解析才真正降低峰值。
 
 #### 工程场景
-先定义数据上限和设备基线；采用游标分页、虚拟列表、索引 `Map`、分块处理与 Worker。二进制或 NDJSON 可增量解码；结果批量提交 UI，避免每条记录触发一次响应式更新和布局。
+先定义数据上限和设备基线；采用游标分页、虚拟列表、分块处理与 Worker。只有高频随机查找已被 profile 证明是热点时才建立 `Map` 索引，并限制其数据范围与生命周期，避免为一次遍历长期保留双份引用。二进制或 NDJSON 可增量解码；结果批量提交 UI。
 
 #### 反例 / 踩坑
 把百万对象塞进深层 Proxy 后再 deep watch，或为「不可变」每次复制整表，都会放大 CPU 与内存。只做虚拟列表也解决不了下载、解析和排序成本。
@@ -745,7 +783,7 @@ Worker 适合可独立、CPU 密集且不直接操作 DOM 的工作，如解析�
 
 ::: details 参考答案
 #### 基础结论
-JavaScript 目前没有统一内建的结构化并发作用域；工程上可用任务拥有者、`AbortController`、聚合 Promise 和 `finally` 建立「子任务不逃逸、父结束则取消、全部结算后退出」的纪律。
+承接 Q9 的并发池和 Q22 的 AbortController：JavaScript 目前没有统一内建的结构化并发作用域。D10 只扩展任务 owner、分层取消、结算与资源退出纪律。
 
 #### 原理深挖
 取消是协作式协议：`abort()` 只广播 signal，不会强行停止任意 Promise 或 CPU 循环。`AbortSignal.any()` 可合并多个取消源，`AbortSignal.timeout()` 可表达超时，但使用前要核对目标运行时并准备兼容方案。聚合失败策略要明确 fail-fast、收集全部还是部分成功。

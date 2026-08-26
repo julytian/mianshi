@@ -232,7 +232,7 @@
 
 ### 学习目标
 
-- 按目标公司类型选一场完整模拟（大厂 / ToB / 外包 / 创业 / Lead）
+- 按目标公司类型选择 45～60 分钟常规脚本；目标为高级架构时可改选 75 分钟高级前端架构场，复盘另计
 - 练开场自我介绍 + 主故事 + 至少 3 轮追问
 - 用评分表记下薄弱维度，不急着补全库
 
@@ -244,7 +244,7 @@
 
 ### 口述任务
 
-完整走一场 45–60 分钟模拟（可找同伴或自问自答录音）；结束后只改「评分最低的两项」。
+完整走一场所选时长的模拟（可找同伴或自问自答录音）；结束后另做复盘，只改「评分最低的两项」。
 
 ---
 
@@ -253,7 +253,7 @@
 ### 学习目标
 
 - 针对 D12 评分表，集中回炉 1～2 个模块（原理 / 工程 / 多端 / Java 选一到二）
-- 第二场模拟换公司类型或换面试官画像，避免背稿感
+- 第二场模拟换公司类型或面试官画像；继续选择 45～60 分钟常规脚本，或独立完成 75 分钟高级架构场，避免混用时长
 - 手写题若缺口大，从手写库抽 2～3 题限时练
 
 ### 题库链接
@@ -293,6 +293,6 @@
 
 ## 进度 Checklist
 
-勾选会写入浏览器 localStorage（键：`mianshi-plan:14-day`），与 7 天 / 30 天计划互不干扰。
+勾选会写入浏览器 localStorage（键：`mianshi-plan:14-day`），与 7 天 / 30 天计划互不干扰。D9、D11 内容升级后使用新语义 ID，不会继承旧任务的完成态；其余未变任务继续保留原进度。
 
-<PlanChecklist planId="14-day" :items='[{"id":"d1-read","label":"D1 读完 JS/TS 题库核心题并遮答案口述"},{"id":"d1-oral","label":"D1 完成 TS 约束接口/props 口述"},{"id":"d1-note","label":"D1 记下至少 3 个卡壳点"},{"id":"d2-read","label":"D2 读完 Vue3 核心题并口述数据流"},{"id":"d2-oral","label":"D2 完成真实页面 4 分钟口述"},{"id":"d2-edge","label":"D2 能讲清响应式边界与清理副作用"},{"id":"d3-story","label":"D3 写完主项目 STAR 骨架（含指标）"},{"id":"d3-oral5","label":"D3 录制/复述 5 分钟主故事"},{"id":"d3-oral90","label":"D3 练熟 90 秒电梯版"},{"id":"d4-read","label":"D4 过完 AntDV 中后台题库重点"},{"id":"d4-oral","label":"D4 口述权限+菜单/路由落地"},{"id":"d4-wrap","label":"D4 说清组件二次封装原则"},{"id":"d5-read","label":"D5 过完 H5/Vant 题库重点"},{"id":"d5-oral","label":"D5 口述首屏/缓存/返回栈方案"},{"id":"d5-pit","label":"D5 整理移动端踩坑清单"},{"id":"d6-read","label":"D6 过完 uni-app/小程序题库重点"},{"id":"d6-oral","label":"D6 口述多端交付选型与踩坑"},{"id":"d6-pack","label":"D6 说清分包与条件编译取舍"},{"id":"d7-read","label":"D7 过完工程化题库重点"},{"id":"d7-oral","label":"D7 口述 MR 到生产流水线"},{"id":"d7-gate","label":"D7 能讲质量门禁如何落地"},{"id":"d8-case","label":"D8 写完性能案例 STAR（含数字）"},{"id":"d8-oral","label":"D8 口述性能诊断与优化手段"},{"id":"d8-metric","label":"D8 熟悉 LCP/INP/包体积等指标口径"},{"id":"d9-read","label":"D9 完成 NestJS / Java 对比复习"},{"id":"d9-oral","label":"D9 口述 BFF 框架选型与接口约定"},{"id":"d9-bound","label":"D9 能清晰说出全栈偏前边界"},{"id":"d10-read","label":"D10 过完前端架构/Lead 题库重点"},{"id":"d10-oral","label":"D10 口述一次架构决策故事"},{"id":"d10-lead","label":"D10 准备带人/排期/门禁话术"},{"id":"d11-read","label":"D11 过完微前端与 AI 协作重点"},{"id":"d11-oral","label":"D11 完成 Cursor Rules / Skills 实践"},{"id":"d11-guard","label":"D11 说清跨应用与 AI 质量关卡"},{"id":"d12-mock","label":"D12 完成模拟面试 #1 并填评分表"},{"id":"d12-fix","label":"D12 针对最低两项制定回炉计划"},{"id":"d12-intro","label":"D12 自我介绍开场稳定在 90 秒内"},{"id":"d13-weak","label":"D13 完成弱项模块回炉"},{"id":"d13-mock","label":"D13 完成模拟面试 #2（换画像）"},{"id":"d13-hand","label":"D13 限时完成 2～3 道手写（若缺口大）"},{"id":"d14-reverse","label":"D14 准备 5 个高质量反问"},{"id":"d14-resume","label":"D14 简历逐行证据句与 ATS 终检"},{"id":"d14-story","label":"D14 主故事 90 秒版终检通过"}]' />
+<PlanChecklist planId="14-day" :items='[{"id":"d1-read","label":"D1 读完 JS/TS 题库核心题并遮答案口述"},{"id":"d1-oral","label":"D1 完成 TS 约束接口/props 口述"},{"id":"d1-note","label":"D1 记下至少 3 个卡壳点"},{"id":"d2-read","label":"D2 读完 Vue3 核心题并口述数据流"},{"id":"d2-oral","label":"D2 完成真实页面 4 分钟口述"},{"id":"d2-edge","label":"D2 能讲清响应式边界与清理副作用"},{"id":"d3-story","label":"D3 写完主项目 STAR 骨架（含指标）"},{"id":"d3-oral5","label":"D3 录制/复述 5 分钟主故事"},{"id":"d3-oral90","label":"D3 练熟 90 秒电梯版"},{"id":"d4-read","label":"D4 过完 AntDV 中后台题库重点"},{"id":"d4-oral","label":"D4 口述权限+菜单/路由落地"},{"id":"d4-wrap","label":"D4 说清组件二次封装原则"},{"id":"d5-read","label":"D5 过完 H5/Vant 题库重点"},{"id":"d5-oral","label":"D5 口述首屏/缓存/返回栈方案"},{"id":"d5-pit","label":"D5 整理移动端踩坑清单"},{"id":"d6-read","label":"D6 过完 uni-app/小程序题库重点"},{"id":"d6-oral","label":"D6 口述多端交付选型与踩坑"},{"id":"d6-pack","label":"D6 说清分包与条件编译取舍"},{"id":"d7-read","label":"D7 过完工程化题库重点"},{"id":"d7-oral","label":"D7 口述 MR 到生产流水线"},{"id":"d7-gate","label":"D7 能讲质量门禁如何落地"},{"id":"d8-case","label":"D8 写完性能案例 STAR（含数字）"},{"id":"d8-oral","label":"D8 口述性能诊断与优化手段"},{"id":"d8-metric","label":"D8 熟悉 LCP/INP/包体积等指标口径"},{"id":"d9-nest-java-review","label":"D9 完成 NestJS / Java 对比复习"},{"id":"d9-bff-selection","label":"D9 口述 BFF 框架选型与接口约定"},{"id":"d9-fullstack-boundary","label":"D9 能清晰说出全栈偏前边界"},{"id":"d10-read","label":"D10 过完前端架构/Lead 题库重点"},{"id":"d10-oral","label":"D10 口述一次架构决策故事"},{"id":"d10-lead","label":"D10 准备带人/排期/门禁话术"},{"id":"d11-microfrontend","label":"D11 过完微前端与 AI 协作重点"},{"id":"d11-cursor-practice","label":"D11 完成 Cursor Rules / Skills 实践"},{"id":"d11-cross-app-guard","label":"D11 说清跨应用与 AI 质量关卡"},{"id":"d12-mock","label":"D12 完成模拟面试 #1 并填评分表"},{"id":"d12-fix","label":"D12 针对最低两项制定回炉计划"},{"id":"d12-intro","label":"D12 自我介绍开场稳定在 90 秒内"},{"id":"d13-weak","label":"D13 完成弱项模块回炉"},{"id":"d13-mock","label":"D13 完成模拟面试 #2（换画像）"},{"id":"d13-hand","label":"D13 限时完成 2～3 道手写（若缺口大）"},{"id":"d14-reverse","label":"D14 准备 5 个高质量反问"},{"id":"d14-resume","label":"D14 简历逐行证据句与 ATS 终检"},{"id":"d14-story","label":"D14 主故事 90 秒版终检通过"}]' />

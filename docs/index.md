@@ -4,7 +4,7 @@ layout: home
 hero:
   name: 前端面试作战手册
   text: 14 个题库 · 382 题
-  tagline: 约 400 题覆盖 Vue 3、微前端、NestJS、前端架构、AI 实践与简历优化；按 Q / D 分层完成从基础复习到资深追问的闭环。
+  tagline: 约 400 题覆盖 Vue 3、微前端、NestJS、前端架构、AI 实践与简历优化；按 Q / D 分层提供从基础复习到资深追问的完整训练路径。
   actions:
     - theme: brand
       text: 总览

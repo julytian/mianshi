@@ -282,13 +282,9 @@ nonce 必须由服务端为每个响应生成，不能写进静态 bundle、缓�
 
 ::: details 参考答案
 
-OAuth 定义委托授权，让客户端获得受限访问令牌；OIDC 在其上增加 ID Token、UserInfo 和身份声明，用于认证。截至本文基线，OAuth 2.1 仍是 Internet-Draft，不应写成已发布 RFC；正式协议基线是 OAuth 2.0 RFC 6749、Bearer Token RFC 6750，并按 OAuth 2.0 Security Best Current Practice RFC 9700 收紧安全实践。浏览器 SPA 属于 public client，发布的代码和配置可被读取，不能安全保存 `client_secret`；若需机密客户端能力，应由受控后端或 BFF 持有秘密。
+OAuth 解决委托授权：客户端取得受限 Access Token 访问资源；OIDC 在 OAuth 之上增加 ID Token、UserInfo 和身份声明，用于确认用户身份。两者不能混为「登录协议」或「Token 格式」。
 
-Authorization Code 流先经授权端点得到短期 code，再在令牌端点交换 Token。PKCE 由客户端生成 `code_verifier` 和派生的 `code_challenge`，把 code 绑定到发起者，降低 code 注入或截获后兑换的风险；客户端确认授权服务器支持 PKCE 时，按 RFC 9700 可依赖 PKCE 承担授权回调的 CSRF 防护，不必机械叠加 `state`。未满足该前提或还需关联本地事务时，使用不可预测、一次性的 `state`。OIDC `nonce` 把 ID Token 绑定到本次认证请求并缓解重放，PKCE 不能替代这一角色；也不能反过来要求所有 OAuth / OIDC 场景总是同时使用三者。
-
-授权服务器应预先精确注册并匹配授权请求的 `redirect_uri`，不为 Web 客户端配置域名通配、任意子路径或可参数化的链式跳转。后续流程要区分协议版本：按 OAuth 2.0 RFC 6749，若授权请求包含 `redirect_uri`，Token 请求必须携带完全相同的值，由授权服务器比较；OAuth 2.1 draft-15 已移除 Token 请求中的 `redirect_uri` 参数，不能沿用 RFC 6749 的无条件表述。应用回调收到业务 `returnTo` 等参数时，只能映射到预定义的站内允许目标，不能跳到用户提供的绝对 URL。
-
-校验角色必须分开：授权回调校验选定的 CSRF 机制，使用 `state` 时校验其一次性绑定；存在多授权服务器或混淆风险时校验授权响应 `iss`。OIDC 客户端对 ID Token 校验签名、`iss`、`aud`、`exp` 及请求使用了 nonce 时的 `nonce`。资源服务器负责验证 Access Token；它可能是不透明引用 Token，需要内省，也可能是可本地验证的结构化 Token。回调中的 code 本身不具有供客户端校验的 `aud`、签名或 `exp`。
+浏览器 SPA 是公开客户端，代码可被检查，不能安全保存 `client_secret`。因此通常采用 Authorization Code + PKCE：先取得短期 code，再以客户端保存的 verifier 换取 Token，把 code 兑换绑定到发起者。授权服务器负责授权与发 Token，OIDC 客户端验证 ID Token，资源服务器验证 Access Token；具体参数和版本边界见下方补充说明。
 
 :::
 
@@ -297,6 +293,12 @@ Authorization Code 流先经授权端点得到短期 code，再在令牌端点�
 ::: details 追问参考答案
 
 优先评估 BFF，以 HttpOnly 会话 Cookie 隔离 Token。若授权服务器向 SPA 发 refresh token，应使用短生命周期、最小 scope、refresh token rotation 和重放检测：每次刷新签发新 token 并使旧 token 失效，旧 token 再出现时撤销关联 token family 并要求重新认证。轮换不能阻止首次窃取，仍需 XSS 治理、发送者约束能力和异常监控，日志不得记录原始 token。
+
+**补充说明：协议版本与校验角色**
+
+截至本文基线，OAuth 2.1 仍是 Internet-Draft；正式基线是 OAuth 2.0 RFC 6749、Bearer Token RFC 6750，并按 RFC 9700 BCP 收紧安全实践。授权服务器必须精确注册、匹配 `redirect_uri`，禁止通配和开放重定向。RFC 6749 规定：授权请求包含 `redirect_uri` 时，Token 请求必须携带相同值供授权服务器比较；OAuth 2.1 draft-15 已移除 Token 请求中的该参数。业务回跳参数只能映射到站内允许目标。
+
+PKCE 绑定 code 兑换者；客户端确认授权服务器支持 PKCE 时，可按 RFC 9700 依赖 PKCE 承担回调 CSRF 防护，否则或需要关联本地事务时使用一次性 `state`。OIDC `nonce` 独立绑定 ID Token 与认证请求，不能由 PKCE 替代，也不要求所有场景同时使用三者。授权回调验证选定的 CSRF 机制，必要时验证授权响应 `iss`；OIDC 客户端验证 ID Token 的签名、`iss`、`aud`、`exp` 及已使用的 `nonce`；资源服务器按 Access Token 类型本地验证或内省。回调 code 本身没有供客户端校验的 `aud`、签名或 `exp`。
 
 :::
 

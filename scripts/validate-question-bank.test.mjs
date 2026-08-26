@@ -13,6 +13,7 @@ import {
   hasDeepSection,
   parseLimit,
   parseQuestionLimits,
+  validateQuestionBank,
 } from './validate-question-bank.mjs'
 
 const scriptPath = path.join(REPO_ROOT, 'scripts/validate-question-bank.mjs')
@@ -166,18 +167,26 @@ function testInvalidEnvExitsOne() {
   assert.match(result.stderr, /不能大于/)
 }
 
-function testWorksFromNonRepoRoot() {
+async function testWorksFromNonRepoRoot() {
+  const { total, fileStats } = await validateQuestionBank({ min: 0, max: 999_999 })
+  assert.ok(total > 0, '题库总量应大于 0')
+  assert.ok(fileStats.length > 0, '应输出至少一个题库文件统计')
+
+  const sampleStat = fileStats.find((line) => line.startsWith('01-js-ts.md:'))
+  assert.ok(sampleStat, '应包含 01-js-ts.md 统计行')
+
   const result = spawnSync(process.execPath, [scriptPath], {
     cwd: path.dirname(fileURLToPath(import.meta.url)),
     env: {
       ...process.env,
-      MIN_TOTAL_QUESTIONS: '201',
-      MAX_TOTAL_QUESTIONS: '410',
+      MIN_TOTAL_QUESTIONS: '0',
+      MAX_TOTAL_QUESTIONS: '999999',
     },
     encoding: 'utf8',
   })
   assert.equal(result.status, 0, result.stderr || result.stdout)
-  assert.match(result.stdout, /题库总量：201/)
+  assert.match(result.stdout, new RegExp(`题库总量：${total}`))
+  assert.match(result.stdout, /01-js-ts\.md: Q=\d+ D=\d+ total=\d+/)
 }
 
 testParseLimit()
@@ -186,6 +195,6 @@ testFindQuestionHeadingsSkipsCodeFence()
 testExtractAnswerDetails()
 testHasDeepSection()
 testInvalidEnvExitsOne()
-testWorksFromNonRepoRoot()
+await testWorksFromNonRepoRoot()
 
 console.log('validate-question-bank 边界自测通过（7 组）')

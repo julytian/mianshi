@@ -2,9 +2,9 @@
 
 > **怎么用：** 普通题按「平台差异 → 协议边界 → 生命周期 → 验证」口述 1～2 分钟；深层题按「结论 → 原理 → 场景 → 失败模式 → 验证」展开。本文面向 Android WebView、iOS WKWebView 与跨端容器架构，具体行为以目标系统、内核、框架版本和真机结果为准。
 
-> **关键边界：** Web 内容、URL 参数和 Bridge 入参均不可信。Android 不通过 `addJavascriptInterface` 暴露任意对象；iOS 注册 `WKScriptMessageHandler` 时处理强引用环并在生命周期结束时移除。Native API 只在允许页面身份、来源、导航代次和权限白名单下开放，所有 UI 操作回到 Android UI 线程或 iOS 主线程。
+> **关键边界：** Web 内容、URL 参数和 Bridge 入参均不可信。Android 敏感 Bridge 首选 AndroidX WebKit 的 `WebViewCompat.addWebMessageListener`，为 `allowedOriginRules` 配置精确 HTTPS origin，并逐消息校验 `sourceOrigin` 与 `isMainFrame`；legacy `addJavascriptInterface` 会向所有 frame 注入对象，回调本身没有可信 origin / frame 证据，不能承担逐消息来源鉴权。iOS 注册 `WKScriptMessageHandler` 时处理强引用环并及时移除。Native API 只在允许页面身份、来源、导航代次和权限白名单下开放。
 
-> **合规说明：** 热更新只更新经过签名和 hash 校验的允许资源，并遵守 App Store、Google Play 及目标地区规则；不得用热更新绕过对可执行代码或功能变更的审核。平台政策会随时间变化，发布前必须复核当期官方条款。
+> **合规说明：** Apple 与 Google Play 的规则不是同一条统一禁令：Apple 需分别评估 2.5.2 的自包含 / 不下载改变功能代码原则，以及 4.7 对 HTML5 / JavaScript mini apps 等软件的条件与 4.7.2 Native API 限制；Google Play 对 WebView / 解释器中的 JavaScript 有例外，但运行时内容仍不得促成任何 Play 政策违规。政策会变化，每次发布前复核当期官方条款。
 
 ---
 
@@ -40,7 +40,7 @@ Hybrid App 通常由原生壳、WebView 页面、JSBridge、原生能力插件�
 
 Android WebView 通常由系统 WebView 或 Chrome 组件提供 Chromium 内核，更新渠道、版本碎片和厂商系统会影响行为；应用通过 `WebView` 生命周期、设置和客户端回调控制导航。iOS 的 `WKWebView` 使用 WebKit，多进程执行网页内容，应用通过 `WKNavigationDelegate`、`WKUIDelegate`、`WKUserContentController` 等集成。两端 API、进程恢复、Cookie 接口和消息机制不能直接类比。
 
-系统浏览器拥有完整地址栏、标签页、站点权限、下载和安全 UI；内嵌 WebView 的页面身份、导航、权限提示、文件选择与证书处理需要宿主显式治理。Web API 在内核层存在，也不代表宿主已实现对应委托。Native 修改 UI 必须位于 Android UI 线程或 iOS 主线程；耗时 I/O 放后台，结果再切回 UI。
+系统浏览器拥有完整地址栏、标签页、站点权限、下载和安全 UI；内嵌 WebView 的页面身份、导航、权限提示、文件选择与证书处理需要宿主显式治理。Web API 在内核层存在，也不代表宿主已实现对应委托。`addWebMessageListener` 的回调在 Android UI 线程执行，大 JSON 解析、加解密与 I/O 必须下沉，避免 ANR；legacy `addJavascriptInterface` 的 Java 方法运行在 WebView 私有后台线程，访问共享状态要同步，触碰 UI 要切回 UI 线程。iOS UI 与 WKWebView 操作位于主线程，耗时任务同样下沉后再回主线程交付。
 
 :::
 
@@ -108,7 +108,7 @@ Web 先检测能力再调用，并提供纯 Web、系统页面或不可用提示
 
 Android WebView 常随 Activity、Fragment 和进程状态变化，旋转、重建、切后台或系统回收都可能让页面、窗口和 JS 上下文变化；是否保留实例取决于宿主策略。iOS 的 WKWebView 常由 UIViewController 持有，应用前后台和 WebContent 进程终止需要分别处理，`webViewWebContentProcessDidTerminate` 后通常要按状态决定重载或恢复。
 
-宿主应定义创建、挂载、可见、暂停、销毁和恢复状态机。Android 上 WebView API 与 UI 更新在 UI 线程，iOS 在主线程；后台回调先检查 owner 和导航代次仍有效。销毁时取消任务、移除回调和消息处理器。`WKUserContentController` 会强持有注册的 `WKScriptMessageHandler`，需使用弱代理或合适生命周期，并在结束时 `removeScriptMessageHandler(forName:)`，否则可能形成 retain cycle。
+宿主应定义创建、挂载、可见、暂停、销毁和恢复状态机。后台结果交付前检查 owner 和导航代次仍有效；销毁或即将进入不可信导航时，Android 分别调用 `removeJavascriptInterface` 或 `WebViewCompat.removeWebMessageListener` 移除已注册入口，并取消在途任务。iOS 的 `WKUserContentController` 会强持有注册的 `WKScriptMessageHandler`，需使用弱代理或合适生命周期，并在相同边界调用 `removeScriptMessageHandler(forName:)`，否则可能形成 retain cycle。
 
 :::
 
@@ -150,7 +150,9 @@ Android WebView 常随 Activity、Fragment 和进程状态变化，旋转、重�
 
 ::: details 参考答案
 
-WebView Cookie 仍遵循 Domain、Path、Secure、HttpOnly、SameSite 等规则；`SameSite` 按 site 而非 App 身份判断，跨站登录、iframe 和第三方 Cookie 受系统与隐私策略影响。Android WebView 通过 `CookieManager` 等接口管理，但与系统 Chrome 不是天然共享会话。iOS `WKWebsiteDataStore` 管理网站数据；共享同一持久 data store 的 WKWebView 可共享相关 Cookie，`WKProcessPool` 影响 Web 内容进程组织与历史兼容行为，但不能简单宣称它等同 Cookie 仓库，非持久 data store 也与默认持久存储隔离。
+WebView Cookie 仍遵循 Domain、Path、Secure、HttpOnly、SameSite 等规则；`SameSite` 按 site 而非 App 身份判断，跨站登录、iframe 和第三方 Cookie 受系统与隐私策略影响。Android WebView 通过 `CookieManager` 管理；当 App target Android 5.0（API 21）及以上时，第三方 Cookie 默认不接受，可用 `setAcceptThirdPartyCookies(webView, ...)` 按 WebView 显式配置，但启用前要评估跟踪、CSRF 和登录必要性。Android WebView 与系统 Chrome 也不是天然共享会话。
+
+iOS `WKWebsiteDataStore` 管理网站数据；共享同一持久 data store 的 WKWebView 可共享相关 Cookie，`WKProcessPool` 影响 Web 内容进程组织与历史兼容行为，但不能简单宣称它等同 Cookie 仓库，非持久 data store 也与默认持久存储隔离。Capacitor、Cordova、uni-app App 可能把本地页面置于 `localhost`、自定义 scheme 或其他框架配置的 origin；这会改变相对 API 的跨源关系、Cookie Domain / Secure / SameSite 判断和 SSO 回调。设计前必须记录每个平台与版本的实际页面 origin，不能沿用普通 HTTPS 站点假设，也不能靠放宽所有第三方 Cookie 修复。
 
 与系统浏览器做 SSO 应使用标准 OAuth / OIDC 授权流程、系统认证会话和回调，不复制浏览器 Cookie。Native Token 与 Web Session 交换要通过短期一次性 code，由服务端绑定设备会话、audience 和 PKCE 等条件，避免把长期 Token 注入 JS。登出需同时撤销服务端会话、清理受控 Web 数据和 Native 凭证，并验证多 WebView 一致性。
 
@@ -220,7 +222,7 @@ Web 页面不应获得任意本地绝对路径。Android 优先通过系统文�
 
 在线资源优先遵循 HTTP 缓存：内容哈希静态资源长期不可变，入口和清单短缓存或再验证。离线资源包由 Native 更新器管理，必须有版本清单、签名、每文件 hash、大小上限和兼容条件；下载到新目录后完整校验，再原子切换活动指针，失败继续使用旧版本。Service Worker 若启用，是另一层缓存，需明确与 Native 包的职责，避免双重失效和版本混用。
 
-页面、资源包、Bridge 和 API schema 版本要兼容；回滚保留上一已知可用版本并有熔断开关。私有 API 响应和账号数据不得打入公共资源包。热更新只能覆盖政策与审核允许的内容，不用下载代码绕过应用商店对可执行代码和功能变更的规则；政策会变化，上线前复核。
+页面、资源包、Bridge 和 API schema 版本要兼容；回滚保留上一已知可用版本并有熔断开关。私有 API 响应和账号数据不得打入公共资源包。允许更新的内容类型由各商店当期规则分别决定，Apple 2.5.2 / 4.7 与 Google Play 的 WebView / 解释器例外不能合并成同一判断；具体政策边界在 Q13 展开。
 
 :::
 
@@ -262,7 +264,7 @@ JS 堆栈看不到 Native 排队、权限判断、线程切换、系统回调和
 
 ::: details 参考答案
 
-uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲染能力取决于所选模式、平台与插件；不能把小程序、H5 和 App 端行为视为完全一致。Capacitor 以现代 Web 应用嵌入原生工程为核心，强调原生项目可见、插件 API 与 Web/PWA 兼容。Cordova 也是 WebView 容器加插件模型，生态历史较长，项目质量与维护状态需要逐项评估。
+uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲染能力取决于所选模式、平台与插件；不能把小程序、H5 和 App 端行为视为完全一致。Capacitor 以现代 Web 应用嵌入原生工程为核心，强调原生项目可见、插件 API 与 Web/PWA 兼容。Cordova 也是 WebView 容器加插件模型，生态历史较长，项目质量与维护状态需要逐项评估。三者的本地页面可能使用 `localhost`、自定义 scheme 或框架特定 origin，且会随平台与配置变化；Cookie、SameSite、CORS、OAuth 回调和 SSO 必须以运行时实际 origin 重新设计与真机验证。
 
 三者都不等同 PWA：PWA 运行于浏览器安装与权限模型。它们也不等同 React Native、Flutter 或纯原生，后者的 UI 渲染、语言运行时和系统集成路径不同。选型比较团队技能、插件缺口、调试、升级、包体、性能实测、无障碍与商店合规；不下「某框架绝对更快」的结论。
 
@@ -286,7 +288,12 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 应用包由平台分发签名证明发布者与包完整性；资源热更新还需应用自己的离线签名和 hash 校验，签名私钥放在受控发布系统，客户端只内置可轮换公钥。更新清单限定 App / Bridge 兼容范围、资源类型和回滚版本，采用灰度、熔断、审计与原子切换。
 
-技术上能下载并执行不代表合规。不得利用热更新绕过 App Store、Google Play 对可执行代码、支付、隐私或重大功能变更的审核，也不能把任意远程脚本变成未审查插件。政策和地区要求会随时间变化，产品、法务和安全应在每次发布前核对当前官方规则，并保留审核证据。
+技术上能下载并执行不代表合规，两个商店要分别判断：
+
+- **Apple：** 2.5.2 原则上要求 App 在 bundle 内自包含，不得下载、安装或执行引入或改变 App 功能的代码，有限教育类例外另有条件。4.7 又允许符合条件、未嵌入二进制的 HTML5 / JavaScript mini apps、mini games、chatbots、plug-ins 等软件，但开发者仍对其符合全部审核指南和法律负责，并满足 4.7.1～4.7.5；其中 4.7.2 规定，未经 Apple 事先许可，不得向这些软件扩展或暴露 Native 平台 API / 技术。
+- **Google Play：** 禁止绕过 Play 自更新 App 或从 Play 之外下载 dex、JAR、`.so` 等可执行代码；对运行在虚拟机或解释器、通过间接方式访问 Android API 的代码存在例外，官方示例包括 WebView / 浏览器中的 JavaScript。但运行时加载的解释型内容仍不得导致任何 Play 政策违规，带 JavaScript Interface 的 WebView 也不得加载不可信或未经验证的内容。
+
+因此不能写成「两家都禁止远程 JavaScript」，也不能把例外理解为任意热更新许可。政策和地区要求会变化，产品、法务、安全与发布负责人必须在每次发布前核对当期官方规则并保留审核证据。
 
 :::
 
@@ -316,11 +323,11 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 #### 工程场景
 
-用 schema 生成 TypeScript 与 Native DTO，Native 白名单路由并验证类型、长度、枚举和权限。握手返回 capability 及版本；调用表维护超时和 cancel，页面销毁时批量拒绝。所有 UI 回调切到 Android UI 线程或 iOS 主线程，日志用 message id 贯穿两侧，灰度可按能力熔断。
+用 schema 生成 TypeScript 与 Native DTO，Native 白名单路由并验证类型、长度、枚举和权限。握手返回 capability 及版本；调用表维护超时和 cancel，页面销毁时批量拒绝。Android 优先用 `WebViewCompat.addWebMessageListener` 配置精确 HTTPS `allowedOriginRules`，并在回调中校验 `sourceOrigin`、`isMainFrame` 和导航代次；其回调位于 UI 线程，大解析与 I/O 下沉。legacy `addJavascriptInterface` 回调在 WebView 私有后台线程，必须同步共享状态并切回 UI 线程更新界面。iOS 结果回主线程交付，日志用 message id 贯穿两侧。
 
 #### 反例 / 踩坑
 
-动态执行任意方法名、把 JSON 直接映射反射调用、Android 通过 `addJavascriptInterface` 暴露宽泛对象、只用函数名回调、无导航代次、超时后自动重试支付，都会扩大攻击面或产生串页和重复副作用。
+动态执行任意方法名、把 JSON 直接映射反射调用、把 legacy `addJavascriptInterface` 当成能识别可信 origin / 主 frame 的入口、只用函数名回调、无导航代次、超时后自动重试支付，都会扩大攻击面或产生串页和重复副作用。
 
 #### 资深回答模板
 
@@ -365,7 +372,7 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 #### 工程场景
 
-可信业务与外部内容使用不同 WebView 或至少不同配置和进程 / 数据存储边界；外部页面完全不注入 Bridge。Android 避免 `addJavascriptInterface` 暴露任意对象，只暴露极小、版本化入口并限制最低系统；iOS 使用命名 message handler、弱代理和及时移除。CSP、HTTPS 和导航 allowlist 作为纵深防御。
+可信业务与外部内容使用不同 WebView 或至少不同配置和进程 / 数据存储边界；外部页面完全不注入 Bridge。Android 敏感能力首选 AndroidX WebKit 的 `WebViewCompat.addWebMessageListener`：`allowedOriginRules` 只列精确 HTTPS origin，收到消息后再校验 `sourceOrigin`、`isMainFrame`、导航代次、方法权限和参数。legacy `addJavascriptInterface` 会把对象注入所有 frame，Java 回调没有可用于逐消息鉴权的可信 origin / frame；不支持安全消息 API 时，敏感 Bridge 不得开放给可导航到其他来源或包含第三方 iframe 的页面。进入不可信导航或销毁时分别调用 `removeWebMessageListener` / `removeJavascriptInterface`。iOS 使用命名 message handler、弱代理并及时移除，CSP 和导航 allowlist 作为纵深防御。
 
 #### 反例 / 踩坑
 
@@ -373,7 +380,7 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 #### 资深回答模板
 
-我把 WebView 当不可信客户端：可信导航先建立不可伪造的页面上下文，每个消息再校验来源、frame、代次、方法权限和参数。外部内容使用无 Bridge 的隔离容器；Android 与 iOS 分别按平台安全 API 实现，并用恶意页面做越权测试。
+我把 WebView 当不可信客户端：Android 用安全消息 API 的精确 HTTPS origin 规则，并逐消息验证 `sourceOrigin`、主 frame、代次、方法和参数；legacy 接口没有这些来源证据，敏感页面不能同时允许任意导航或第三方 iframe。外部内容使用无 Bridge 的隔离容器，两端都在导航与销毁边界撤销 handler，并用恶意页面做越权测试。
 
 :::
 
@@ -406,23 +413,23 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 #### 基础结论
 
-先定义冷启动到可用的分段指标，再按瓶颈选择进程预热、WebView 预创建、资源预取或服务端优化。池化是带安全重置成本的优化，绝不能跨用户复用私有状态。
+先定义冷启动到可用的分段指标，再按瓶颈选择进程预热、WebView 预创建、资源预取或服务端优化。池化只能用于预先约束的数据域；平台没有通用的「清理后等同新实例」保证，绝不能跨用户复用私有状态。
 
 #### 原理深挖
 
-白屏可能来自原生启动、WebView 创建、内核进程、DNS / TLS、HTML、资源、JS 执行、首帧或路由数据。预加载能把成本前移，却增加内存、流量和旧版本风险。WebView 内含 Cookie、history、页面 JS、缓存、表单、Bridge handler 与未完成请求，简单清空 DOM 不等于隔离。
+白屏可能来自原生启动、WebView 创建、内核进程、DNS / TLS、HTML、资源、JS 执行、首帧或路由数据。预加载能把成本前移，却增加内存、流量和旧版本风险。WebView 内含 Cookie、history、页面 JS、缓存、表单、Bridge handler 与未完成请求。iOS 的 `WKBackForwardList` 没有公开清空 API；要求空历史时必须新建 `WKWebView`。`WKWebsiteDataStore` 在创建 `WKWebViewConfiguration` 时决定，清理共享 data store 会影响使用它的其他 WebView，不能把事后清理当成实例隔离。
 
 #### 工程场景
 
-采集 App start、容器创建、navigation start、commit、DOMContentLoaded、FCP、业务首屏和可交互时间，并记录错误与白屏持续时间。池只复用无用户身份的干净容器；领取时绑定新页面身份和代次，归还时停止加载、销毁页面、移除 Bridge、清历史与回调。账号 Cookie / data store 采用隔离策略，无法证明清洁就销毁。
+采集 App start、容器创建、navigation start、commit、DOMContentLoaded、FCP、业务首屏和可交互时间，并记录错误与白屏持续时间。iOS 敏感会话在创建前预分配独立持久或非持久 `WKWebsiteDataStore`；需要空历史时新建 WKWebView，不能清理共享 store 伤及其他实例。Android 真正的网站数据隔离依赖 AndroidX WebKit `MULTI_PROFILE` 能力，并在创建 / 首次加载前把 WebView 绑定到独立 profile；不支持时，即使销毁重建 WebView，也可能继续使用进程级共享的 Cookie 与网站数据。无法证明隔离时不跨账号池化。
 
 #### 反例 / 踩坑
 
-启动即预载全部业务会抢 CPU 和网络；用启动图遮住无限白屏只改变视觉；跨账号复用同一 WebView 会泄露 Cookie、history、页面快照和 Bridge 回调；只看平均 FCP 会掩盖低端机长尾和加载失败。
+启动即预载全部业务会抢 CPU 和网络；用启动图遮住无限白屏只改变视觉；用私有 API 或伪造后退操作声称清空 `WKBackForwardList`、清理共享 `WKWebsiteDataStore`、Android 不分 profile 只重建实例，都会留下串数据或误伤其他页面的风险。只看平均 FCP 还会掩盖低端机长尾和加载失败。
 
 #### 资深回答模板
 
-我先把白屏拆成 Native、容器、网络、渲染和业务阶段，以 p75 / p95 及失败率定位。预热只针对被证实的固定成本，池化要求可验证的用户、历史和 Bridge 隔离；清理不可靠时宁可销毁，并用内存与命中收益共同验收。
+我先把白屏拆成 Native、容器、网络、渲染和业务阶段，以 p75 / p95 及失败率定位。池化只服务预先设计的隔离域：iOS 敏感会话预分配独立 data store 且空历史用新实例，Android 先检测并绑定独立 profile；没有平台隔离能力就不跨账号池化。
 
 :::
 
@@ -435,7 +442,7 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 **1. WebView pool 为什么容易造成跨账号泄露？**
 
-WebView 不只有 DOM，还关联 Cookie、网站数据、history、缓存、JS 堆、表单、截图和未完成 Bridge 调用。归还池前若不能按平台可靠重置并隔离 data store，就可能把前一用户状态交给后一用户；账号切换应销毁或使用严格隔离容器。
+WebView 不只有 DOM，还关联 Cookie、网站数据、history、缓存、JS 堆、表单、截图和未完成 Bridge 调用。iOS 无公开 API 清空 `WKBackForwardList`，共享 data store 的清理还会影响其他实例；Android 若无 `MULTI_PROFILE` 并在加载前绑定独立 profile，重建实例也不等于数据隔离。因此敏感账号必须预先设计独立存储边界，不能依赖归还时清理。
 
 **2. 首屏与白屏应该怎样定义？**
 
@@ -512,7 +519,7 @@ Access Token、Session Cookie、支付凭证、完整个人信息和可重放文
 
 #### 工程场景
 
-适配层规范参数、结果、权限和错误码，契约测试运行于模拟器与关键真机。发布按 App 版本、系统、设备和用户分群灰度，监控调用成功率、超时、崩溃和权限拒绝。远程关闭能力后提供系统页面、Web 上传或人工流程；回滚不依赖下载未审核原生代码。
+适配层规范参数、结果、权限和错误码，契约测试运行于模拟器与关键真机。发布按 App 版本、系统、设备和用户分群灰度，监控调用成功率、超时、崩溃和权限拒绝。远程关闭能力后提供系统页面、Web 上传或人工流程；回滚不依赖从商店之外下载 dex、JAR、`.so` 或其他原生可执行代码。
 
 #### 反例 / 踩坑
 
@@ -651,7 +658,7 @@ Web JS、WebContent / renderer 进程、App 进程和服务端可能独立失败
 
 #### 基础结论
 
-更新包必须由受控流水线签名、客户端验签并逐文件校验 hash，在独立目录准备后原子切换；发布采用灰度、健康门禁、熔断和上一稳定版回滚，同时遵守当期商店政策。
+更新包必须由受控流水线签名、客户端验签并逐文件校验 hash，在独立目录准备后原子切换；发布采用灰度、健康门禁、熔断和上一稳定版回滚。技术安全门禁与商店合规门禁并行，Apple 与 Google Play 分别评估。
 
 #### 原理深挖
 
@@ -663,11 +670,11 @@ TLS 只保护传输，不能证明制品经过批准。清单需绑定包版本�
 
 #### 反例 / 踩坑
 
-仅校验下载 URL、把签名私钥放客户端、逐文件覆盖、失败后删除唯一旧版、灰度分桶漂移、通过远程包引入原生二进制或绕过审核改变重大功能，都会破坏安全、可用性或合规。
+仅校验下载 URL、把签名私钥放客户端、逐文件覆盖、失败后删除唯一旧版、灰度分桶漂移，都会破坏安全或可用性。合规上，不能忽略 Apple 2.5.2 与 4.7 的不同适用条件，也不能把 Google Play 对解释器 / WebView JavaScript 的例外扩张为可下载原生可执行代码或可违反其他政策。
 
 #### 资深回答模板
 
-我把资源包视为供应链制品：签名确认来源，hash 确认内容，版本策略防回退，独立目录和原子指针保证一致。发布稳定灰度、自动熔断并保留旧版；能力范围由当期 App Store、Google Play 和地区政策审核，不以技术可行代替合规。
+我把资源包视为供应链制品：签名确认来源，hash 确认内容，版本策略防回退，独立目录和原子指针保证一致。合规评估分开做：Apple 核对 2.5.2、4.7 及 4.7.2 Native API 边界，Google Play 核对解释器 / WebView JavaScript 例外及全部内容政策；发布前按最新条款复核。
 
 :::
 
@@ -688,7 +695,7 @@ TLS 只保护传输，不能证明制品经过批准。清单需绑定包版本�
 
 **3. 热更新政策应如何持续管理？**
 
-为允许资源类型、功能边界和审核材料建立清单，每次发布由产品、法务、安全与发布负责人复核当期官方条款。App Store 和 Google Play 政策会变化，历史批准不是永久许可；有疑问时走正式审核或完整 App 版本发布。
+为允许资源类型、功能边界和审核材料建立平台分别清单：Apple 记录 2.5.2 与 4.7 / 4.7.2 的适用依据，Google Play 记录 WebView / 解释器例外和内容合规结论。政策会变化，历史批准不是永久许可；每次发布复核当期官方条款，有疑问时走正式审核或完整 App 版本发布。
 
 :::
 

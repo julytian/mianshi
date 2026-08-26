@@ -150,9 +150,9 @@ Android WebView 常随 Activity、Fragment 和进程状态变化，旋转、重�
 
 ::: details 参考答案
 
-WebView Cookie 仍遵循 Domain、Path、Secure、HttpOnly、SameSite 等规则；`SameSite` 按 site 而非 App 身份判断，跨站登录、iframe 和第三方 Cookie 受系统与隐私策略影响。Android WebView 通过 `CookieManager` 管理；当 App target Android 5.0（API 21）及以上时，第三方 Cookie 默认不接受，可用 `setAcceptThirdPartyCookies(webView, ...)` 按 WebView 显式配置，但启用前要评估跟踪、CSRF 和登录必要性。Android WebView 与系统 Chrome 也不是天然共享会话。
+WebView Cookie 仍遵循 Domain、Path、Secure、HttpOnly、SameSite 等规则；`SameSite` 按 site 而非 App 身份判断，跨站登录、iframe 和第三方 Cookie 受系统与隐私策略影响。Android WebView 通过 `CookieManager` 管理；当 `targetSdkVersion >= 21` 时，第三方 Cookie 默认不接受，可用 `setAcceptThirdPartyCookies(webView, ...)` 按 WebView 显式配置，但启用前要评估跟踪、CSRF 和登录必要性。Android WebView 与系统 Chrome 也不是天然共享会话。
 
-iOS `WKWebsiteDataStore` 管理网站数据；共享同一持久 data store 的 WKWebView 可共享相关 Cookie，`WKProcessPool` 影响 Web 内容进程组织与历史兼容行为，但不能简单宣称它等同 Cookie 仓库，非持久 data store 也与默认持久存储隔离。Capacitor、Cordova、uni-app App 可能把本地页面置于 `localhost`、自定义 scheme 或其他框架配置的 origin；这会改变相对 API 的跨源关系、Cookie Domain / Secure / SameSite 判断和 SSO 回调。设计前必须记录每个平台与版本的实际页面 origin，不能沿用普通 HTTPS 站点假设，也不能靠放宽所有第三方 Cookie 修复。
+iOS `WKWebsiteDataStore` 管理网站数据；共享同一 data store 的 WKWebView 可共享相关 Cookie，`WKProcessPool` 影响 Web 内容进程组织与历史兼容行为，但不能简单宣称它等同 Cookie 仓库。`WKWebsiteDataStore(forIdentifier:)` 提供独立持久 profile，但仅 iOS 17+ 可用；更低版本只有默认持久 store，不过可以创建多个 `nonPersistent()` store。低版本敏感会话要使用独立非持久 store，无法接受非持久语义时就放弃跨账号池化。Capacitor、Cordova、uni-app App 可能把本地页面置于 `localhost`、自定义 scheme 或其他框架配置的 origin；这会改变相对 API 的跨源关系、Cookie Domain / Secure / SameSite 判断和 SSO 回调。设计前必须记录每个平台与版本的实际页面 origin，不能沿用普通 HTTPS 站点假设，也不能靠放宽所有第三方 Cookie 修复。
 
 与系统浏览器做 SSO 应使用标准 OAuth / OIDC 授权流程、系统认证会话和回调，不复制浏览器 Cookie。Native Token 与 Web Session 交换要通过短期一次性 code，由服务端绑定设备会话、audience 和 PKCE 等条件，避免把长期 Token 注入 JS。登出需同时撤销服务端会话、清理受控 Web 数据和 Native 凭证，并验证多 WebView 一致性。
 
@@ -417,19 +417,21 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 #### 原理深挖
 
-白屏可能来自原生启动、WebView 创建、内核进程、DNS / TLS、HTML、资源、JS 执行、首帧或路由数据。预加载能把成本前移，却增加内存、流量和旧版本风险。WebView 内含 Cookie、history、页面 JS、缓存、表单、Bridge handler 与未完成请求。iOS 的 `WKBackForwardList` 没有公开清空 API；要求空历史时必须新建 `WKWebView`。`WKWebsiteDataStore` 在创建 `WKWebViewConfiguration` 时决定，清理共享 data store 会影响使用它的其他 WebView，不能把事后清理当成实例隔离。
+白屏可能来自原生启动、WebView 创建、内核进程、DNS / TLS、HTML、资源、JS 执行、首帧或路由数据。预加载能把成本前移，却增加内存、流量和旧版本风险。WebView 内含 Cookie、history、页面 JS、缓存、表单、Bridge handler 与未完成请求。iOS 的 `WKBackForwardList` 没有公开清空 API；要求空历史时必须新建 `WKWebView`。`WKWebsiteDataStore` 在创建 `WKWebViewConfiguration` 时决定，清理共享 data store 会影响使用它的其他 WebView，不能把事后清理当成实例隔离；独立持久 store 的 `forIdentifier` 仅 iOS 17+ 可用，低版本只有默认持久 store 和可多实例化的非持久 store。
 
 #### 工程场景
 
-采集 App start、容器创建、navigation start、commit、DOMContentLoaded、FCP、业务首屏和可交互时间，并记录错误与白屏持续时间。iOS 敏感会话在创建前预分配独立持久或非持久 `WKWebsiteDataStore`；需要空历史时新建 WKWebView，不能清理共享 store 伤及其他实例。Android 真正的网站数据隔离依赖 AndroidX WebKit `MULTI_PROFILE` 能力，并在创建 / 首次加载前把 WebView 绑定到独立 profile；不支持时，即使销毁重建 WebView，也可能继续使用进程级共享的 Cookie 与网站数据。无法证明隔离时不跨账号池化。
+采集 App start、容器创建、navigation start、commit、DOMContentLoaded、FCP、业务首屏和可交互时间，并记录错误与白屏持续时间。iOS 17+ 可在创建 WKWebView 前用 `WKWebsiteDataStore(forIdentifier:)` 分配独立持久 profile；更低版本的敏感隔离使用独立 `nonPersistent()` store，若业务必须持久化则放弃跨账号池化。要求空历史时始终新建 WKWebView，不能清理共享 store 伤及其他实例。
+
+Android 先检查 AndroidX WebKit `MULTI_PROFILE` 能力；支持时，在 UI 线程创建 WebView 后立即调用 `setProfile` 绑定独立 profile。除把实例挂载到 View 层级外，在 `setProfile` 前不得执行任何其他 WebView 操作，不能只保证「首次 load 前」调用。不支持时，即使销毁重建 WebView，也可能继续使用进程级共享的 Cookie 与网站数据，因此无法证明隔离就不跨账号池化。
 
 #### 反例 / 踩坑
 
-启动即预载全部业务会抢 CPU 和网络；用启动图遮住无限白屏只改变视觉；用私有 API 或伪造后退操作声称清空 `WKBackForwardList`、清理共享 `WKWebsiteDataStore`、Android 不分 profile 只重建实例，都会留下串数据或误伤其他页面的风险。只看平均 FCP 还会掩盖低端机长尾和加载失败。
+启动即预载全部业务会抢 CPU 和网络；用启动图遮住无限白屏只改变视觉；用私有 API 或伪造后退操作声称清空 `WKBackForwardList`、在 iOS 17 以下虚构独立持久 data store、清理共享 `WKWebsiteDataStore`、Android 在其他 WebView 操作后才 `setProfile`，都会留下串数据或误伤其他页面的风险。只看平均 FCP 还会掩盖低端机长尾和加载失败。
 
 #### 资深回答模板
 
-我先把白屏拆成 Native、容器、网络、渲染和业务阶段，以 p75 / p95 及失败率定位。池化只服务预先设计的隔离域：iOS 敏感会话预分配独立 data store 且空历史用新实例，Android 先检测并绑定独立 profile；没有平台隔离能力就不跨账号池化。
+我先把白屏拆成 Native、容器、网络、渲染和业务阶段，以 p75 / p95 及失败率定位。池化只服务预先设计的隔离域：iOS 17+ 才能用 identifier 建独立持久 store，低版本改用独立非持久 store 或放弃跨账号池化；Android 检测能力后在 UI 线程创建 WebView 并立即 `setProfile`，没有隔离能力就不跨账号池化。
 
 :::
 
@@ -442,7 +444,7 @@ uni-app 的 App 端是其跨端编译与运行体系，页面形态和原生渲�
 
 **1. WebView pool 为什么容易造成跨账号泄露？**
 
-WebView 不只有 DOM，还关联 Cookie、网站数据、history、缓存、JS 堆、表单、截图和未完成 Bridge 调用。iOS 无公开 API 清空 `WKBackForwardList`，共享 data store 的清理还会影响其他实例；Android 若无 `MULTI_PROFILE` 并在加载前绑定独立 profile，重建实例也不等于数据隔离。因此敏感账号必须预先设计独立存储边界，不能依赖归还时清理。
+WebView 不只有 DOM，还关联 Cookie、网站数据、history、缓存、JS 堆、表单、截图和未完成 Bridge 调用。iOS 无公开 API 清空 `WKBackForwardList`，且独立持久 store 仅 iOS 17+ 可用；低版本只能用独立非持久 store 或不跨账号池化。Android 需要 `MULTI_PROFILE`，并在 UI 线程创建后立即 `setProfile`，此前除挂载 View 层级外不能操作 WebView；仅在首次加载前绑定或只重建实例都不等于数据隔离。
 
 **2. 首屏与白屏应该怎样定义？**
 

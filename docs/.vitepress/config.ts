@@ -36,19 +36,42 @@ export default defineConfig({
           ],
         },
         {
-          text: '题库',
+          text: '前端基础',
           items: [
             { text: 'JS / TS', link: '/interview/questions/01-js-ts' },
             { text: 'Vue3', link: '/interview/questions/02-vue3' },
+            { text: '手写题', link: '/interview/questions/10-handwriting' },
+          ],
+        },
+        {
+          text: '工程与架构',
+          items: [
             { text: '工程化', link: '/interview/questions/03-engineering' },
+            { text: '前端架构', link: '/interview/questions/14-frontend-architecture' },
+            { text: '前端系统设计', link: '/interview/questions/11-frontend-system-design' },
+            { text: '微前端', link: '/interview/questions/12-microfrontend' },
+          ],
+        },
+        {
+          text: '业务与多端',
+          items: [
             { text: 'Ant Design Vue', link: '/interview/questions/04-admin-antdv' },
             { text: 'Vant H5', link: '/interview/questions/05-h5-vant' },
             { text: 'uni-app / 小程序', link: '/interview/questions/06-uniapp-miniprogram' },
+          ],
+        },
+        {
+          text: '全栈与 AI',
+          items: [
             { text: 'Java 全栈偏前', link: '/interview/questions/07-java-fullstack' },
-            { text: '架构 / Lead', link: '/interview/questions/08-architecture-lead' },
+            { text: 'NestJS', link: '/interview/questions/13-nestjs' },
             { text: 'AI / vibe coding', link: '/interview/questions/09-ai-vibe-coding' },
-            { text: '手写题', link: '/interview/questions/10-handwriting' },
-            { text: '前端系统设计', link: '/interview/questions/11-frontend-system-design' },
+          ],
+        },
+        {
+          text: 'Lead',
+          items: [
+            { text: '架构 / Lead', link: '/interview/questions/08-architecture-lead' },
           ],
         },
         {

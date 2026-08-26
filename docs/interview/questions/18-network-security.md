@@ -120,11 +120,13 @@ QUIC 不是「UDP 天生更快」：首次连接、CPU、丢包、网络设备�
 
 ### Q6. HTTP 缓存如何判断新鲜度并完成再验证？
 
-**考察点：** Cache-Control、Age、ETag、Last-Modified、Vary、私有响应
+**考察点：** Cache-Control、内容编码协商、ETag、Vary、私有响应
 
 ::: details 参考答案
 
 缓存先根据方法、状态码、响应指令和缓存键判断可存储性，再用 `Cache-Control: max-age` / `s-maxage`、`Expires`、`Date`、`Age` 等计算新鲜度。新鲜响应可直接复用；过期后携带 `If-None-Match` / `If-Modified-Since` 再验证，源站可返回 304。强 ETag 适合字节级一致，弱 ETag 只表示语义等价，`Last-Modified` 精度和时钟边界较弱。
+
+内容编码通过请求的 `Accept-Encoding` 协商，响应以 `Content-Encoding` 声明实际表示，例如 gzip 或 br；同一 URL 的不同编码是不同表示。源站或 CDN 若按请求动态选择编码，应返回 `Vary: Accept-Encoding`，避免共享缓存把 br 响应发给不支持的客户端。CDN 可把等价的 `Accept-Encoding` 值规范化为有限变体，并统一决定在边缘压缩还是缓存源站压缩结果；但不能丢失实际能力差异，也要避免源站与边缘重复压缩。表示级 ETag 是否随编码变化取决于生成位置和验证语义，必须保证客户端验证的是所收表示。
 
 `no-cache` 表示使用前必须再验证，不等于不存；`no-store` 才是要求不存储。`private` 限制共享缓存，不能单独替代敏感数据治理。`Vary` 会扩展缓存键，遗漏鉴权、编码或语言维度可能串数据，维度过多又会降低命中。浏览器缓存、Service Worker、CDN 和应用缓存是不同层，必须分别定义失效和观测。
 
@@ -282,7 +284,9 @@ nonce 必须由服务端为每个响应生成，不能写进静态 bundle、缓�
 
 OAuth 定义委托授权，让客户端获得受限访问令牌；OIDC 在其上增加 ID Token、UserInfo 和身份声明，用于认证。浏览器 SPA 属于 public client，发布的代码和配置可被读取，不能安全保存 `client_secret`；若需机密客户端能力，应由受控后端或 BFF 持有秘密。
 
-Authorization Code 流先经授权端点得到短期 code，再在令牌端点交换 Token。PKCE 由客户端生成 `code_verifier` 和派生的 `code_challenge`，把 code 绑定到发起者，降低 code 被截获后兑换的风险。`state` 用于把回调绑定到发起会话并防登录 CSRF；OIDC `nonce` 把 ID Token 绑定到认证请求并缓解重放。PKCE 不替代 state 或 nonce，因为三者角色不同。回调必须精确校验 redirect URI、issuer、audience、签名、过期和一次性状态。
+Authorization Code 流先经授权端点得到短期 code，再在令牌端点交换 Token。PKCE 由客户端生成 `code_verifier` 和派生的 `code_challenge`，把 code 绑定到发起者，降低 code 被截获后兑换的风险。`state` 用于把回调绑定到发起会话并防登录 CSRF；OIDC `nonce` 把 ID Token 绑定到认证请求并缓解重放。PKCE 不替代 state 或 nonce，因为三者角色不同。
+
+授权服务器应预先精确注册 `redirect_uri`，在授权和换 Token 时按协议要求精确比较，不为 Web 客户端配置域名通配、任意子路径或可参数化的链式跳转。应用回调收到业务 `returnTo` 等回跳参数时，只能把不可信值映射到预定义的站内允许目标，不能再次跳到用户提供的绝对 URL；否则攻击者可借可信授权域制造开放重定向并泄露 code 或诱导钓鱼。回调还必须校验 issuer、audience、签名、过期和一次性 state / nonce。
 
 :::
 
@@ -620,23 +624,25 @@ SRI 让浏览器按 `integrity` 中的 hash 验证下载字节。跨源脚本的
 
 #### 基础结论
 
-客户端校验只改善体验，服务端必须重新验证身份、权限、大小、真实类型和内容；文件使用随机对象键存储在不可执行域，预览与下载返回正确 MIME、`nosniff` 和合适 `Content-Disposition`。
+客户端校验只改善体验，服务端必须重新验证身份、权限、大小、真实类型和内容；文件使用随机对象键存储在不可执行域，预览与下载返回正确 MIME、`nosniff` 和合适 `Content-Disposition`。若产品支持填写远程 URL 代抓文件，抓取器还必须按 SSRF 威胁模型在服务端和网络出口治理，前端 URL 校验不能替代这些控制。
 
 #### 原理深挖
 
-扩展名和客户端 `Content-Type` 可伪造，魔数也不足以发现多态文件和恶意文档。把用户文件放主站同源并 inline 展示，可能形成 stored XSS、SVG / HTML 执行或 Cookie 暴露。下载文件名还涉及头注入、路径穿越和 Unicode 欺骗。
+扩展名和客户端 `Content-Type` 可伪造，魔数也不足以发现多态文件和恶意文档。把用户文件放主站同源并 inline 展示，可能形成 stored XSS、SVG / HTML 执行或 Cookie 暴露。下载文件名还涉及头注入、路径穿越和 Unicode 欺骗。远程抓取则把服务端网络能力暴露给不可信 URL；攻击者可利用私网地址、云元数据、DNS 重绑定和重定向访问原本不可达的内部服务。
 
 #### 工程场景
 
 上传前鉴权并签发短期、限定对象键和大小的凭证；服务端流式限制、类型探测、病毒 / 内容扫描，异步扫描前标记隔离。图片解码重编码，危险文档只下载或用隔离预览服务。响应设置准确 Content-Type、`X-Content-Type-Options: nosniff`、attachment 文件名编码和最小缓存。
 
+远程抓取仅允许明确的协议和业务目的白名单。服务端解析主机后阻断环回、链路本地、私网、保留地址及不允许的 IPv4 / IPv6 范围，并让实际连接绑定到校验后的 IP，或通过受控解析器和出口代理防止 DNS 重绑定；每次重定向都重新解析和校验，限制跳转次数。网络层再以出口代理、防火墙或 egress policy 禁止访问内部网段和元数据服务，同时限制响应字节数、解压规模、连接与总超时，并在下载后继续执行文件校验和扫描。
+
 #### 反例 / 踩坑
 
-只看 accept / 扩展名；把上传文件保存为用户文件名并可猜测覆盖；主域直接 inline SVG / HTML；扫描前即可公开访问；错误响应仍返回 200 和 `text/html`，被 CDN 缓存为文件；日志记录预签名 URL 的完整查询凭证。
+只看 accept / 扩展名；把上传文件保存为用户文件名并可猜测覆盖；主域直接 inline SVG / HTML；扫描前即可公开访问；错误响应仍返回 200 和 `text/html`，被 CDN 缓存为文件；日志记录预签名 URL 的完整查询凭证。远程抓取只在前端拒绝 `localhost`，或只校验初始 URL、不校验解析 IP 和重定向，都会留下 SSRF 绕过。
 
 #### 资深回答模板
 
-我把文件视为不可信二进制：客户端只提示，服务端流式限额、探测、扫描和隔离。存储键随机且不可执行，预览在独立源并按类型转换；下载头准确、nosniff、文件名安全，预签名凭证短期且不进入日志。
+我把文件视为不可信二进制：客户端只提示，服务端流式限额、探测、扫描和隔离。远程 URL 抓取由服务端按协议、目的、解析 IP 和每次重定向逐层校验，并用出口网络策略与大小、超时上限兜底。存储键随机且不可执行，预览在独立源并按类型转换；下载头准确、nosniff、文件名安全，预签名凭证短期且不进入日志。
 
 :::
 

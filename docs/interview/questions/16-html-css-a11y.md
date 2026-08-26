@@ -363,7 +363,7 @@ Roving `tabindex` 会把 DOM 焦点移动到当前项，适合 Toolbar、Tabs �
 
 #### 原理深挖
 
-Modal 打开时焦点进入内部合适位置，Tab / Shift+Tab 不离开，背景对所有用户不可交互。对原生 dialog 调用 `showModal()` 会进入 top layer、使外部内容 inert 并执行规范聚焦步骤；关闭时，如果焦点仍在 dialog 内且 previously focused element 仍可作为恢复目标，规范通常会把焦点恢复过去。`aria-modal="true"` 只是语义声明，不会自动产生这些行为。MenuButton 用按钮暴露展开状态，Menu 内部按其 APG pattern 使用方向键、Home / End、Escape；普通网站导航通常不是 ARIA Menu。Combobox 要同步 expanded、controls、value / selected 状态和活动项，`aria-activedescendant` 方案还要手动滚动活动项可见。
+Modal 打开时焦点进入内部合适位置，Tab / Shift+Tab 不离开，背景对所有用户不可交互。对原生 dialog 调用 `showModal()` 会进入 top layer、使外部内容 inert 并执行规范聚焦步骤；关闭 modal dialog 时，规范会按其条件恢复 previously focused element，应用仍需在触发者被删除或工作流改变时指定特殊业务目标。`aria-modal="true"` 只是语义声明，不会自动产生这些行为。MenuButton 用按钮暴露展开状态，Menu 内部按其 APG pattern 使用方向键、Home / End、Escape；普通网站导航通常不是 ARIA Menu。Combobox 要同步 expanded、controls、value / selected 状态和活动项，`aria-activedescendant` 方案还要手动滚动活动项可见。
 
 #### 工程场景
 

@@ -125,7 +125,6 @@
   - 微前端：完成 2 道高频题，覆盖适用边界与隔离 / 通信机制
   - NestJS：完成 2 道高频题，覆盖 Module / Controller / Provider 与请求链路
   - 前端架构：完成 D1、D2 两题，覆盖约束识别、质量属性与依赖边界
-- Cursor Rules / Skills 实践为可选加练：有余力时为 Vue 项目写一条 Rule，或用一个 Skill 执行可复用检查
 - 将原 Lead 要点压成 1 个决策短例子，并用 15 分钟完成开场 + 主故事彩排
 
 ### 题库链接
@@ -140,7 +139,9 @@
 
 ### 口述任务
 
-专项口述：围绕所选方向回答 2 道题，每题 3 分钟；随后彩排自我介绍 90 秒 → 主故事 5 分钟 → 自问 3 个追问。Checklist 只勾所选专项，未选专项保持未完成；Cursor 实践按可选任务处理。
+专项口述：按 JD 从「微前端 2 题 / NestJS 2 题 / 前端架构 D1、D2」中选一组完成，每题 3 分钟；随后彩排自我介绍 90 秒 → 主故事 5 分钟 → 自问 3 个追问。三选一只对应一个 Checklist 项，完成所选组即可勾选，不会为未选方向留下未完成项。
+
+**可选加练（不计入 Checklist）：** 有余力时完成一次 Cursor Rules / Skills 实践，为 Vue 项目写一条 Rule，或用一个 Skill 执行可复用检查。
 
 ---
 
@@ -169,4 +170,4 @@
 
 勾选写入 localStorage（键：`mianshi-plan:7-day`），与 14 / 30 天互不干扰。
 
-<PlanChecklist planId="7-day" :items='[{"id":"d1-vue","label":"D1 Vue3 核心题遮答案口述完成"},{"id":"d1-js","label":"D1 JS/TS 高频坑扫完并记下卡壳点"},{"id":"d1-oral","label":"D1 完成复杂组件 4 分钟口述"},{"id":"d2-star","label":"D2 主项目 STAR 与指标写完"},{"id":"d2-oral5","label":"D2 5 分钟主故事录音通过"},{"id":"d2-oral90","label":"D2 90 秒电梯版练熟"},{"id":"d3-eng","label":"D3 工程化流水线口述完成"},{"id":"d3-perf","label":"D3 性能 STAR（含数字）准备好"},{"id":"d3-gate","label":"D3 质量门禁落地说法能讲清"},{"id":"d4-focus","label":"D4 按 JD 选定加重业务栈并读透"},{"id":"d4-oral","label":"D4 业务技术点 4 分钟口述完成"},{"id":"d4-skip","label":"D4 非加重侧仅扫标题与踩坑"},{"id":"d5-java","label":"D5 Java 边界内题库过完"},{"id":"d5-ai","label":"D5 AI+Vue+Java 闭环口述完成"},{"id":"d5-guard","label":"D5 说清人工质量关卡"},{"id":"d6-lead","label":"D6 Lead/决策短例子准备好（按需）"},{"id":"d6-rehearse","label":"D6 模拟彩排（介绍+故事+追问）完成"},{"id":"d6-timer","label":"D6 彩排全程计时并回听一遍"},{"id":"d6-architecture-microfrontend","label":"D6 微前端高频 Q 题完成 2 道"},{"id":"d6-architecture-nestjs","label":"D6 NestJS 高频 Q 题完成 2 道"},{"id":"d6-architecture-deep","label":"D6 前端架构 D1、D2 口述完成"},{"id":"d6-architecture-cursor","label":"D6 Cursor Rules / Skills 实践完成 1 次"},{"id":"d7-mock","label":"D7 正式模拟 ×1 完成并填评分表"},{"id":"d7-fix","label":"D7 针对评分短板做上场急救"},{"id":"d7-reverse","label":"D7 5 个反问 + 简历证据句终检"}]' />
+<PlanChecklist planId="7-day" :items='[{"id":"d1-vue","label":"D1 Vue3 核心题遮答案口述完成"},{"id":"d1-js","label":"D1 JS/TS 高频坑扫完并记下卡壳点"},{"id":"d1-oral","label":"D1 完成复杂组件 4 分钟口述"},{"id":"d2-star","label":"D2 主项目 STAR 与指标写完"},{"id":"d2-oral5","label":"D2 5 分钟主故事录音通过"},{"id":"d2-oral90","label":"D2 90 秒电梯版练熟"},{"id":"d3-eng","label":"D3 工程化流水线口述完成"},{"id":"d3-perf","label":"D3 性能 STAR（含数字）准备好"},{"id":"d3-gate","label":"D3 质量门禁落地说法能讲清"},{"id":"d4-focus","label":"D4 按 JD 选定加重业务栈并读透"},{"id":"d4-oral","label":"D4 业务技术点 4 分钟口述完成"},{"id":"d4-skip","label":"D4 非加重侧仅扫标题与踩坑"},{"id":"d5-java","label":"D5 Java 边界内题库过完"},{"id":"d5-ai","label":"D5 AI+Vue+Java 闭环口述完成"},{"id":"d5-guard","label":"D5 说清人工质量关卡"},{"id":"d6-lead","label":"D6 Lead/决策短例子准备好，或确认目标岗位不要求"},{"id":"d6-rehearse","label":"D6 模拟彩排（介绍+故事+追问）完成"},{"id":"d6-timer","label":"D6 彩排全程计时并回听一遍"},{"id":"d6-architecture-selected","label":"D6 按 JD 完成微前端/NestJS/前端架构三选一题组"},{"id":"d7-mock","label":"D7 正式模拟 ×1 完成并填评分表"},{"id":"d7-fix","label":"D7 针对评分短板做上场急救"},{"id":"d7-reverse","label":"D7 5 个反问 + 简历证据句终检"}]' />

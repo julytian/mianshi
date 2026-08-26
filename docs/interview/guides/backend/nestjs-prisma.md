@@ -41,7 +41,7 @@ pnpm add -D prisma@^7 tsx
 
 配置分为两条路径：
 
-1. **Prisma CLI：** 根目录 `prisma.config.ts` 读取 `DATABASE_URL`，供 `migrate`、`generate`、`db seed` 使用。
+1. **Prisma CLI：** 根目录 `prisma.config.ts` 声明 `DATABASE_URL` 来源，供 `migrate *`、`db *` 等需要数据库连接的命令注入；`prisma generate` 会加载 config，但不要求有效数据库 URL。
 2. **NestJS 运行时：** `ConfigModule` 读取数据库连接信息，`PrismaService` 创建 adapter 和 Client。
 
 生产环境应由 Secret Manager 或平台注入环境变量，不提交 `.env`。示例：
@@ -54,7 +54,7 @@ DB_CONNECT_TIMEOUT_MS=3000
 PRISMA_SLOW_QUERY_MS=200
 ```
 
-`DATABASE_URL` 同时作为 CLI 与运行时的单一事实来源；其用户名、密码、主机和库名由运行时代码解析后传给 MariaDB adapter。连接池参数属于 Prisma 7 adapter 配置，不再依赖旧版 Prisma URL 参数。
+`DATABASE_URL` 是数据库型 CLI 命令与运行时连接的单一事实来源；其用户名、密码、主机和库名由运行时代码解析后传给 MariaDB adapter。连接池参数属于 Prisma 7 adapter 配置，不再依赖旧版 Prisma URL 参数。
 
 ## 2. 初始化 Prisma 和连接 MySQL
 

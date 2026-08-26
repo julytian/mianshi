@@ -301,6 +301,55 @@ export function findFollowupSection(block) {
 }
 
 /**
+ * @param {string} content
+ * @returns {{ number: number, text: string, index: number, length: number }[]}
+ */
+function findFollowupAnswerHeadings(content) {
+  const headings = []
+  const lines = content.split('\n')
+  let offset = 0
+  let inFence = false
+  let fenceChar = ''
+  let fenceLen = 0
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, '')
+    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+    if (!inFence && fenceMatch) {
+      const marker = fenceMatch[1]
+      const info = fenceMatch[2]
+      if (marker[0] !== '`' || !info.includes('`')) {
+        inFence = true
+        fenceChar = marker[0]
+        fenceLen = marker.length
+      }
+    } else if (inFence) {
+      const closingMatch = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
+      if (
+        closingMatch &&
+        closingMatch[1][0] === fenceChar &&
+        closingMatch[1].length >= fenceLen
+      ) {
+        inFence = false
+      }
+    } else {
+      const headingMatch = line.match(/^\*\*(\d+)\.\s+(.+?)\*\*\s*$/)
+      if (headingMatch) {
+        headings.push({
+          number: Number(headingMatch[1]),
+          text: headingMatch[2].trim(),
+          index: offset,
+          length: rawLine.length,
+        })
+      }
+    }
+    offset += rawLine.length + 1
+  }
+
+  return headings
+}
+
+/**
  * @param {string} block
  * @returns {{
  *   failures: string[],
@@ -350,14 +399,13 @@ export function validateFollowupSection(block) {
       content,
     })
   } else {
-    const headingPattern = /^\*\*(\d+)\.\s+(.+?)\*\*\s*$/gm
-    const headings = [...content.matchAll(headingPattern)]
+    const headings = findFollowupAnswerHeadings(content)
     for (let index = 0; index < headings.length; index += 1) {
-      const start = headings[index].index + headings[index][0].length
+      const start = headings[index].index + headings[index].length
       const end = headings[index + 1]?.index ?? content.length
       answers.push({
-        number: Number(headings[index][1]),
-        text: headings[index][2].trim(),
+        number: headings[index].number,
+        text: headings[index].text,
         content: content.slice(start, end).trim(),
       })
     }

@@ -313,6 +313,61 @@ function testFollowupParsingSkipsCodeFence() {
   assert.equal(validateFollowupSection(block).failures.length, 0)
 }
 
+function testFencedFakeAnswerHeadingDoesNotIncreaseCount() {
+  const block = `### D1. 示例
+
+::: details 参考答案
+主答案
+:::
+
+**追问链：**
+1. 第一个追问？
+
+::: details 追问参考答案
+**1. 第一个追问？**
+第一个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+
+~~~~md
+**2. 围栏内伪答案？**
+这只是代码示例，不应被识别为另一个追问答案标题。
+~~~~
+:::
+`
+  const result = validateFollowupSection(block)
+  assert.equal(result.answerCount, 1)
+  assert.equal(result.failures.length, 0)
+}
+
+function testFencedFakeAnswerCannotSatisfyMissingAnswer() {
+  const block = `### D1. 示例
+
+::: details 参考答案
+主答案
+:::
+
+**追问链：**
+1. 第一个追问？
+2. 第二个追问？
+
+::: details 追问参考答案
+**1. 第一个追问？**
+第一个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+
+\`\`\`\`md
+\`\`\`
+**2. 第二个追问？**
+围栏内伪答案包含足够多的字符，但四个反引号开启的围栏不能被三个反引号提前闭合，因此不得通过校验。
+\`\`\`\`
+:::
+`
+  const result = validateFollowupSection(block)
+  assert.equal(result.answerCount, 1)
+  assert.match(
+    result.failures.join('\n'),
+    /追问数量 2 与答案数量 1 不一致/,
+  )
+}
+
 function testParseFollowupArgs() {
   assert.deepEqual(parseFollowupArgs([]), {
     requireFollowups: false,
@@ -495,6 +550,8 @@ testFollowupParsingAndValidation()
 testInlineFollowupChain()
 testFollowupFailures()
 testFollowupParsingSkipsCodeFence()
+testFencedFakeAnswerCannotSatisfyMissingAnswer()
+testFencedFakeAnswerHeadingDoesNotIncreaseCount()
 testParseFollowupArgs()
 testHasDeepSection()
 testInvalidEnvExitsOne()
@@ -503,4 +560,4 @@ await testRejectsWrongQuestionFileSet()
 await testExactQuestionTotal()
 await testFollowupFileSelection()
 
-console.log('validate-question-bank 边界自测通过（15 组）')
+console.log('validate-question-bank 边界自测通过（17 组）')

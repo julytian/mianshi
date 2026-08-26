@@ -69,6 +69,17 @@ export default defineConfig({
           ],
         },
         {
+          text: 'AI 编程实践',
+          collapsed: true,
+          items: [
+            { text: 'Cursor 工作流', link: '/interview/guides/ai-coding/cursor-workflow' },
+            { text: 'Rules 实践', link: '/interview/guides/ai-coding/rules' },
+            { text: 'Skills 实践', link: '/interview/guides/ai-coding/skills' },
+            { text: 'Hooks 与 MCP', link: '/interview/guides/ai-coding/hooks-mcp' },
+            { text: 'Vue 项目示例', link: '/interview/guides/ai-coding/vue-project-example' },
+          ],
+        },
+        {
           text: 'Lead',
           items: [
             { text: '架构 / Lead', link: '/interview/questions/08-architecture-lead' },

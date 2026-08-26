@@ -492,6 +492,112 @@ state.count++ // 再打印
 
 ---
 
+### Q10. 数组扁平化 `flatten`
+
+**考察点：** 递归 / 迭代、`depth`、与 `Array.prototype.flat` 对齐
+
+::: details 参考答案
+```js
+function flatten(arr, depth = 1) {
+  if (depth < 1) return arr.slice()
+  const out = []
+  for (const item of arr) {
+    if (Array.isArray(item) && depth > 0) {
+      out.push(...flatten(item, depth - 1))
+    } else {
+      out.push(item)
+    }
+  }
+  return out
+}
+
+// 栈迭代版（防爆栈，常考）
+function flattenIter(arr, depth = Infinity) {
+  const stack = arr.map((v) => [v, depth])
+  const out = []
+  while (stack.length) {
+    const [cur, d] = stack.pop()
+    if (Array.isArray(cur) && d > 0) {
+      for (const v of cur) stack.push([v, d - 1])
+    } else {
+      out.push(cur)
+    }
+  }
+  return out.reverse()
+}
+
+console.log(flatten([1, [2, [3, [4]]], 5], 2)) // [1, 2, 3, [4], 5]
+console.log([1, [2, [3]]].flat(Infinity))
+```
+
+**讲解：** 默认 `depth = 1` 对齐原生 `flat`。`reduce + concat` 也能写但大数组有中间数组成本。稀疏数组、空位行为面试提一句「与规范一致与否看面试官要求」即可。
+:::
+
+**追问：**
+1. `flatMap` 和 `map + flat(1)` 关系？
+2. 如何扁平「类数组」？
+3. 无限深度用递归的风险？
+
+**踩坑：** 用 `toString` / `join` 伪扁平丢失类型；或 `concat` 不判断 depth。
+
+---
+
+### Q11. 手写 `call` / `apply` / `bind`
+
+**考察点：** 显式绑定 `this`、参数传递、bound 函数的原型与 `new`
+
+::: details 参考答案
+```js
+Function.prototype.myCall = function (thisArg, ...args) {
+  if (typeof this !== 'function') throw new TypeError('not a function')
+  const ctx =
+    thisArg === null || thisArg === undefined
+      ? (typeof globalThis !== 'undefined' ? globalThis : window)
+      : Object(thisArg)
+  const key = Symbol('fn')
+  ctx[key] = this
+  const result = ctx[key](...args)
+  delete ctx[key]
+  return result
+}
+
+Function.prototype.myApply = function (thisArg, args) {
+  return this.myCall(thisArg, ...(args || []))
+}
+
+Function.prototype.myBind = function (thisArg, ...preset) {
+  const fn = this
+  const bound = function (...args) {
+    // new bound() 时 this 指向新实例，忽略绑定的 thisArg
+    const isNew = new.target !== undefined
+    return fn.myApply(isNew ? this : thisArg, preset.concat(args))
+  }
+  if (fn.prototype) bound.prototype = Object.create(fn.prototype)
+  return bound
+}
+
+// 自测
+function greet(a, b) {
+  return `${this.name}-${a}-${b}`
+}
+console.log(greet.myCall({ name: 'A' }, 1, 2))
+console.log(greet.myApply({ name: 'B' }, [3, 4]))
+const g = greet.myBind({ name: 'C' }, 5)
+console.log(g(6))
+```
+
+**讲解：** 核心是「把函数变成对象方法再调用」。`bind` 要处理：预设参数柯里化、`new` 场景优先实例。严格模式与原始值 `this` 的包装细节可口述。现代代码更常用箭头函数 / 显式传参，但手写仍考透彻度。
+:::
+
+**追问：**
+1. `bind` 之后还能再 `bind` 改 `this` 吗？
+2. 为什么要用 `Symbol` 当临时 key？
+3. 箭头函数的 `call/apply/bind` 为何改不了 `this`？
+
+**踩坑：** `bind` 忘记 `new` 场景；或 `apply` 第二参 `null` 未当 `[]` 处理。
+
+---
+
 ## 深度题
 
 > D 题先口述思路、复杂度、边界与测试，再写关键实现；不追求在白板复刻生产级长代码。
@@ -763,38 +869,180 @@ type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
 面试先定义契约：任务接收 `AbortSignal`；最多 `limit` 个运行；结果按输入顺序；仅重试可重试错误；外部取消后不再启动新任务，并让在途任务尽快退出。
 
 #### 原理深挖
-核心状态是 `nextIndex`、`active`、结果数组和共享取消信号。每个 worker 循环领取索引，天然限制并发并保序。第 n 次等待可用 `min(cap, base * 2 ** n)` 再加随机抖动，避免客户端同步重试形成惊群。
+核心状态是 `nextIndex`、结果数组和共享取消信号。每个 worker 同步领取唯一索引，再异步执行，天然限制并发；结果写回原索引保证顺序。第 n 次等待可用 `min(maxDelay, baseDelay * 2 ** n)` 再加随机抖动，避免客户端同步重试形成惊群。
 
-```ts
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener('abort', () => {
+```js
+function abortReason(signal) {
+  return signal.reason ?? new DOMException('Aborted', 'AbortError')
+}
+
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(abortReason(signal))
+      return
+    }
+
+    const onAbort = () => {
       clearTimeout(timer)
-      reject(signal.reason)
-    }, { once: true })
+      reject(abortReason(signal))
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
   })
+}
 
-async function withRetry<T>(
-  run: () => Promise<T>,
-  signal: AbortSignal,
-  retries = 3,
-) {
+async function withRetry(task, options) {
+  const {
+    signal,
+    retries,
+    baseDelay,
+    maxDelay,
+    shouldRetry,
+    jitter,
+  } = options
+
   for (let attempt = 0; ; attempt++) {
-    signal.throwIfAborted()
+    if (signal.aborted) throw abortReason(signal)
     try {
-      return await run()
+      return await task(signal, attempt)
     } catch (error) {
-      if (attempt >= retries || !isRetryable(error)) throw error
-      const cap = Math.min(5_000, 200 * 2 ** attempt)
-      await sleep(Math.random() * cap, signal)
+      if (signal.aborted) throw abortReason(signal)
+      if (attempt >= retries || !shouldRetry(error, attempt)) throw error
+      const ceiling = Math.min(maxDelay, baseDelay * 2 ** attempt)
+      await sleep(jitter(ceiling), signal)
     }
   }
+}
+
+async function requestPool(tasks, options = {}) {
+  const {
+    limit = 3,
+    retries = 0,
+    baseDelay = 200,
+    maxDelay = 5_000,
+    signal = new AbortController().signal,
+    shouldRetry = (error) => error?.retryable === true,
+    jitter = (ceiling) => Math.random() * ceiling,
+  } = options
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new RangeError('limit must be a positive integer')
+  }
+  if (!Number.isInteger(retries) || retries < 0) {
+    throw new RangeError('retries must be a non-negative integer')
+  }
+  if (signal.aborted) throw abortReason(signal)
+  if (tasks.length === 0) return []
+
+  const results = new Array(tasks.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (true) {
+      if (signal.aborted) throw abortReason(signal)
+      const index = nextIndex
+      nextIndex += 1
+      if (index >= tasks.length) return
+
+      results[index] = await withRetry(tasks[index], {
+        signal,
+        retries,
+        baseDelay,
+        maxDelay,
+        shouldRetry,
+        jitter,
+      })
+    }
+  }
+
+  const workerCount = Math.min(limit, tasks.length)
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  return results
 }
 ```
 
 #### 工程场景
-再写 `limit` 个 worker，通过闭包领取唯一 index，把结果写回 `results[index]`。HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`；非幂等 POST 需要幂等键。快速失败时触发内部 controller 取消其余任务。
+HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`；非幂等 POST 需要幂等键。调用方取消后，池不再领取新任务；已经开始的任务只有真正使用收到的 `signal`，底层 fetch 或等待才会被取消。
+
+设任务数为 n、实际总尝试次数为 A：调度与结果写入时间为 O(A)，不含任务自身耗时和退避等待；结果数组占 O(n)，worker 与在途任务占 O(min(n, limit))，总空间 O(n + min(n, limit))。
+
+以下测试保存为 `.mjs`，与上方实现放在同一文件可直接用 Node.js 运行：
+
+```js
+import assert from 'node:assert/strict'
+
+const delayTask = (value, ms, onState = () => {}) =>
+  async (signal) => {
+    onState(1)
+    try {
+      await sleep(ms, signal)
+      return value
+    } finally {
+      onState(-1)
+    }
+  }
+
+// 1. 空任务
+assert.deepEqual(await requestPool([], { limit: 2 }), [])
+
+// 2. 并发为 1：任意时刻只有一个任务运行
+let active = 0
+let maxActive = 0
+const track = (delta) => {
+  active += delta
+  maxActive = Math.max(maxActive, active)
+}
+await requestPool([
+  delayTask('a', 10, track),
+  delayTask('b', 5, track),
+], { limit: 1 })
+assert.equal(maxActive, 1)
+
+// 3. 失败后按策略重试
+let attempts = 0
+const retryResult = await requestPool([
+  async () => {
+    attempts += 1
+    if (attempts < 3) {
+      const error = new Error('temporary')
+      error.retryable = true
+      throw error
+    }
+    return 'ok'
+  },
+], { limit: 1, retries: 2, baseDelay: 0, jitter: () => 0 })
+assert.deepEqual(retryResult, ['ok'])
+assert.equal(attempts, 3)
+
+// 4. 取消：在途 sleep 收到同一个 signal 并拒绝
+const controller = new AbortController()
+const cancelled = requestPool([
+  delayTask('never', 100),
+], { limit: 1, signal: controller.signal })
+setTimeout(() => controller.abort(new Error('stop')), 5)
+await assert.rejects(cancelled, /stop/)
+
+// 5. 乱序完成但结果仍按输入顺序
+assert.deepEqual(
+  await requestPool([
+    delayTask('slow', 20),
+    delayTask('fast', 1),
+  ], { limit: 2 }),
+  ['slow', 'fast'],
+)
+
+// 6. 非法 limit
+await assert.rejects(
+  () => requestPool([], { limit: 0 }),
+  RangeError,
+)
+
+console.log('requestPool tests passed')
+```
 
 #### 反例 / 踩坑
 所有错误都重试；固定间隔无抖动；取消只是不返回结果，底层 fetch 仍运行；`Promise.race` 某任务 reject 后调度器意外停止；用 push 导致结果乱序。
@@ -826,6 +1074,7 @@ async function withRetry<T>(
 | Q4–Q5 | 15 分钟 | 保序 / 槽位 |
 | Q6–Q8 | 15 分钟 | API 完整性 |
 | Q9 | 20 分钟 | track/trigger 口述 |
+| Q10–Q11 | 15 分钟 | 递归边界 / `this` |
 | D1–D2 | 20 分钟 | 窗口 / 树遍历 |
 | D3–D5 | 20 分钟 | 缓存 / 类型 / 调度 |
 

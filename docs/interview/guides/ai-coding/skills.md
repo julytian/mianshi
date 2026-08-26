@@ -1,26 +1,37 @@
 # Cursor Skills：封装可复用工作流
 
-> 版本说明：以下字段与目录以 **2026-08** 为基线；实施前请核对 [Cursor Skills 官方文档](https://cursor.com/docs/skills)。
+> 版本说明：以下字段与目录以 **2026-08** 为基线；实施前请核对 [Cursor Skills 官方文档](https://cursor.com/docs/skills.md)。
 
-Skill 用于教 Agent 完成一类可复用任务。每个 Skill 是一个包含 `SKILL.md` 的目录：
+Skill 主要面向 Agent，用于教它完成一类可复用任务。每个 Skill 是一个包含 `SKILL.md` 的目录。Cursor 原生发现以下位置：
 
 ```text
-.cursor/skills/<skill-name>/       # 项目 Skill，随仓库共享
-~/.cursor/skills/<skill-name>/     # 个人 Skill，跨项目使用
+.agents/skills/<skill-name>/        # 项目级，开放 Agent Skills 目录
+.cursor/skills/<skill-name>/        # 项目级，Cursor 目录
+~/.agents/skills/<skill-name>/      # 个人级
+~/.cursor/skills/<skill-name>/      # 个人级
+```
+
+为兼容其他 Agent，Cursor 也加载 `.claude/skills/`、`.codex/skills/`、`~/.claude/skills/` 和 `~/.codex/skills/`。Skills 根目录可按类别递归嵌套；仓库子目录内的 `.cursor/skills/` 或 `.agents/skills/` 会自动限定到该子目录，适合 monorepo。每个实际 Skill 目录可包含：
+
+```text
+<skill-name>/
 ├── SKILL.md                       # 必需
 ├── references/                    # 可选，详细资料
 ├── scripts/                       # 可选，确定性工具
 └── assets/                        # 可选，模板或静态资源
 ```
 
-不要把个人 Skill 写入 `~/.cursor/skills-cursor/`，该目录由 Cursor 管理。
+不要把个人 Skill 写入 `~/.cursor/skills-cursor/`，该目录由 Cursor 管理。职责边界与统一质量基线见 [Cursor 前端 AI 编程工作流](./cursor-workflow#职责矩阵与统一质量基线)。
 
 ## frontmatter 字段
 
-- `name`：必填，最长 64 个字符，只能使用小写字母、数字和连字符；应与父目录名一致；
+- `name`：必填，1～64 个字符，只能使用小写字母、数字和连字符；不能以连字符开头或结尾，不能包含连续连字符，且必须与父目录名一致；
 - `description`：必填，明确「做什么」和「何时使用」；
 - `paths`：可选，用 glob 限定相关文件，可写逗号分隔字符串或列表；
-- `disable-model-invocation`：可选，设为 `true` 后只在显式 `/skill-name` 调用时加载。
+- `disable-model-invocation`：可选，设为 `true` 后只在显式 `/skill-name` 调用时加载；
+- `icon`：可选，Skill 作为 Custom Mode 时显示的 Cursor 图标名，例如 `code`、`beaker`、`shield`；
+- `color`：可选，Custom Mode 徽标颜色，可用 `default`、`green`、`cyan`、`blue`、`purple`、`magenta`、`orange`、`yellow`、`red`、`brand`；
+- `metadata`：可选，附加键值映射，例如作者和版本。
 
 `SKILL.md` 应只保留完成任务必需的流程。详细标准放在一层引用中，由 `SKILL.md` 直接链接，例如 `references/checklist.md`，不要构造多层引用链。
 
@@ -247,7 +258,8 @@ Skill 仍是提供给模型的指导，不能保证每次自动调用，也不�
 
 ## 官方资料
 
-- [Cursor Skills](https://cursor.com/docs/skills)
-- [Cursor Rules](https://cursor.com/docs/rules)
-- [Cursor Agent 安全](https://cursor.com/docs/agent/security)
+- [Cursor Skills](https://cursor.com/docs/skills.md)
+- [Agent Skills 规范](https://agentskills.io/specification)
+- [Cursor Rules](https://cursor.com/docs/rules.md)
+- [Cursor Agent 安全](https://cursor.com/docs/agent/security.md)
 

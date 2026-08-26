@@ -100,9 +100,30 @@ Events Up。完成后汇报 diff 摘要与本步测试，不继续下一步。
 发现秘密、生成物或无关文件就停止。确认无误后生成一条符合仓库风格的提交说明。
 ```
 
+## 职责矩阵与统一质量基线
+
+后续各篇统一引用本节，避免在 Rule、Skill、Hook 和 MCP 之间重复或冲突：
+
+- **Rules**：向 Agent Chat 持续提供项目约定；不负责确定性拦截。
+- **Skills**：向 Agent 提供按需加载的专业工作流、脚本和参考资料。
+- **Hooks**：在受支持事件上运行检查或返回官方权限决策；项目 Hook 只是纵深防御。
+- **MCP**：连接外部 Tools、Resources 和 Prompts；权限仍由宿主与服务端控制。
+- **测试与 CI**：确定性验证类型、行为、构建和回归，是质量门禁的执行层。
+
+所有前端任务使用同一质量基线：
+
+1. 范围只覆盖需求，API、权限和数据契约均有来源；
+2. 先验证成功、失败、空态、并发和取消等关键行为；
+3. 运行相关测试、类型检查、lint（若配置）和生产构建；
+4. 检查敏感信息、输入边界、服务端鉴权和依赖风险；
+5. 检查语义、键盘、焦点、错误关联和触控目标；
+6. 性能结论有测量证据，不以主观代码观感替代数据；
+7. 汇报实际命令、退出码、未验证项和可回滚点；
+8. 中高风险变更由独立上下文复核完整 diff。
+
 ## 上下文：精确而非堆砌
 
-截至 2026-08，已知文件可通过 `@文件`、`@目录`、终端、Git diff、浏览器或历史聊天等上下文显式引用；未知位置应让 Agent 搜索代码库。`@Codebase` 不再是必要的标准入口。详见 [Prompting](https://cursor.com/docs/agent/prompting)。
+截至 2026-08，已知文件可通过 `@文件`、`@目录`、终端、Git diff、浏览器或历史聊天等上下文显式引用；未知位置应让 Agent 搜索代码库。`@Codebase` 不再是必要的标准入口。详见 [Prompting](https://cursor.com/docs/agent/prompting.md)。
 
 最小充分上下文通常包含：
 
@@ -132,7 +153,7 @@ Events Up。完成后汇报 diff 摘要与本步测试，不继续下一步。
 
 ### 独立审查
 
-中高风险改动应由没有参与实现的独立上下文审查。向审查者提供需求、diff、验证结果，不提供实现者的自我辩护，减少确认偏差。
+中高风险改动应启动**新的 Agent 会话**、专用的独立审查 Agent，或在隔离 worktree 中审查。只传入原始需求、完整 diff 和验证结果；必要时补充最小复现，不传实现者的推理或自我辩护。同一聊天里追加「再审查一次」仍共享原上下文，不算独立审查。
 
 ## 把外部输出视为不可信输入
 
@@ -201,8 +222,8 @@ a-form 和权限指令用法。分页、排序由服务端处理；请求失败�
 
 ## 官方资料
 
-- [Cursor Agent 概览](https://cursor.com/docs/agent/overview)
-- [Cursor Prompting 与上下文](https://cursor.com/docs/agent/prompting)
-- [Cursor Rules](https://cursor.com/docs/rules)
-- [Cursor Agent 安全](https://cursor.com/docs/agent/security)
+- [Cursor Agent 概览](https://cursor.com/docs/agent/overview.md)
+- [Cursor Prompting 与上下文](https://cursor.com/docs/agent/prompting.md)
+- [Cursor Rules](https://cursor.com/docs/rules.md)
+- [Cursor Agent 安全](https://cursor.com/docs/agent/security.md)
 

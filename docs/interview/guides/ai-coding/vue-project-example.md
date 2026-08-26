@@ -66,6 +66,7 @@ Skills 放完整的按需流程：
 - 性能诊断、发布检查等不必每次进入上下文的专业步骤。
 
 Rule 或 Skill 都不能代替服务端鉴权、Hook、CI 和人工审批。
+通用职责和验收项统一引用 [Cursor 前端 AI 编程工作流](./cursor-workflow#职责矩阵与统一质量基线)，本篇只保留用户管理场景的增量检查。
 
 ## 先固定 API 契约
 
@@ -359,5 +360,5 @@ const { permissions } = storeToRefs(authStore)
 - [Pinia 官方文档](https://pinia.vuejs.org/)
 - [Vue Router 官方文档](https://router.vuejs.org/)
 - [Ant Design Vue](https://antdv.com/)
-- [Cursor Prompting](https://cursor.com/docs/agent/prompting)
+- [Cursor Prompting](https://cursor.com/docs/agent/prompting.md)
 

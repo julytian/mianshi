@@ -1,22 +1,18 @@
 # Cursor Rules：把项目约定放进上下文
 
-> 版本说明：以下格式以 **2026-08** 为基线；实施前请核对 [Cursor Rules 官方文档](https://cursor.com/docs/rules)。
+> 版本说明：以下格式以 **2026-08** 为基线；实施前请核对 [Cursor Rules 官方文档](https://cursor.com/docs/rules.md)。
 
 Rules 是随代码库版本管理的持续指令，适合表达「在什么文件中，应遵循哪些项目约定」。项目 Rule 位于 `.cursor/rules/*.mdc`，不是普通 `.md`。常用 frontmatter：
 
 - `description`：说明规则内容和适用场景；
 - `globs`：匹配文件时应用的路径模式；
-- `alwaysApply`：是否在所有会话中始终应用；`true` 仅用于真正项目级、与文件类型无关的通用约束，文件专属规范应使用 `globs` 并设为 `false`。
+- `alwaysApply`：是否在所有 Agent Chat 会话中始终应用；`true` 仅用于真正项目级、与文件类型无关的通用约束，文件专属规范应使用 `globs` 并设为 `false`。
 
-Rule 应短、可执行、单一职责，建议控制在 50 行以内。它能影响 Agent 行为，但不能替代类型系统、测试、权限、Hook 或人工审批。
+Rules 不影响 Cursor Tab 或其他 AI 功能，User Rules 也不应用于 Inline Edit。Rule 应短、可执行、单一职责；官方建议低于 500 行，本指南把「每条不超过 50 行」作为便于团队维护的更严格建议，而非 Cursor 限制。
 
 ## 边界与选择
 
-- 稳定编码约定、目录规范：用 Rule；
-- 可复用的多步骤专业工作流：用 Skill；
-- 在工具执行前后确定性检查或拦截：用 Hook；
-- 连接浏览器、API 文档、监控等外部系统：用 MCP；
-- 简单、可读、按目录继承的说明：可用 `AGENTS.md`。
+完整职责矩阵和统一质量基线见 [Cursor 前端 AI 编程工作流](./cursor-workflow#职责矩阵与统一质量基线)。本篇只补充 Rule 特有选择：稳定编码约定和目录规范用 Rule；简单、可读、按目录继承的说明可用 `AGENTS.md`。
 
 不要把令牌、口令写进 Rule，也不要用 Rule 假装「禁止」危险命令。模型指令不是强制安全边界。
 
@@ -175,7 +171,7 @@ alwaysApply: false
 
 ## 官方资料
 
-- [Cursor Rules](https://cursor.com/docs/rules)
-- [Cursor Skills](https://cursor.com/docs/skills)
-- [Cursor Hooks](https://cursor.com/docs/hooks)
+- [Cursor Rules](https://cursor.com/docs/rules.md)
+- [Cursor Skills](https://cursor.com/docs/skills.md)
+- [Cursor Hooks](https://cursor.com/docs/hooks.md)
 

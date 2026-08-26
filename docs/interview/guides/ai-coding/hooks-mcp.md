@@ -1,30 +1,28 @@
 # Cursor Hooks 与 MCP：自动化、连接与安全边界
 
-> 版本说明：事件、字段和传输方式以 **2026-08** 为基线；实施前请核对 [Hooks](https://cursor.com/docs/hooks) 与 [MCP](https://cursor.com/docs/mcp) 官方文档。
+> 版本说明：事件、字段和传输方式以 **2026-08** 为基线；实施前请核对 [Hooks](https://cursor.com/docs/hooks.md) 与 [MCP](https://cursor.com/docs/mcp.md) 官方文档。
 
-## Rules、Skills、Hooks、MCP 的职责
+## 职责与信任边界
 
-- **Rules**：持续提供项目约定，回答「在这些文件里应遵循什么」。
-- **Skills**：封装按需加载的专业流程、引用和脚本，回答「这类任务怎么做」。
-- **Hooks**：在 Agent 事件前后执行确定性检查、阻止、审计或补充上下文。
-- **MCP**：让 Agent 连接外部工具和数据源，提供 Tools、Resources 或 Prompts。
+Rules、Skills、Hooks、MCP 的完整职责矩阵与统一质量基线见 [Cursor 前端 AI 编程工作流](./cursor-workflow#职责矩阵与统一质量基线)。
 
-四者可以组合，但不能互相冒充。Rule 和 Skill 不是强制策略；MCP 是能力通道，不是权限边界；Hook 只有在选对事件、正确处理失败并经过真实测试后，才可能成为可靠门禁。
+项目 Hook 只应作为纵深防御：它和业务代码一起存入仓库，能写仓库的人也能篡改 `.cursor/hooks.json` 或脚本，因此它不是防篡改安全边界。项目 Hook 只在 trusted workspace 中加载；打开不可信仓库前应先审查 Hook。高保证策略还需团队/企业托管控制、操作系统权限、服务端鉴权和外部审计。
 
 ## Hooks 工作方式
 
 项目配置位于 `.cursor/hooks.json`，脚本通常放在 `.cursor/hooks/`。命令 Hook 从标准输入读取 JSON，并向标准输出写 JSON：
 
-- 退出码 `0`：执行成功，Cursor 处理其 JSON 输出；
-- 退出码 `2`：明确阻止当前动作；
+- 退出码 `0`：执行成功，Cursor 按事件的官方输出 schema 处理 JSON；
+- `beforeShellExecution` / `beforeMCPExecution` 可返回 `permission: "allow" | "deny" | "ask"`，以及可选的 `user_message`、`agent_message`；
+- 退出码 `2`：明确阻止当前动作，等价于 `permission: "deny"`；
 - 其他非零退出码：默认 fail-open，即动作继续；
 - 安全关键 Hook 应设置 `failClosed: true`，使崩溃、超时或无效 JSON 阻止动作。
 
-事件会变化。常见事件包括 `beforeShellExecution`、`beforeMCPExecution`、`afterFileEdit`、`beforeSubmitPrompt`、`preToolUse`、`postToolUse`、`sessionStart` 和 `stop`，应以实施时官方事件列表为准。
+`failClosed` 只覆盖脚本崩溃、超时和无效输出，不能修复策略漏判、错误 allowlist、未覆盖事件或被篡改脚本。事件与输出字段会变化，应以实施时 [Hooks 官方文档](https://cursor.com/docs/hooks.md) 为准。
 
 ### 完整 `.cursor/hooks.json`
 
-下面示例在 Shell 和 MCP 写操作前运行同一安全脚本，并在文件编辑后执行轻量审计。`matcher` 使用 JavaScript 风格正则表达式；复杂筛选放到脚本内部更易测试。
+Shell 的 matcher 必须覆盖所有命令，避免只检查「看起来危险」的关键词。`[\s\S]*` 的 JSON 写法是 `"[\\s\\S]*"`；也可省略 matcher 让 Hook 对该事件全部运行。策略判断全部放进脚本。
 
 ```json
 {
@@ -33,7 +31,7 @@
     "beforeShellExecution": [
       {
         "command": "node .cursor/hooks/security-gate.mjs",
-        "matcher": "rm|git push|curl|wget|deploy|publish",
+        "matcher": "[\\s\\S]*",
         "timeout": 5,
         "failClosed": true
       }
@@ -57,63 +55,93 @@
 
 ### 完整安全脚本
 
-保存为 `.cursor/hooks/security-gate.mjs`。它只展示可复制的最小策略，字段兼容逻辑集中在取值处；上线前必须用 Hooks 输出检查实际事件输入。
+保存为 `.cursor/hooks/security-gate.mjs`。MCP 使用显式「服务器 + 工具」只读 allowlist；Shell 只允许少量精确、低风险命令。未知调用默认要求人工确认，输入格式异常则拒绝。
 
-`beforeMCPExecution` 的输入使用顶层官方字段 `mcp_server_name`、`tool_name` 和 `tool_input`。例如：
+`beforeMCPExecution` 的 `tool_input` 是 **JSON 字符串**，不是对象：
 
 ```json
 {
-  "mcp_server_name": "deployment",
-  "tool_name": "create_release",
-  "tool_input": {
-    "environment": "production"
-  }
+  "mcp_server_name": "project-api-docs",
+  "tool_name": "search_openapi",
+  "tool_input": "{\"query\":\"UserList\"}"
 }
 ```
 
 ```js
 #!/usr/bin/env node
 
-let input
-try {
-  input = JSON.parse(await readStdin())
-} catch {
-  console.error('Hook 输入不是有效 JSON')
-  process.exit(2)
-}
+const MAX_COMMAND_LENGTH = 4096
 
-const command = String(input.command ?? input.tool_input?.command ?? '')
-const server = String(input.mcp_server_name ?? '')
-const tool = String(input.tool_name ?? '')
-const target = `${server}:${tool}`
+const MCP_READ_ALLOWLIST = new Set([
+  'project-api-docs:search_openapi',
+  'error-monitoring:get_issue',
+  'deployment-readonly:list_deployments'
+])
 
-const deniedShell = [
-  /\brm\s+-rf\s+(?:\/|~|\$HOME)(?:\s|$)/i,
-  /\bgit\s+push\b.*\s--force(?:-with-lease)?\b/i,
-  /\b(?:curl|wget)\b.*(?:\.env|credentials|private[_-]?key)/i
+const SHELL_ALLOWLIST = [
+  /^pwd$/,
+  /^git status(?: --short)?$/,
+  /^git diff --check$/,
+  /^git diff --name-only$/,
+  /^git log -n [1-9]\d{0,2} --oneline$/
 ]
 
-const writeLikeMcp = /(?:delete|deploy|publish|release|write|create|update)/i
-
-if (deniedShell.some((pattern) => pattern.test(command))) {
-  process.stdout.write(JSON.stringify({
-    permission: 'deny',
-    user_message: '安全 Hook 阻止了高风险命令，请拆分操作并人工复核。',
-    agent_message: '不要绕过 Hook；提出更小、可回滚的方案。'
-  }))
-  process.exit(2)
+let event
+try {
+  event = JSON.parse(await readStdin())
+} catch {
+  finish('deny', 'Hook 输入不是有效 JSON。', 2)
 }
 
-if (target !== ':' && writeLikeMcp.test(target)) {
-  process.stdout.write(JSON.stringify({
-    permission: 'ask',
-    user_message: `MCP 操作 ${target} 可能写入外部系统，请确认目标与影响。`,
-    agent_message: '等待用户确认，不要改用其他工具绕过审批。'
-  }))
-  process.exit(0)
+if (
+  Object.prototype.hasOwnProperty.call(event, 'mcp_server_name') ||
+  Object.prototype.hasOwnProperty.call(event, 'tool_name')
+) {
+  const server = typeof event.mcp_server_name === 'string'
+    ? event.mcp_server_name
+    : ''
+  const tool = typeof event.tool_name === 'string' ? event.tool_name : ''
+  let params
+
+  try {
+    if (typeof event.tool_input !== 'string') throw new TypeError()
+    params = JSON.parse(event.tool_input)
+    if (params === null || typeof params !== 'object' || Array.isArray(params)) {
+      throw new TypeError()
+    }
+  } catch {
+    finish('deny', 'MCP tool_input 不是有效的 JSON 对象字符串。', 2)
+  }
+
+  const key = `${server}:${tool}`
+  if (server && tool && MCP_READ_ALLOWLIST.has(key)) {
+    finish('allow', `允许只读 MCP 工具：${key}`)
+  }
+  finish('ask', `未知或非只读 MCP 工具：${key || '(missing)'}，请人工确认。`)
 }
 
-process.stdout.write(JSON.stringify({ permission: 'allow' }))
+if (typeof event.command === 'string') {
+  const command = event.command.trim()
+  if (!command) finish('deny', 'Shell command 为空。', 2)
+  if (command.length > MAX_COMMAND_LENGTH) {
+    finish('ask', `Shell command 超过 ${MAX_COMMAND_LENGTH} 字符，请人工检查。`)
+  }
+  if (SHELL_ALLOWLIST.some((pattern) => pattern.test(command))) {
+    finish('allow', `允许低风险命令：${command}`)
+  }
+  finish('ask', 'Shell 命令不在低风险 allowlist 中，请人工确认。')
+}
+
+finish('deny', '无法识别 Hook 事件输入。', 2)
+
+function finish(permission, message, exitCode = 0) {
+  process.stdout.write(JSON.stringify({
+    permission,
+    user_message: message,
+    agent_message: message
+  }))
+  process.exit(exitCode)
+}
 
 function readStdin() {
   return new Promise((resolve, reject) => {
@@ -126,7 +154,35 @@ function readStdin() {
 }
 ```
 
-保存脚本后执行 `chmod +x .cursor/hooks/security-gate.mjs`。还应确认 `node` 在 Hook 环境的 `PATH` 中，并分别测试 allow、ask、deny、无效 JSON、超时和脚本崩溃。不要只看配置文件是否能解析。
+这不是通用 Shell 解析器。精确 allowlist 只识别预期字符串；引号、换行、管道、`bash -c`、别名、包装器、`git -C` 和其他复杂形式全部落入 `ask`，不能声称几个正则能理解任意 Shell 语义。
+
+### 安全用例表
+
+保存脚本并执行 `chmod +x .cursor/hooks/security-gate.mjs` 后，至少验证：
+
+- `pwd` → `allow`；
+- `rm -fr /tmp/demo` → `ask`；
+- `git -C repo push --force origin main` → `ask`；
+- `bash -c 'git status'` → `ask`；
+- 超过 4096 字符的命令 → `ask`；
+- `project-api-docs:search_openapi` + 合法 JSON 字符串 → `allow`；
+- 未知 MCP 写工具 `deployment:create_release` → `ask`；
+- 畸形 `tool_input` 字符串 → `deny`，退出码 `2`；
+- 畸形外层 JSON → `deny`，退出码 `2`。
+
+每次修改 allowlist 后都应重复这些用例，并在 Cursor 的 Hooks 输出中触发真实事件复核。
+
+### Cloud Agent 限制
+
+截至 2026-08，Cloud Agent：
+
+- 仅运行仓库中的 command-based 项目 Hook，以及适用的团队/企业 Hook；不运行 prompt-based Hook；
+- 不加载本机 `~/.cursor/hooks.json`；
+- 不运行 `beforeMCPExecution` / `afterMCPExecution`；
+- 早期只读探索阶段不运行 Hook，进入可写环境后才开始运行受支持事件；
+- 不运行 Tab Hook 与 `workspaceOpen` 等 IDE 专属事件。
+
+因此本页的 MCP 门禁不能用于 Cloud Agent。Cloud MCP 权限必须在 Cloud Agent、MCP 服务端和组织策略中另行配置。完整支持矩阵见 [Cloud Agent Hooks](https://cursor.com/docs/hooks.md#cloud-agent-support)。
 
 ### 审计脚本
 
@@ -151,7 +207,7 @@ process.stdin.on('end', () => {
 })
 ```
 
-审计 Hook 默认 fail-open 是合理的，因为日志失败不应阻断普通编辑；真正的安全门禁则应 `failClosed`。
+审计 Hook 默认 fail-open 是合理的，因为日志失败不应阻断普通编辑；安全关键 Hook 可用 `failClosed` 防止脚本异常时放行，但仍需测试策略覆盖率。
 
 ## MCP 配置
 
@@ -200,7 +256,7 @@ process.stdin.on('end', () => {
 }
 ```
 
-`stdio` 服务使用 `type: "stdio"` 明确标识，并由 Cursor 启动本地进程；远程 URL 由对应服务决定是 Streamable HTTP 还是 SSE。不要虚构 `transport` 等非官方字段。环境变量插值、OAuth 和具体可用字段应以当前 [MCP 配置说明](https://cursor.com/docs/mcp) 为准。
+`stdio` 服务使用 `type: "stdio"` 明确标识，并由 Cursor 启动本地进程；远程 URL 由对应服务决定是 Streamable HTTP 还是 SSE。不要虚构 `transport` 等非官方字段。环境变量插值、OAuth 和具体可用字段应以当前 [MCP 配置说明](https://cursor.com/docs/mcp.md) 为准。
 
 ## 五类前端场景
 
@@ -246,7 +302,7 @@ MCP 的 Tools/Resources/Prompts 是协议能力；Cursor、操作系统、容器
 
 ## `.cursorignore` 不是完整安全边界
 
-`.cursorignore` 可阻止被匹配文件进入常规 Agent 文件读取、索引或 `@` 上下文，但终端命令和 MCP 工具不能依靠它阻止访问这些文件。详见 [Ignore files](https://cursor.com/docs/reference/ignore-file)。
+`.cursorignore` 可阻止被匹配文件进入常规 Agent 文件读取、索引或 `@` 上下文，但终端命令和 MCP 工具不能依靠它阻止访问这些文件。详见 [Ignore files](https://cursor.com/docs/reference/ignore-file.md)。
 
 真正敏感的数据应结合：
 
@@ -260,7 +316,7 @@ MCP 的 Tools/Resources/Prompts 是协议能力；Cursor、操作系统、容器
 
 - Hook 事件与输出字段已按当前官方文档确认；
 - 脚本依赖存在、可执行，异常和超时行为已测试；
-- 安全门禁使用 `failClosed: true`，明确拒绝返回退出码 `2`；
+- 安全关键 Hook 使用 `failClosed: true` 防脚本异常，并单独测试策略漏判；
 - MCP 配置没有真实密钥，读写权限分离；
 - 外部输出按不可信输入处理；
 - 降级路径不会绕过安全要求；
@@ -268,9 +324,10 @@ MCP 的 Tools/Resources/Prompts 是协议能力；Cursor、操作系统、容器
 
 ## 官方资料
 
-- [Cursor Hooks](https://cursor.com/docs/hooks)
-- [Cursor MCP](https://cursor.com/docs/mcp)
-- [Cursor Ignore files](https://cursor.com/docs/reference/ignore-file)
-- [Cursor Agent 安全](https://cursor.com/docs/agent/security)
+- [Cursor Hooks](https://cursor.com/docs/hooks.md)
+- [Cursor Cloud Agent](https://cursor.com/docs/cloud-agent.md)
+- [Cursor MCP](https://cursor.com/docs/mcp.md)
+- [Cursor Ignore files](https://cursor.com/docs/reference/ignore-file.md)
+- [Cursor Agent 安全](https://cursor.com/docs/agent/security.md)
 - [Model Context Protocol](https://modelcontextprotocol.io/introduction)
 

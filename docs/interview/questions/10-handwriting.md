@@ -373,6 +373,8 @@ bus.emit('msg', 3) // 无输出（once 与 a 都已解绑）
 **思路：** 看 `Ctor.prototype` 是否出现在 `obj` 的原型链上。
 
 ```js
+import assert from 'node:assert/strict'
+
 function myInstanceof(obj, Ctor) {
   // 沿构造器原型链找自定义钩子，但跳过内建默认实现
   let owner = Ctor
@@ -380,6 +382,7 @@ function myInstanceof(obj, Ctor) {
     if (Object.prototype.hasOwnProperty.call(owner, Symbol.hasInstance)) {
       if (owner !== Function.prototype) {
         const custom = owner[Symbol.hasInstance]
+        if (custom === undefined) break
         if (typeof custom !== 'function') {
           throw new TypeError('@@hasInstance must be callable')
         }
@@ -419,11 +422,19 @@ class Even {
   }
 }
 class PositiveEven extends Even {}
-console.log(myInstanceof(2, Even)) // true：自有自定义钩子
-console.log(myInstanceof(4, PositiveEven)) // true：继承的自定义钩子
+assert.equal(myInstanceof(2, Even), true) // 自有自定义钩子
+assert.equal(myInstanceof(4, PositiveEven), true) // 继承的自定义钩子
+
+function Plain() {}
+Object.defineProperty(Plain, Symbol.hasInstance, { value: undefined })
+assert.equal(myInstanceof(new Plain(), Plain), true) // 回退普通原型链
+
+function InvalidHook() {}
+Object.defineProperty(InvalidHook, Symbol.hasInstance, { value: 0 })
+assert.throws(() => myInstanceof({}, InvalidHook), TypeError)
 ```
 
-**讲解：** 原生属性查找允许子类继承父类的自定义 `@@hasInstance`，所以这里沿构造器原型链查找并调用；但遇到 `Function.prototype` 的内建默认实现时主动跳过，避免绕回原生 `instanceof`，普通函数继续显式遍历对象原型链。跨 iframe 的 `Array` 不同，数组检测应使用 `Array.isArray`。
+**讲解：** 原生属性查找允许子类继承父类的自定义 `@@hasInstance`，所以这里沿构造器原型链查找并调用；值为 `undefined` 表示没有钩子，回退普通原型链，只有非 `undefined` 且不可调用才抛 `TypeError`。遇到 `Function.prototype` 的内建默认实现时主动跳过，避免绕回原生 `instanceof`。跨 iframe 的数组检测应使用 `Array.isArray`。
 :::
 
 **追问：**
@@ -985,7 +996,9 @@ type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
 
 ```js
 function abortReason(signal) {
-  return signal.reason ?? new DOMException('Aborted', 'AbortError')
+  return signal.reason === undefined
+    ? new DOMException('Aborted', 'AbortError')
+    : signal.reason
 }
 
 function sleep(ms, signal) {
@@ -1141,6 +1154,10 @@ HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`�
 
 ```js
 import assert from 'node:assert/strict'
+
+assert.equal(abortReason({ reason: null }), null)
+assert.equal(abortReason({ reason: 0 }), 0)
+assert.equal(abortReason({ reason: undefined }).name, 'AbortError')
 
 const delayTask = (value, ms, onState = () => {}) =>
   async (signal) => {

@@ -107,6 +107,22 @@ AI 生成代码常见病：业务写进 Controller、Service 互相循环依赖�
 ::: details 参考答案
 后端：`Page<T> page = new Page<>(pageNum, pageSize)` + `lambdaQuery` / `QueryWrapper`，返回 `{ list, total }`（或 MP 的 `records` / `total`，**在 VO 层统一成前端字段名**）。
 
+分页不是只传 `Page` 就自动生效，还要注册插件：
+
+```java
+@Bean
+public MybatisPlusInterceptor mybatisPlusInterceptor() {
+    MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+    PaginationInnerInterceptor pagination =
+        new PaginationInnerInterceptor(DbType.MYSQL);
+    pagination.setMaxLimit(100L);
+    interceptor.addInnerInterceptor(pagination); // 多插件时通常放最后
+    return interceptor;
+}
+```
+
+MyBatis-Plus 从 3.5.9 起将分页插件依赖拆开；使用 `PaginationInnerInterceptor` 时需显式加入与核心版本对齐的 `mybatis-plus-jsqlparser`（或对应支持模块），不能只抄配置却漏依赖。具体 artifact 与版本以项目所用官方版本文档为准。
+
 前端表格惯例：`current` / `pageSize` / `total`；翻页、改 pageSize 重新请求。注意：
 
 1. **页码从 0 还是 1**——写进约定，别有的接口从 0；
@@ -166,6 +182,8 @@ AI 生成代码常见病：业务写进 Controller、Service 互相循环依赖�
 3. 请求头：`Authorization: Bearer <token>`；
 4. 过期：拦截器遇 401 / 业务码未登录 → 尝试 refresh（单飞，避免并发打爆）→ 失败跳登录并带 redirect。
 
+资源服务按**本地信任配置**校验签名算法与可信密钥，并把 `iss` 与配置的 issuer 精确匹配、把 `aud` 与本服务配置的 audience 匹配；不是 Token 里「存在这两个 claim」就算通过。还要校验 `exp`、`nbf` 等时效约束。Spring Security 可用 `issuer-uri` 与 `audiences` 配置，或组合对应 validator。
+
 讲清边界：JWT 适合无状态水平扩展；需要强制下线 / 踢人时，往往要黑名单或改用服务端 session（Redis）。前端不解析敏感业务权限当唯一依据——权限仍以服务端为准。
 
 口述金句：Token 在哪存是安全与体验的权衡，续期要做单飞。
@@ -214,9 +232,10 @@ AI 生成代码常见病：业务写进 Controller、Service 互相循环依赖�
 
 1. **登录会话 / Token 黑名单 / 验证码**：短 TTL，读写频繁；
 2. **热点读缓存**：配置、字典、商品详情；减轻 MySQL；
-3. **防重复提交 / 限流**：同一用户+接口短窗 setnx；
-4. **分布式锁（轻量）**：定时任务或下单防并发（讲清边界，不吹完美）；
-5. **排行榜 / 计数** 等结构型需求（按需）。
+3. **防重复提交 / 占位**：同一业务键用 `SET key value NX EX` 做短时占位，并由数据库唯一约束兜底；
+4. **限流**：固定/滑动窗口、令牌桶等需要计数与时间语义；多步读改写通常用 Lua 保证原子性，不能把一次 `SET NX` 直接等同于限流；
+5. **分布式锁（轻量）**：定时任务或下单防并发（讲清边界，不吹完美）；
+6. **排行榜 / 计数** 等结构型需求（按需）。
 
 不滥用：不是所有 DB 查询都先套 Redis——多一层一致性与运维成本。MQ（如 RabbitMQ）用于异步解耦（发短信、削峰），和 Redis 职责别混。
 
@@ -299,8 +318,8 @@ AI 生成代码常见病：业务写进 Controller、Service 互相循环依赖�
 
 1. 一个业务用例一个事务（下单写订单+明细）；
 2. 查多写少可拆：先校验再短事务写入；
-3. 自调用导致 `@Transactional` 失效（同类内部调用）要知道；
-4. 异常回滚：运行时异常默认回滚；吃掉异常不抛出会「以为成功」。
+3. 默认 `proxy` 模式只拦截经代理进入的外部调用；同类内部自调用绕过代理，因此目标方法上的 `@Transactional` 不会因此启动新事务。若显式使用 AspectJ weaving，则不受这条代理边界限制；
+4. 默认回滚规则通常是 `RuntimeException` / `Error` 回滚、checked exception 不回滚；可用 `rollbackFor` / `noRollbackFor`，Spring 6.2+ 还可配置全局默认。吃掉异常不抛出仍会让事务误提交。
 
 与前端：重复点击可能开启两段并发事务——靠幂等与唯一约束，不靠「事务自己去重」。长事务拖连接池，列表接口更不该开事务。
 
@@ -669,7 +688,7 @@ OpenAPI 做契约基线，消费方测试覆盖旧包；灰度期间同时观察
 
 ::: details 参考答案
 #### 基础结论
-MQ 默认按「至少一次」思路设计：生产端确认消息被 Broker 接收，消费端业务成功后再确认；重复消息由业务幂等消化。最终一致不是「迟早会对」，而是有状态、重试、补偿和人工兜底。
+MQ 工程上通常按「至少一次」假设设计：生产端确认消息被 Broker 接收，消费端业务成功后再确认；网络与确认丢失仍可能造成重投，重复消息由业务幂等消化。具体保证取决于 Broker、队列持久化与客户端配置。最终一致不是「迟早会对」，而是有状态、重试、补偿和人工兜底。
 
 #### 原理深挖
 数据库提交与发消息是两个动作，任一失败都会产生裂缝。常见做法是本地事务同时写业务表和 outbox 事件表，再由可靠任务投递；消费端用业务唯一键、去重表或状态机保证重复执行不产生第二份结果。死信队列只保存失败，不自动修复业务。
@@ -698,7 +717,7 @@ MQ 默认按「至少一次」思路设计：生产端确认消息被 Broker 接
 这是三个独立边界：Spring Security Resource Server 负责校验 Bearer Token；refresh 属于授权端或客户端续期流程，前端并发 401 要单飞；缓存采用 Cache-Aside 并有穿透、击穿、雪崩保护；实时通知按单向 SSE、双向 WebSocket 选型。
 
 #### 原理深挖
-JWT 至少校验签名、`exp`、`nbf`、`iss` 等约束，不能只 Base64 解码。refresh token 应轮换并支持撤销，Sa-Token 等会话方案也必须服从同一失效与权限边界。缓存空值或布隆过滤可挡穿透，热点单飞/互斥重建挡击穿，TTL 抖动和降级挡雪崩。原生 `EventSource` 是服务端到浏览器单向长连接，主动结束调用 `close()`；WebSocket 支持双向通信。
+JWT 至少校验签名与 `exp`、`nbf` 等时效，并按资源服务的信任配置匹配 issuer 和 audience；claim 存在但值不受信任仍必须拒绝，不能只 Base64 解码。refresh token 应轮换并支持撤销，Sa-Token 等会话方案也必须服从同一失效与权限边界。缓存空值或布隆过滤可挡穿透，热点单飞/互斥重建挡击穿，TTL 抖动和降级挡雪崩。原生 `EventSource` 是服务端到浏览器单向长连接，主动结束调用 `close()`；WebSocket 支持双向通信。
 
 #### 工程场景
 大文件导入先返回任务 id；前端用短 access token 调查询接口，刷新时共享一个 Promise；任务元数据落库，热点进度短 TTL 缓存；简单进度用 SSE，协同控制才用 WebSocket。断线重连携带最后事件 id 或重新查任务快照，日志贯穿 user、task 与 trace id。

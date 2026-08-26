@@ -62,8 +62,12 @@ log(2) // 约 200ms 后只打印 run 2
 function throttle(fn, wait = 300, { leading = true, trailing = true } = {}) {
   let last = 0
   let timer = null
+  let lastArgs
+  let lastThis
+
   return function (...args) {
-    const ctx = this
+    lastArgs = args
+    lastThis = this
     const now = Date.now()
     if (!leading && last === 0) last = now
     const remaining = wait - (now - last)
@@ -74,22 +78,29 @@ function throttle(fn, wait = 300, { leading = true, trailing = true } = {}) {
         timer = null
       }
       last = now
-      fn.apply(ctx, args)
+      fn.apply(lastThis, lastArgs)
+      lastArgs = lastThis = undefined
     } else if (trailing && !timer) {
       timer = setTimeout(() => {
         last = leading ? Date.now() : 0
         timer = null
-        fn.apply(ctx, args)
+        fn.apply(lastThis, lastArgs)
+        lastArgs = lastThis = undefined
       }, remaining)
     }
   }
 }
 
-// 自测：连续调用，约每 300ms 执行一次，最后一次可尾触发
-const onScroll = throttle(() => console.log('scroll'), 300)
+// 自测：尾触发必须使用窗口内最后一次调用的参数
+const calls = []
+const onScroll = throttle((value) => calls.push(value), 20)
+onScroll('first')
+onScroll('second')
+onScroll('last')
+setTimeout(() => console.log(calls), 30) // ['first', 'last']
 ```
 
-**讲解：** 时间戳法保证 leading 准时；定时器补 trailing，避免「停住后最后一次丢了」。面试写清 leading/trailing 语义比抄完整 lodash 更加分。别和防抖混：防抖是「合并成最后一次」，节流是「均匀抽样」。
+**讲解：** 时间戳法保证 leading 准时；定时器补 trailing。`lastArgs` / `lastThis` 每次调用都更新，保证尾触发拿到窗口内最后一次调用，而不是创建定时器那次。面试写清 leading/trailing 语义比抄完整 lodash 更加分。别和防抖混：防抖是「合并成最后一次」，节流是「均匀抽样」。
 :::
 
 **追问：**
@@ -110,21 +121,15 @@ const onScroll = throttle(() => console.log('scroll'), 300)
 
 ```js
 function deepClone(val, map = new WeakMap()) {
-  if (val === null || typeof val !== 'object') return val
+  if (
+    val === null ||
+    (typeof val !== 'object' && typeof val !== 'function')
+  ) return val
   if (typeof val === 'function') return val // 函数通常浅共享
   if (map.has(val)) return map.get(val)
 
   if (val instanceof Date) return new Date(val)
   if (val instanceof RegExp) return new RegExp(val.source, val.flags)
-
-  if (Array.isArray(val)) {
-    const arr = []
-    map.set(val, arr)
-    val.forEach((item, i) => {
-      arr[i] = deepClone(item, map)
-    })
-    return arr
-  }
 
   if (val instanceof Map) {
     const m = new Map()
@@ -140,20 +145,32 @@ function deepClone(val, map = new WeakMap()) {
     return s
   }
 
-  // 普通对象（含可枚举自身属性）
-  const obj = Object.create(Object.getPrototypeOf(val))
+  // Reflect.ownKeys 包含字符串、Symbol 与不可枚举自身属性
+  const obj = Array.isArray(val)
+    ? []
+    : Object.create(Object.getPrototypeOf(val))
   map.set(val, obj)
   Reflect.ownKeys(val).forEach((key) => {
-    obj[key] = deepClone(val[key], map)
+    const descriptor = Object.getOwnPropertyDescriptor(val, key)
+    if ('value' in descriptor) {
+      descriptor.value = deepClone(descriptor.value, map)
+    }
+    Object.defineProperty(obj, key, descriptor)
   })
   return obj
 }
 
-// 自测循环引用
+// 自测：循环引用、不可枚举属性和 getter 描述符
 const a = { n: 1 }
 a.self = a
+Object.defineProperty(a, 'hidden', { value: { ok: true }, enumerable: false })
+Object.defineProperty(a, 'double', { get() { return this.n * 2 } })
 const b = deepClone(a)
-console.log(b.n, b.self === b) // 1 true
+console.log(
+  b.self === b,
+  Object.getOwnPropertyDescriptor(b, 'hidden').enumerable === false,
+  Object.getOwnPropertyDescriptor(b, 'double').get !== undefined,
+) // true true true
 ```
 
 **边界讲解（口述必提）：**
@@ -161,10 +178,10 @@ console.log(b.n, b.self === b) // 1 true
 | 手段 | 丢什么 / 坑 |
 | ---- | ----------- |
 | `JSON.parse(JSON.stringify)` | 函数、`undefined`、Symbol、循环引用炸、Date→字符串 |
-| 手写递归 | 要自己处理环、Map/Set、原型 |
+| 手写递归 | 要自己处理环、Map/Set、原型、属性描述符 |
 | `structuredClone` | 现代环境首选；函数 / DOM 节点仍不行 |
 
-别妄想「克隆一切」——DOM、闭包、Promise、WeakMap 键语义都不该深拷。业务里优先不可变更新或 `structuredClone`。
+`Reflect.ownKeys` 不只返回可枚举属性；配合属性描述符可避免读取 getter，也能保留 writable / enumerable / configurable。这个实现仍不克隆函数闭包、DOM、Promise、WeakMap，也未完整复制所有内置对象的内部槽。业务里优先不可变更新或 `structuredClone`。
 :::
 
 **追问：**
@@ -346,18 +363,29 @@ bus.emit('msg', 3) // 无输出（once 与 a 都已解绑）
 
 ```js
 function myInstanceof(obj, Ctor) {
-  if (obj === null || (typeof obj !== 'object' && typeof obj !== 'function')) {
-    return false // 原始值：除了被包装的特殊情况，规范上 instanceof 为 false
+  if (
+    Ctor != null &&
+    Object.prototype.hasOwnProperty.call(Ctor, Symbol.hasInstance)
+  ) {
+    const custom = Ctor[Symbol.hasInstance]
+    if (typeof custom !== 'function') {
+      throw new TypeError('@@hasInstance must be callable')
+    }
+    return !!custom.call(Ctor, obj)
   }
+
   if (typeof Ctor !== 'function') {
     throw new TypeError('Right-hand side of instanceof is not callable')
   }
-  if (typeof Ctor[Symbol.hasInstance] === 'function') {
-    return !!Ctor[Symbol.hasInstance](obj)
+  if (obj === null || (typeof obj !== 'object' && typeof obj !== 'function')) {
+    return false
   }
 
   let proto = Object.getPrototypeOf(obj)
   const target = Ctor.prototype
+  if (target === null || (typeof target !== 'object' && typeof target !== 'function')) {
+    throw new TypeError('Function has non-object prototype')
+  }
   while (proto) {
     if (proto === target) return true
     proto = Object.getPrototypeOf(proto)
@@ -369,9 +397,15 @@ function myInstanceof(obj, Ctor) {
 console.log(myInstanceof([], Array)) // true
 console.log(myInstanceof([], Object)) // true
 console.log(myInstanceof(1, Number)) // false
+class Even {
+  static [Symbol.hasInstance](value) {
+    return Number.isInteger(value) && value % 2 === 0
+  }
+}
+console.log(myInstanceof(2, Even)) // true：仅自有自定义钩子走特判
 ```
 
-**讲解：** 真正引擎还会走 `Symbol.hasInstance`（如 `Array[Symbol.hasInstance]`）。跨 iframe 的 `Array` 不同，`instanceof Array` 会失败——这时用 `Array.isArray`。面试别只写 `obj.__proto__`，用 `Object.getPrototypeOf`。
+**讲解：** 普通函数会从 `Function.prototype` 继承默认 `Symbol.hasInstance`；若直接读取并调用它，就绕过了「手写原型链」考点。因此这里只对构造器**自有**的自定义 `@@hasInstance` 特判，普通函数显式遍历原型链。跨 iframe 的 `Array` 不同，数组检测应使用 `Array.isArray`。
 :::
 
 **追问：**
@@ -556,9 +590,11 @@ Function.prototype.myCall = function (thisArg, ...args) {
       : Object(thisArg)
   const key = Symbol('fn')
   ctx[key] = this
-  const result = ctx[key](...args)
-  delete ctx[key]
-  return result
+  try {
+    return ctx[key](...args)
+  } finally {
+    delete ctx[key]
+  }
 }
 
 Function.prototype.myApply = function (thisArg, args) {
@@ -568,9 +604,11 @@ Function.prototype.myApply = function (thisArg, args) {
 Function.prototype.myBind = function (thisArg, ...preset) {
   const fn = this
   const bound = function (...args) {
-    // new bound() 时 this 指向新实例，忽略绑定的 thisArg
-    const isNew = new.target !== undefined
-    return fn.myApply(isNew ? this : thisArg, preset.concat(args))
+    const allArgs = preset.concat(args)
+    if (new.target) {
+      return Reflect.construct(fn, allArgs, new.target)
+    }
+    return Reflect.apply(fn, thisArg, allArgs)
   }
   if (fn.prototype) bound.prototype = Object.create(fn.prototype)
   return bound
@@ -584,9 +622,15 @@ console.log(greet.myCall({ name: 'A' }, 1, 2))
 console.log(greet.myApply({ name: 'B' }, [3, 4]))
 const g = greet.myBind({ name: 'C' }, 5)
 console.log(g(6))
+function User(name) {
+  this.name = name
+}
+const BoundUser = User.myBind(null, 'Ada')
+const user = new BoundUser()
+console.log(user.name, user instanceof User) // Ada true
 ```
 
-**讲解：** 核心是「把函数变成对象方法再调用」。`bind` 要处理：预设参数柯里化、`new` 场景优先实例。严格模式与原始值 `this` 的包装细节可口述。现代代码更常用箭头函数 / 显式传参，但手写仍考透彻度。
+**讲解：** `myCall` 用 `try/finally` 保证目标函数抛错时也删除临时 Symbol；但向 frozen / non-extensible 对象挂临时属性仍会失败，且严格模式 `this`、函数 `name/length` 等细节未完全模拟，因此这是教学近似。生产中可靠调用直接用 `Reflect.apply(fn, thisArg, args)`。`myBind` 的构造分支用 `Reflect.construct(fn, args, new.target)`，正确传递 `new.target` 并忽略绑定的 `thisArg`。
 :::
 
 **追问：**
@@ -621,14 +665,38 @@ function getRange(
   count: number,
   overscan = 3,
 ) {
-  const visibleStart = Math.floor(scrollTop / itemHeight)
+  if (!Number.isFinite(itemHeight) || itemHeight <= 0) {
+    throw new RangeError('itemHeight must be greater than 0')
+  }
+  if (!Number.isInteger(count) || count < 0) {
+    throw new RangeError('count must be a non-negative integer')
+  }
+  if (!Number.isFinite(viewportHeight) || viewportHeight < 0) {
+    throw new RangeError('viewportHeight must be non-negative')
+  }
+  if (!Number.isFinite(scrollTop)) {
+    throw new RangeError('scrollTop must be finite')
+  }
+  if (!Number.isInteger(overscan) || overscan < 0) {
+    throw new RangeError('overscan must be a non-negative integer')
+  }
+
+  const safeScrollTop = Math.max(0, scrollTop)
+  const visibleStart = Math.floor(safeScrollTop / itemHeight)
   const start = Math.max(0, visibleStart - overscan)
   const end = Math.min(
     count,
-    Math.ceil((scrollTop + viewportHeight) / itemHeight) + overscan,
+    Math.ceil((safeScrollTop + viewportHeight) / itemHeight) + overscan,
   )
   return { start, end, offset: start * itemHeight, total: count * itemHeight }
 }
+
+console.assert(getRange(-20, 100, 20, 10).start === 0)
+console.assert(getRange(180, 100, 20, 10).end === 10)
+console.assert(getRange(0, 100, 20, 0).total === 0)
+try { getRange(0, 100, 0, 10); console.assert(false) } catch {}
+try { getRange(0, -1, 20, 10); console.assert(false) } catch {}
+try { getRange(0, 100, 20, -1); console.assert(false) } catch {}
 ```
 
 计算是 O(1)，实际渲染 O(k)，`k` 为窗口元素数；空间 O(k)。overscan 用少量额外 DOM 换快速滚动稳定性。
@@ -663,12 +731,13 @@ function getRange(
 
 ::: details 参考答案
 #### 基础结论
-对每个节点先递归过滤 children；节点自身有权限，或过滤后仍有可见子节点，就保留。返回新树，避免修改菜单真源。
+先约定语义：`type: 'directory'` 是结构节点，无 `permission` 表示目录本身不额外设门槛，但必须有可见子节点才保留；`type: 'leaf'` 无 `permission` 表示公共叶子，直接可见。目录有权限时，目录权限和至少一个可见子节点必须同时满足。
 
 #### 原理深挖
 ```ts
 type TreeNode = {
   id: string
+  type: 'directory' | 'leaf'
   permission?: string
   children?: TreeNode[]
 }
@@ -679,8 +748,12 @@ function filterTree(
 ): TreeNode[] {
   return nodes.flatMap((node) => {
     const children = filterTree(node.children ?? [], allowed)
-    const selfVisible = !node.permission || allowed.has(node.permission)
-    return selfVisible || children.length
+    const permissionAllowed =
+      !node.permission || allowed.has(node.permission)
+    const visible = node.type === 'directory'
+      ? permissionAllowed && children.length > 0
+      : permissionAllowed
+    return visible
       ? [{ ...node, children }]
       : []
   })
@@ -690,7 +763,7 @@ function filterTree(
 每个节点访问一次，时间 O(n)；输出与递归栈空间 O(n)，树极深时可改显式栈。`flatMap` 表达 0 或 1 个输出节点。
 
 #### 工程场景
-先明确语义：目录节点可因子节点命中而保留，叶子必须有权限；禁用与隐藏不是一回事。服务端仍是授权权威，前端过滤只改善菜单体验。
+节点类型必须显式，不能用「有没有 children」猜空目录是目录还是叶子。公共叶节点、受限叶节点、无权限目录、受限目录分别写测试；禁用与隐藏不是一回事。服务端仍是授权权威，前端过滤只改善菜单体验。
 
 #### 反例 / 踩坑
 只过滤叶子导致空父菜单残留；原地 splice 跳项；把「有父权限」错误地推导为所有子权限；存在环或重复引用时递归失控。
@@ -866,10 +939,12 @@ type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
 
 ::: details 参考答案
 #### 基础结论
-面试先定义契约：任务接收 `AbortSignal`；最多 `limit` 个运行；结果按输入顺序；仅重试可重试错误；外部取消后不再启动新任务，并让在途任务尽快退出。
+本实现明确采用 **fail-fast**：任务在耗尽重试或被 `shouldRetry` 判为不可重试后，记录共享 `fatal`，停止领取新任务，并用内部 `AbortController` 通知在途任务；调用方传入的 `signal` 会联动内部取消。成功结果按输入顺序返回。
+
+取消是协作式的：任务必须把收到的 `signal` 传给 fetch、计时器等底层操作。忽略 signal 的任务无法被 JavaScript 强制终止；池只能立即拒绝、丢弃其晚到结果，并让该任务在后台自行结束。若业务需要收集全部结果，应另做 all-settled 版本，不要混用两套失败语义。
 
 #### 原理深挖
-核心状态是 `nextIndex`、结果数组和共享取消信号。每个 worker 同步领取唯一索引，再异步执行，天然限制并发；结果写回原索引保证顺序。第 n 次等待可用 `min(maxDelay, baseDelay * 2 ** n)` 再加随机抖动，避免客户端同步重试形成惊群。
+核心状态是 `nextIndex`、`fatal`、结果数组和内部取消信号。每个 worker 同步领取唯一索引，再异步执行，天然限制并发；写回原索引保证顺序。第 n 次退避上限为 `min(maxDelay, baseDelay * 2 ** n)`，再由 jitter 选择实际等待，避免客户端同步重试形成惊群。
 
 ```js
 function abortReason(signal) {
@@ -913,7 +988,11 @@ async function withRetry(task, options) {
       if (signal.aborted) throw abortReason(signal)
       if (attempt >= retries || !shouldRetry(error, attempt)) throw error
       const ceiling = Math.min(maxDelay, baseDelay * 2 ** attempt)
-      await sleep(jitter(ceiling), signal)
+      const delay = jitter(ceiling, attempt)
+      if (!Number.isFinite(delay) || delay < 0 || delay > ceiling) {
+        throw new RangeError('jitter must return a number within [0, ceiling]')
+      }
+      await sleep(delay, signal)
     }
   }
 }
@@ -935,38 +1014,87 @@ async function requestPool(tasks, options = {}) {
   if (!Number.isInteger(retries) || retries < 0) {
     throw new RangeError('retries must be a non-negative integer')
   }
+  if (!Number.isFinite(baseDelay) || baseDelay < 0) {
+    throw new RangeError('baseDelay must be a non-negative finite number')
+  }
+  if (
+    !Number.isFinite(maxDelay) ||
+    maxDelay < 0 ||
+    maxDelay < baseDelay
+  ) {
+    throw new RangeError('maxDelay must be finite and >= baseDelay')
+  }
+  if (typeof shouldRetry !== 'function') {
+    throw new TypeError('shouldRetry must be a function')
+  }
+  if (typeof jitter !== 'function') {
+    throw new TypeError('jitter must be a function')
+  }
   if (signal.aborted) throw abortReason(signal)
   if (tasks.length === 0) return []
 
   const results = new Array(tasks.length)
+  const internal = new AbortController()
   let nextIndex = 0
+  let fatal = null
+
+  const fail = (error) => {
+    if (fatal === null) {
+      fatal = error
+      internal.abort(error)
+    }
+    return fatal
+  }
+
+  let rejectExternalAbort
+  const externalAbort = new Promise((_, reject) => {
+    rejectExternalAbort = reject
+  })
+  const onExternalAbort = () => {
+    const error = abortReason(signal)
+    fail(error)
+    rejectExternalAbort(error)
+  }
+  signal.addEventListener('abort', onExternalAbort, { once: true })
 
   async function worker() {
-    while (true) {
-      if (signal.aborted) throw abortReason(signal)
+    while (fatal === null) {
       const index = nextIndex
       nextIndex += 1
       if (index >= tasks.length) return
 
-      results[index] = await withRetry(tasks[index], {
-        signal,
-        retries,
-        baseDelay,
-        maxDelay,
-        shouldRetry,
-        jitter,
-      })
+      try {
+        const value = await withRetry(tasks[index], {
+          signal: internal.signal,
+          retries,
+          baseDelay,
+          maxDelay,
+          shouldRetry,
+          jitter,
+        })
+        if (fatal !== null) return // 忽略不响应取消的任务的晚到结果
+        results[index] = value
+      } catch (error) {
+        throw fail(error)
+      }
     }
   }
 
   const workerCount = Math.min(limit, tasks.length)
-  await Promise.all(Array.from({ length: workerCount }, () => worker()))
-  return results
+  const workers = Promise.all(
+    Array.from({ length: workerCount }, () => worker()),
+  )
+  try {
+    await Promise.race([workers, externalAbort])
+    return results
+  } finally {
+    signal.removeEventListener('abort', onExternalAbort)
+  }
 }
 ```
 
 #### 工程场景
-HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`；非幂等 POST 需要幂等键。调用方取消后，池不再领取新任务；已经开始的任务只有真正使用收到的 `signal`，底层 fetch 或等待才会被取消。
+HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`；非幂等 POST 需要幂等键。`fatal` 必须在 `internal.abort()` 前写入，避免其他 worker 把 AbortError 误当第一根因。调用方取消走同一 fatal 路径，确保取消后不再领取。
 
 设任务数为 n、实际总尝试次数为 A：调度与结果写入时间为 O(A)，不含任务自身耗时和退避等待；结果数组占 O(n)，worker 与在途任务占 O(min(n, limit))，总空间 O(n + min(n, limit))。
 
@@ -985,6 +1113,8 @@ const delayTask = (value, ms, onState = () => {}) =>
       onState(-1)
     }
   }
+
+const rawWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // 1. 空任务
 assert.deepEqual(await requestPool([], { limit: 2 }), [])
@@ -1041,14 +1171,129 @@ await assert.rejects(
   RangeError,
 )
 
-console.log('requestPool tests passed')
+// 7. 永久失败后不再领取新任务
+const startedAfterFatal = []
+await assert.rejects(
+  requestPool([
+    async (signal) => {
+      startedAfterFatal.push(0)
+      await sleep(5, signal)
+      throw new Error('fatal')
+    },
+    async (signal) => {
+      startedAfterFatal.push(1)
+      await sleep(50, signal)
+    },
+    async () => startedAfterFatal.push(2),
+  ], { limit: 2 }),
+  /fatal/,
+)
+assert.deepEqual(startedAfterFatal, [0, 1])
+
+// 8. shouldRetry=false：即使 retries > 0 也只执行一次
+let noRetryAttempts = 0
+await assert.rejects(
+  requestPool([
+    async () => {
+      noRetryAttempts += 1
+      throw new Error('permanent')
+    },
+  ], { limit: 1, retries: 3, shouldRetry: () => false }),
+  /permanent/,
+)
+assert.equal(noRetryAttempts, 1)
+
+// 9. 指数退避不超过 maxDelay
+const ceilings = []
+await assert.rejects(
+  requestPool([
+    async () => {
+      const error = new Error('retryable')
+      error.retryable = true
+      throw error
+    },
+  ], {
+    limit: 1,
+    retries: 3,
+    baseDelay: 10,
+    maxDelay: 25,
+    jitter: (ceiling) => {
+      ceilings.push(ceiling)
+      return 0
+    },
+  }),
+  /retryable/,
+)
+assert.deepEqual(ceilings, [10, 20, 25])
+
+// 10. 外部取消后不领取下一项
+const cancelController = new AbortController()
+const startedAfterCancel = []
+const cancelBeforeNext = requestPool([
+  async (signal) => {
+    startedAfterCancel.push(0)
+    await sleep(100, signal)
+  },
+  async () => startedAfterCancel.push(1),
+], { limit: 1, signal: cancelController.signal })
+setTimeout(() => cancelController.abort(new Error('user cancel')), 5)
+await assert.rejects(cancelBeforeNext, /user cancel/)
+assert.deepEqual(startedAfterCancel, [0])
+
+// 11. 忽略 signal 的任务不能强停，但晚到结果会被丢弃
+let ignoredFinished = false
+let thirdStarted = false
+const ignoreSignal = requestPool([
+  async () => { throw new Error('fatal now') },
+  async () => {
+    await rawWait(30) // 故意忽略收到的 signal
+    ignoredFinished = true
+    return 'late'
+  },
+  async () => { thirdStarted = true },
+], { limit: 2 })
+await assert.rejects(ignoreSignal, /fatal now/)
+assert.equal(thirdStarted, false)
+assert.equal(ignoredFinished, false)
+await rawWait(35)
+assert.equal(ignoredFinished, true)
+
+// 12. 非法退避参数
+await assert.rejects(
+  () => requestPool([], { baseDelay: -1 }),
+  RangeError,
+)
+await assert.rejects(
+  () => requestPool([], { baseDelay: 20, maxDelay: 10 }),
+  RangeError,
+)
+await assert.rejects(
+  () => requestPool([], { maxDelay: Infinity }),
+  RangeError,
+)
+await assert.rejects(
+  () => requestPool([], { jitter: null }),
+  TypeError,
+)
+await assert.rejects(
+  () => requestPool([
+    async () => {
+      const error = new Error('retry')
+      error.retryable = true
+      throw error
+    },
+  ], { retries: 1, jitter: () => -1 }),
+  RangeError,
+)
+
+console.log('requestPool tests passed (12 groups)')
 ```
 
 #### 反例 / 踩坑
-所有错误都重试；固定间隔无抖动；取消只是不返回结果，底层 fetch 仍运行；`Promise.race` 某任务 reject 后调度器意外停止；用 push 导致结果乱序。
+所有错误都重试；固定间隔无抖动；只 reject 外层却不设置 fatal，导致其他 worker 继续领取；把 abort 当原始错误覆盖真正 fatal；误称可以强杀忽略 signal 的 Promise；用 push 导致结果乱序。
 
 #### 资深回答模板
-「我把并发、重试和取消拆成三层：worker 控槽位，withRetry 只处理可重试错误，AbortSignal 贯穿等待与请求。结果按索引回填，并明确快速失败还是 all-settled。」
+「我先声明 fail-fast：首个永久失败写入共享 fatal，停止领取并 abort 在途任务；外部 signal 联动内部 controller。结果按索引回填，忽略 signal 的任务不能强杀，只能丢弃晚到结果。all-settled 要另写契约。」
 
 #### 追问链
 1. `AbortSignal.any()` 可怎样组合用户取消与超时？

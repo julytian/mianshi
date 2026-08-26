@@ -2,7 +2,7 @@
 
 > **怎么用：** 先盖住答案，按 **机制 → 请求链路 → 数据与安全 → 生产运维** 口述 2～3 分钟，再展开答案补洞。追问用于模拟面试官加压；回答重点是能落地、能排障、能做权衡。
 
-> **版本基线：** 本文以 NestJS 11.x 官方文档截至 2026-08 的公开行为为基线，不绑定未核实的内部源码版本。NestJS 可运行在 Express 或 Fastify 等平台适配器上；`@nestjs/cqrs`、Terminus、Throttler、BullMQ 集成、ORM 驱动等独立包可能采用各自版本节奏，默认值和 API 必须以项目锁定版本的官方文档、类型声明和实测结果为准。
+> **版本基线：** 本文以 NestJS 11.x 官方文档截至 2026-08 的公开行为为基线，不绑定未核实的内部源码版本。按官方迁移文档，NestJS 11 要求 Node.js 20+，默认集成 Express 5，`@nestjs/platform-fastify` v11 支持 Fastify 5；两类底层平台升级均可能带来破坏性变化。`@nestjs/cqrs`、Terminus、Throttler、BullMQ 集成、ORM 驱动等独立包可能采用各自版本节奏，默认值和 API 必须以项目锁定版本的官方文档、类型声明和实测结果为准。
 
 > **岗位定位：** 面向资深前端 / 全栈偏前与 Vue 3 + BFF 场景。要求讲清 Node.js、TypeScript、接口契约和生产治理，不机械套用 Spring 概念，也不伪装专职数据库或分布式系统专家。
 
@@ -278,7 +278,7 @@ Observable 使执行前后、成功、错误和取消信号统一在一条流中
 
 业务层抛出与 HTTP 解耦的领域 / 应用错误，协议层由全局 Filter 映射成 `{ code, message, details, traceId }` 与合适 HTTP 状态。错误分类至少区分输入无效、未认证、无权限、资源冲突、依赖不可用和未知故障；未知异常返回通用文案并记录完整堆栈。前端刷新与页面状态机见 D16，本题重点是服务端错误分类和协议映射。
 
-`code` 是稳定机器契约，`message` 可本地化，`details` 只放安全的字段错误，`traceId` 用于定位。不要把所有错误都返回 200，也不要暴露数据库错误、路径、SQL、token 原因。Filter 还需分别适配 HTTP、RPC 或 WebSocket 上下文。
+`code` 是稳定机器契约，`message` 可本地化，`details` 只放安全的字段错误，`traceId` 用于定位。HTTP 401 表示凭证缺失或当前凭证不可接受，需要认证；403 表示身份已经确认，但无权执行该操作。不要把所有错误都返回 200，也不要暴露数据库错误、路径、SQL、token 原因。Filter 还需分别适配 HTTP、RPC 或 WebSocket 上下文。
 
 **追问：**
 1. 401 与 403 如何区分？
@@ -348,7 +348,7 @@ Vue 客户端从 OpenAPI 生成类型和请求层，CI 检查 breaking change。
 
 #### 工程场景
 
-刷新端点只接收 Cookie 中 refresh token，先校验 `Origin` / `Referer` 等同源信号，并使用 CSRF token（如同步 token 或双提交 Cookie）或等价防护，再在事务内校验哈希并旋转，返回短期 access token 并覆盖 Cookie。`SameSite` 只是纵深防御，受部署拓扑、浏览器行为和同站攻击面影响，不能替代完整 CSRF 设计。前端刷新状态机见 D16。
+刷新端点只接收 Cookie 中 refresh token，先校验 `Origin` / `Referer` 等同源信号，并使用同步 token，或使用 HMAC 签名且绑定当前会话标识的 double-submit token，再在事务内校验哈希并旋转，返回短期 access token 并覆盖 Cookie。不能使用攻击者可自行种入的普通双提交 Cookie 作为安全证明；`SameSite` 也只是纵深防御，受部署拓扑、浏览器行为和同站攻击面影响，不能替代完整 CSRF 设计。前端刷新状态机见 D16。
 
 #### 反例 / 踩坑
 
@@ -479,7 +479,7 @@ cursor 排序必须确定，例如 `createdAt DESC, id DESC`；查询条件和�
 - 定时任务：多实例部署会重复执行，需要分布式锁、leader election 或外部调度器；记录计划时间、实际时间和执行 ID。
 - 文件上传：限制大小、数量、MIME 与文件签名，随机化对象 key，做病毒扫描；大文件优先客户端直传对象存储的短期签名 URL，服务端只保存元数据。
 
-默认不要让不可恢复的长任务占住普通 HTTP 请求；需要实时增量结果时可用 SSE / 流式响应，需要强同步语义时也可在明确超时与资源上限内有界等待。其余任务返回任务 ID 后异步执行。上传内容不能只凭扩展名信任。
+默认不要让不可控或执行时间较长的任务占住普通 HTTP 请求；需要实时增量结果时可用 SSE / 流式响应，需要强同步语义时也可在明确超时与资源上限内有界等待。其余任务返回任务 ID 后异步执行。上传内容不能只凭扩展名信任。
 
 **追问：**
 1. 队列「恰好一次」为何通常要拆成业务幂等？
@@ -661,7 +661,7 @@ NestJS 为多种 transporter 提供统一编程抽象，并支持 request-respon
 
 #### 工程场景
 
-内部强类型低延迟 RPC 可评估 gRPC；需要工作队列、确认和路由可评估 RabbitMQ；高吞吐事件流与回放可评估 Kafka；小系统先用 HTTP + 模块化单体往往成本更低。Kafka request-response 需要 request topic 与 reply topic：客户端先 `subscribeToResponseOf()`，异步初始化时必须在 `connect()` 前调用；每个运行中的 Nest 应用至少要有一个 reply topic partition，否则部分实例无法发送请求。
+内部强类型低延迟 RPC 可评估 gRPC；需要工作队列、确认和路由可评估 RabbitMQ；高吞吐事件流与回放可评估 Kafka；小系统先用 HTTP + 模块化单体往往成本更低。无论选择哪种 transport，都先定义通用消息 envelope、Schema version、trace 上下文、幂等键和死信策略。Kafka request-response 还需要 request topic 与 reply topic：客户端先 `subscribeToResponseOf()`，异步初始化时必须在 `connect()` 前调用；每个运行中的 Nest 应用至少要有一个 reply topic partition，否则部分实例无法发送请求。
 
 #### 反例 / 踩坑
 

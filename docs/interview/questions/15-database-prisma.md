@@ -2,7 +2,7 @@
 
 > **怎么用：** 普通题先按「概念 → 机制 → 工程边界」口述 1～2 分钟；深层题按「结论 → 原理 → 方案 → 反例 → 验证」展开。重点不是背 SQL，而是把查询正确性、性能、事务、安全和发布风险讲清楚。
 
-> **岗位定位：** 面向 10 年资深前端偏全栈岗位。本模块负责 MySQL 原理、SQL 性能与 Prisma 数据访问实践；NestJS 请求链见 [NestJS 题库](/interview/questions/13-nestjs)。数据库负责约束、并发控制和持久化，Prisma 提供类型化数据访问与迁移工具，应用层负责用例编排、授权、幂等和错误契约，三者不能互相冒充。
+> **岗位定位：** 面向 10 年资深前端偏全栈岗位。本模块负责 MySQL 原理、SQL 性能与 Prisma 数据访问实践；NestJS 请求链见 [NestJS 题库](/interview/questions/13-nestjs)，完整落地示例见 [NestJS + Prisma + MySQL 实战指南](/interview/guides/backend/nestjs-prisma)。数据库负责约束、并发控制和持久化，Prisma 提供类型化数据访问与迁移工具，应用层负责用例编排、授权、幂等和错误契约，三者不能互相冒充。
 
 > **版本边界：** MySQL 以 InnoDB 和 MySQL 8.0 常见能力为主要语境；CTE、窗口函数、`EXPLAIN ANALYZE`、锁行为及执行计划字段应以实际数据库版本、隔离级别和配置验证。Prisma 的生成器、驱动适配器、关系加载策略、事务选项及 Preview 能力随版本演进，回答只依赖稳定概念；具体 API 以项目锁定版本的官方文档、类型声明和测试为准。
 

@@ -6,6 +6,8 @@
 
 > **岗位定位：** 面向资深前端 / 全栈偏前与 Vue 3 + BFF 场景。要求讲清 Node.js、TypeScript、接口契约和生产治理，不机械套用 Spring 概念，也不伪装专职数据库或分布式系统专家。
 
+> **延伸阅读：** [NestJS + Prisma + MySQL 实战指南](/interview/guides/backend/nestjs-prisma) · [数据库与 Prisma 面试题库](/interview/questions/15-database-prisma)
+
 ## 一、模块、依赖注入与框架机制
 
 ### Q1. Module、Controller、Provider 各自负责什么，如何划分边界？

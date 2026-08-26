@@ -555,6 +555,42 @@ async function testFollowupPlaceholderDiagnosticIsNotDuplicated() {
   }
 }
 
+async function testApiRejectsEmptyFollowupFiles() {
+  await assert.rejects(
+    () =>
+      validateQuestionBank({
+        requireFollowups: true,
+        followupFiles: [],
+      }),
+    /followupFiles 不能为空/,
+  )
+}
+
+function testFollowupDetailsExposeExactRangeWithContentCollision() {
+  const repeatedContent = 'TODO：这段内容在主答案与追问答案中完全相同。'
+  const block = `### Q1. 示例
+
+::: details 参考答案
+${repeatedContent}
+:::
+
+**追问：** 如何处理内容碰撞？
+
+::: details 追问参考答案
+${repeatedContent}
+:::
+`
+  const details = extractFollowupAnswerDetails(block)
+  const expectedStart = block.indexOf('::: details 追问参考答案')
+  assert.equal(details.startIndex, expectedStart)
+  assert.equal(
+    block.slice(details.startIndex, details.endIndex),
+    `::: details 追问参考答案
+${repeatedContent}
+:::`,
+  )
+}
+
 function testHasDeepSection() {
   const block = `### D1. demo
 
@@ -695,5 +731,7 @@ await testRejectsWrongQuestionFileSet()
 await testExactQuestionTotal()
 await testFollowupFileSelection()
 await testFollowupPlaceholderDiagnosticIsNotDuplicated()
+testFollowupDetailsExposeExactRangeWithContentCollision()
+await testApiRejectsEmptyFollowupFiles()
 
-console.log('validate-question-bank 边界自测通过（19 组）')
+console.log('validate-question-bank 边界自测通过（21 组）')

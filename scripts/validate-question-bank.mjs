@@ -161,10 +161,18 @@ export function findQuestionHeadings(content) {
  *   found: boolean,
  *   closed?: boolean,
  *   content?: string,
+ *   startIndex?: number,
+ *   endIndex?: number,
  * }}
  */
 export function extractNamedDetails(block, marker) {
   const lines = block.split('\n')
+  const lineOffsets = []
+  let offset = 0
+  for (const line of lines) {
+    lineOffsets.push(offset)
+    offset += line.length + 1
+  }
   let startLine = -1
   const searchFenceState = createFenceState()
 
@@ -200,6 +208,8 @@ export function extractNamedDetails(block, marker) {
             found: true,
             closed: true,
             content: contentLines.join('\n').trim(),
+            startIndex: lineOffsets[startLine],
+            endIndex: lineOffsets[i] + line.length,
           }
         }
         continue
@@ -213,6 +223,8 @@ export function extractNamedDetails(block, marker) {
     found: true,
     closed: false,
     content: contentLines.join('\n').trim(),
+    startIndex: lineOffsets[startLine],
+    endIndex: block.length,
   }
 }
 
@@ -515,6 +527,9 @@ export async function validateQuestionBank(options = {}) {
   const expected = options.expected ?? limits.expected
   const requireFollowups = options.requireFollowups ?? false
   const followupFiles = options.followupFiles ?? null
+  if (Array.isArray(followupFiles) && followupFiles.length === 0) {
+    throw new Error('followupFiles 不能为空')
+  }
   const invalidFollowupFiles = (followupFiles ?? []).filter(
     (file) => !EXPECTED_QUESTION_FILES.includes(file),
   )
@@ -585,8 +600,13 @@ export async function validateQuestionBank(options = {}) {
       let generalPlaceholderSource = block
       if (requireFollowups && selectedFollowupFiles.has(file)) {
         const followupDetails = extractFollowupAnswerDetails(block)
-        if (followupDetails.content) {
-          generalPlaceholderSource = block.replace(followupDetails.content, '')
+        if (
+          followupDetails.startIndex !== undefined &&
+          followupDetails.endIndex !== undefined
+        ) {
+          generalPlaceholderSource =
+            block.slice(0, followupDetails.startIndex) +
+            block.slice(followupDetails.endIndex)
         }
       }
       for (const pattern of findPlaceholders(generalPlaceholderSource)) {

@@ -39,6 +39,7 @@ export const EXPECTED_QUESTION_FILES = [
   '16-html-css-a11y.md',
   '17-browser-web-api.md',
   '18-network-security.md',
+  '19-hybrid-app.md',
 ]
 
 const PLACEHOLDER_PATTERNS = [

@@ -286,7 +286,7 @@ OAuth 定义委托授权，让客户端获得受限访问令牌；OIDC 在其上
 
 Authorization Code 流先经授权端点得到短期 code，再在令牌端点交换 Token。PKCE 由客户端生成 `code_verifier` 和派生的 `code_challenge`，把 code 绑定到发起者，降低 code 注入或截获后兑换的风险；客户端确认授权服务器支持 PKCE 时，按 RFC 9700 可依赖 PKCE 承担授权回调的 CSRF 防护，不必机械叠加 `state`。未满足该前提或还需关联本地事务时，使用不可预测、一次性的 `state`。OIDC `nonce` 把 ID Token 绑定到本次认证请求并缓解重放，PKCE 不能替代这一角色；也不能反过来要求所有 OAuth / OIDC 场景总是同时使用三者。
 
-授权服务器应预先精确注册并比较 `redirect_uri`，不为 Web 客户端配置域名通配、任意子路径或可参数化的链式跳转。客户端在 Token 请求中携带与授权请求相同的 `redirect_uri`，由授权服务器比较。应用回调收到业务 `returnTo` 等参数时，只能映射到预定义的站内允许目标，不能跳到用户提供的绝对 URL。
+授权服务器应预先精确注册并匹配授权请求的 `redirect_uri`，不为 Web 客户端配置域名通配、任意子路径或可参数化的链式跳转。后续流程要区分协议版本：按 OAuth 2.0 RFC 6749，若授权请求包含 `redirect_uri`，Token 请求必须携带完全相同的值，由授权服务器比较；OAuth 2.1 draft-15 已移除 Token 请求中的 `redirect_uri` 参数，不能沿用 RFC 6749 的无条件表述。应用回调收到业务 `returnTo` 等参数时，只能映射到预定义的站内允许目标，不能跳到用户提供的绝对 URL。
 
 校验角色必须分开：授权回调校验选定的 CSRF 机制，使用 `state` 时校验其一次性绑定；存在多授权服务器或混淆风险时校验授权响应 `iss`。OIDC 客户端对 ID Token 校验签名、`iss`、`aud`、`exp` 及请求使用了 nonce 时的 `nonce`。资源服务器负责验证 Access Token；它可能是不透明引用 Token，需要内省，也可能是可本地验证的结构化 Token。回调中的 code 本身不具有供客户端校验的 `aud`、签名或 `exp`。
 
@@ -438,7 +438,7 @@ PKCE 绑定 code 兑换者；确认授权服务器支持 PKCE 时，RFC 9700 允
 
 #### 工程场景
 
-按角色拆分验证：授权回调验证选定的 CSRF 机制，使用 state 时校验一次性绑定，必要时验证授权响应 `iss`；Token 请求携带相同 `redirect_uri` 供授权服务器比较。OIDC 客户端验证 ID Token 的签名、`iss`、`aud`、`exp` 和已使用的 `nonce`；资源服务器按 Token 类型做本地验证或内省。不要对回调 code 校验它不存在的 `aud`、签名或 `exp`。前端对同时 401 做 single-flight 刷新并限制重试，失败后清理状态并重新认证；BFF 同时做 CSRF 防护。会话支持撤销、设备列表和密钥轮换，日志只记录 token 指纹、会话 ID 的不可逆关联和事件原因。
+按角色拆分验证：授权回调验证选定的 CSRF 机制，使用 state 时校验一次性绑定，必要时验证授权响应 `iss`；授权端始终严格注册和匹配 `redirect_uri`。RFC 6749 流程中，仅当授权请求包含 `redirect_uri` 时，Token 请求才必须携带相同值供授权服务器比较；OAuth 2.1 draft-15 的 Token 请求已无该参数。OIDC 客户端验证 ID Token 的签名、`iss`、`aud`、`exp` 和已使用的 `nonce`；资源服务器按 Token 类型做本地验证或内省。不要对回调 code 校验它不存在的 `aud`、签名或 `exp`。前端对同时 401 做 single-flight 刷新并限制重试，失败后清理状态并重新认证；BFF 同时做 CSRF 防护。会话支持撤销、设备列表和密钥轮换，日志只记录 token 指纹、会话 ID 的不可逆关联和事件原因。
 
 #### 反例 / 踩坑
 
@@ -685,7 +685,7 @@ WebSocket 从 HTTP opening handshake 开始：HTTP/1.1 使用 Upgrade，HTTP/2 �
 
 #### 工程场景
 
-opening handshake 校验会话、Origin、短期票据和频道权限，连接关联用户、设备与过期时间。WebSocket 由应用实现指数退避加 jitter，重连后重新鉴权、订阅并按业务序列对账。SSE 的 `Last-Event-ID` 是 EventSource 内部维护的最后一个非空事件 `id`，不是业务已提交确认；手动创建新的 EventSource 不会继承旧实例游标。需要可控退避、自定义头或业务确认时，使用 fetch 流、受审查的 polyfill，或持久化业务游标并通过受控 URL 参数恢复。服务端限制连接数、消息速率、大小和队列，慢消费者降级或断开。
+opening handshake 校验会话、Origin、短期票据和频道权限，连接关联用户、设备与过期时间。WebSocket 由应用实现指数退避加 jitter，重连后重新鉴权、订阅并按业务序列对账。EventSource 自动重连时，仅在内部 last event ID 非空时发送 `Last-Event-ID`；服务端发送空 `id:` 会清空该内部值，后续重连不再发送此头。它仍不表示业务已提交确认，手动创建新的 EventSource 也不会继承旧实例游标。需要可控退避、自定义头或业务确认时，使用 fetch 流、受审查的 polyfill，或持久化业务游标并通过受控 URL 参数恢复。服务端限制连接数、消息速率、大小和队列，慢消费者降级或断开。
 
 #### 反例 / 踩坑
 
@@ -710,7 +710,7 @@ opening handshake 校验会话、Origin、短期票据和频道权限，连接�
 
 **2. SSE 如何避免重连后漏消息或重复处理？**
 
-服务端可为事件分配 ID；同一原生 EventSource 自动重连时，用户代理把内部最后一个非空事件 `id` 作为 `Last-Event-ID` 发送，服务端可从保留窗口补发。但该值表示已解析到的事件，不表示业务已提交；客户端仍需按业务 event id 幂等处理，必要时持久化独立确认游标。手动新建 EventSource 不继承旧内部值，应把持久化游标放入受控 URL，或改用 fetch / polyfill 自定义恢复。缺口超出窗口时执行快照对账。
+服务端可为事件分配 ID；同一原生 EventSource 自动重连时，只有内部 last event ID 非空，用户代理才发送 `Last-Event-ID`，服务端可据此从保留窗口补发。空 `id:` 会把内部值清空，后续重连不发送该头。这个内部值只表示已解析到的事件，不表示业务已提交；客户端仍需按业务 event id 幂等处理，并把业务提交游标独立持久化。手动新建 EventSource 不继承旧内部值，应把持久化游标放入受控 URL，或改用 fetch / polyfill 自定义恢复。缺口超出窗口时执行快照对账。
 
 **3. 浏览器 WebSocket 如何处理背压？**
 

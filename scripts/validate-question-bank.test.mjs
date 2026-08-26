@@ -313,6 +313,55 @@ function testFollowupParsingSkipsCodeFence() {
   assert.equal(validateFollowupSection(block).failures.length, 0)
 }
 
+function testMarkdownStateMachineBoundaries() {
+  const invalidBacktickFence = `### Q1. 示例
+
+\`\`\` \`not-a-fence\`
+**追问：** 真实追问？
+
+::: details 追问参考答案
+真实追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+:::
+`
+  assert.equal(findFollowupSection(invalidBacktickFence).questions.length, 1)
+
+  const trailingTextDoesNotCloseFence = `### Q1. 示例
+
+~~~md
+**追问：** 第一个伪追问？
+~~~ 这行带正文，不能关闭围栏
+**追问：** 第二个伪追问？
+~~~
+
+**追问：** 真实追问？
+
+::: details 追问参考答案
+真实追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+:::
+`
+  assert.equal(
+    findFollowupSection(trailingTextDoesNotCloseFence).questions[0]?.text,
+    '真实追问？',
+  )
+
+  const nestedLongClosers = `### Q1. 示例
+
+::: details 追问参考答案
+外层内容
+:::: info 嵌套
+嵌套内容
+:::::
+外层继续
+::::
+容器外内容
+`
+  const details = extractFollowupAnswerDetails(nestedLongClosers)
+  assert.equal(details.closed, true)
+  assert.match(details.content, /嵌套内容/)
+  assert.match(details.content, /外层继续/)
+  assert.doesNotMatch(details.content, /容器外内容/)
+}
+
 function testFencedFakeAnswerHeadingDoesNotIncreaseCount() {
   const block = `### D1. 示例
 
@@ -395,30 +444,115 @@ function testParseFollowupArgs() {
       ]),
     /未知题库文件：99-unknown\.md/,
   )
+  assert.throws(
+    () => parseFollowupArgs(['--require-followups', '--followup-files=']),
+    /--followup-files 不能为空/,
+  )
+  assert.throws(
+    () =>
+      parseFollowupArgs([
+        '--require-followups',
+        '--followup-files=01-js-ts.md',
+        '--followup-files=02-vue3.md',
+      ]),
+    /--followup-files 不能重复/,
+  )
+  for (const unknownArg of ['--require-followup', '--unknown', '01-js-ts.md']) {
+    assert.throws(
+      () => parseFollowupArgs([unknownArg]),
+      new RegExp(`未知参数：${unknownArg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    )
+  }
 }
 
 async function testFollowupFileSelection() {
-  const selected = await validateQuestionBank({
-    min: 0,
-    max: 999_999,
-    requireFollowups: true,
-    followupFiles: ['01-js-ts.md'],
-  })
-  assert.ok(
-    selected.failures.some((failure) => failure.startsWith('01-js-ts.md ')),
-    '应校验指定题库的追问',
-  )
-  assert.equal(
-    selected.failures.some((failure) =>
-      EXPECTED_QUESTION_FILES.slice(1).some((file) => failure.startsWith(`${file} `)),
-    ),
-    false,
-    '不应校验未指定题库的追问',
-  )
-  assert.match(
-    selected.fileStats.find((line) => line.startsWith('01-js-ts.md:')) ?? '',
-    /followups=\d+ answered=\d+/,
-  )
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'followup-selection-'))
+  const questionDir = path.join(repoRoot, 'docs/interview/questions')
+
+  try {
+    await mkdir(questionDir, { recursive: true })
+    await Promise.all(
+      EXPECTED_QUESTION_FILES.map((file) =>
+        writeFile(path.join(questionDir, file), `# ${file}\n`),
+      ),
+    )
+    await writeFile(path.join(questionDir, '01-js-ts.md'), singleFollowup)
+    await writeFile(
+      path.join(questionDir, '02-vue3.md'),
+      singleFollowup.replace(/\n::: details 追问参考答案[\s\S]*$/, '\n'),
+    )
+
+    const answeredSelection = await validateQuestionBank({
+      repoRoot,
+      min: 0,
+      max: 999_999,
+      requireFollowups: true,
+      followupFiles: ['01-js-ts.md'],
+    })
+    assert.equal(
+      answeredSelection.failures.length,
+      0,
+      answeredSelection.failures.join('\n'),
+    )
+    assert.match(
+      answeredSelection.fileStats.find((line) =>
+        line.startsWith('01-js-ts.md:'),
+      ) ?? '',
+      /followups=1 answered=1/,
+    )
+
+    const missingSelection = await validateQuestionBank({
+      repoRoot,
+      min: 0,
+      max: 999_999,
+      requireFollowups: true,
+      followupFiles: ['02-vue3.md'],
+    })
+    assert.match(
+      missingSelection.failures.join('\n'),
+      /02-vue3\.md Q1 缺少追问参考答案/,
+    )
+    assert.doesNotMatch(missingSelection.failures.join('\n'), /01-js-ts\.md/)
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true })
+  }
+}
+
+async function testFollowupPlaceholderDiagnosticIsNotDuplicated() {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'followup-placeholder-'))
+  const questionDir = path.join(repoRoot, 'docs/interview/questions')
+
+  try {
+    await mkdir(questionDir, { recursive: true })
+    await Promise.all(
+      EXPECTED_QUESTION_FILES.map((file) =>
+        writeFile(path.join(questionDir, file), `# ${file}\n`),
+      ),
+    )
+    await writeFile(
+      path.join(questionDir, '01-js-ts.md'),
+      singleFollowup.replace(
+        '单个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。',
+        'TODO：稍后补充完整答案。',
+      ),
+    )
+
+    const result = await validateQuestionBank({
+      repoRoot,
+      min: 0,
+      max: 999_999,
+      requireFollowups: true,
+      followupFiles: ['01-js-ts.md'],
+    })
+    const placeholderFailures = result.failures.filter((failure) =>
+      failure.includes('占位文案'),
+    )
+    assert.deepEqual(placeholderFailures, [
+      '01-js-ts.md Q1 追问参考答案含占位文案',
+    ])
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true })
+  }
 }
 
 function testHasDeepSection() {
@@ -550,6 +684,7 @@ testFollowupParsingAndValidation()
 testInlineFollowupChain()
 testFollowupFailures()
 testFollowupParsingSkipsCodeFence()
+testMarkdownStateMachineBoundaries()
 testFencedFakeAnswerCannotSatisfyMissingAnswer()
 testFencedFakeAnswerHeadingDoesNotIncreaseCount()
 testParseFollowupArgs()
@@ -559,5 +694,6 @@ await testWorksFromNonRepoRoot()
 await testRejectsWrongQuestionFileSet()
 await testExactQuestionTotal()
 await testFollowupFileSelection()
+await testFollowupPlaceholderDiagnosticIsNotDuplicated()
 
-console.log('validate-question-bank 边界自测通过（17 组）')
+console.log('validate-question-bank 边界自测通过（19 组）')

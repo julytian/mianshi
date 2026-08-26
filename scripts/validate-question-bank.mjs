@@ -52,6 +52,49 @@ const FOLLOWUP_MARKER_PATTERN = /^\*\*追问(链)?[：:]\*\*(.*)$/
 const FOLLOWUP_DETAILS_MARKER = '::: details 追问参考答案'
 const MIN_FOLLOWUP_ANSWER_LENGTH = 40
 
+function createFenceState() {
+  return { inFence: false, char: '', length: 0 }
+}
+
+function consumeFenceLine(state, rawLine) {
+  const line = rawLine.replace(/\r$/, '')
+  if (state.inFence) {
+    const closingMatch = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
+    if (
+      closingMatch &&
+      closingMatch[1][0] === state.char &&
+      closingMatch[1].length >= state.length
+    ) {
+      state.inFence = false
+      state.char = ''
+      state.length = 0
+    }
+    return true
+  }
+
+  const openingMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+  if (!openingMatch) return false
+  const marker = openingMatch[1]
+  const info = openingMatch[2]
+  if (marker[0] === '`' && info.includes('`')) return false
+
+  state.inFence = true
+  state.char = marker[0]
+  state.length = marker.length
+  return true
+}
+
+function parseContainerLine(rawLine) {
+  const match = rawLine
+    .replace(/\r$/, '')
+    .match(/^ {0,3}(:{3,})(?:[ \t]+(.*?))?[ \t]*$/)
+  if (!match) return null
+  return {
+    length: match[1].length,
+    info: (match[2] ?? '').trim(),
+  }
+}
+
 /**
  * @param {string | undefined} raw
  * @param {string} name
@@ -95,26 +138,11 @@ export function findQuestionHeadings(content) {
   const results = []
   const lines = content.split('\n')
   let offset = 0
-  let inFence = false
-  let fenceChar = ''
-  let fenceLen = 0
+  const fenceState = createFenceState()
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]
-    const fenceMatch = line.match(/^(`{3,}|~{3,})(.*)$/)
-
-    if (fenceMatch) {
-      const marker = fenceMatch[1]
-      const char = marker[0]
-      const len = marker.length
-      if (!inFence) {
-        inFence = true
-        fenceChar = char
-        fenceLen = len
-      } else if (char === fenceChar && len >= fenceLen) {
-        inFence = false
-      }
-    } else if (!inFence) {
+    if (!consumeFenceLine(fenceState, line)) {
       const headingMatch = line.match(/^### ([QD]\d+)\.\s+(.+)$/)
       if (headingMatch) {
         results.push({ id: headingMatch[1], index: offset, line: i + 1 })
@@ -138,24 +166,11 @@ export function findQuestionHeadings(content) {
 export function extractNamedDetails(block, marker) {
   const lines = block.split('\n')
   let startLine = -1
-  let inFence = false
-  let fenceChar = ''
-  let fenceLen = 0
+  const searchFenceState = createFenceState()
 
   for (let i = 0; i < lines.length; i += 1) {
-    const fenceMatch = lines[i].match(/^ {0,3}(`{3,}|~{3,})/)
-    if (fenceMatch) {
-      const fence = fenceMatch[1]
-      if (!inFence) {
-        inFence = true
-        fenceChar = fence[0]
-        fenceLen = fence.length
-      } else if (fence[0] === fenceChar && fence.length >= fenceLen) {
-        inFence = false
-      }
-      continue
-    }
-    if (!inFence && lines[i].trim() === marker) {
+    if (consumeFenceLine(searchFenceState, lines[i])) continue
+    if (lines[i].trim() === marker) {
       startLine = i
       break
     }
@@ -166,30 +181,21 @@ export function extractNamedDetails(block, marker) {
   }
 
   const contentLines = []
-  let depth = 1
-  inFence = false
-  fenceChar = ''
-  fenceLen = 0
+  const containerStack = [marker.match(/^(:{3,})/)?.[1].length ?? 3]
+  const contentFenceState = createFenceState()
 
   for (let i = startLine + 1; i < lines.length; i += 1) {
     const line = lines[i]
-    const trimmed = line.trim()
-    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/)
-
-    if (fenceMatch) {
-      const fence = fenceMatch[1]
-      if (!inFence) {
-        inFence = true
-        fenceChar = fence[0]
-        fenceLen = fence.length
-      } else if (fence[0] === fenceChar && fence.length >= fenceLen) {
-        inFence = false
-      }
-    } else if (!inFence && trimmed.startsWith(':::')) {
-      const info = trimmed.slice(3).trim()
-      if (info.length === 0) {
-        depth -= 1
-        if (depth === 0) {
+    if (!consumeFenceLine(contentFenceState, line)) {
+      const container = parseContainerLine(line)
+      if (container?.info) {
+        containerStack.push(container.length)
+      } else if (
+        container &&
+        container.length >= containerStack[containerStack.length - 1]
+      ) {
+        containerStack.pop()
+        if (containerStack.length === 0) {
           return {
             found: true,
             closed: true,
@@ -198,7 +204,6 @@ export function extractNamedDetails(block, marker) {
         }
         continue
       }
-      depth += 1
     }
 
     contentLines.push(line)
@@ -230,25 +235,11 @@ export function extractFollowupAnswerDetails(block) {
  */
 export function findFollowupSection(block) {
   const lines = block.split('\n')
-  let inFence = false
-  let fenceChar = ''
-  let fenceLen = 0
+  const fenceState = createFenceState()
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
-    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/)
-    if (fenceMatch) {
-      const fence = fenceMatch[1]
-      if (!inFence) {
-        inFence = true
-        fenceChar = fence[0]
-        fenceLen = fence.length
-      } else if (fence[0] === fenceChar && fence.length >= fenceLen) {
-        inFence = false
-      }
-      continue
-    }
-    if (inFence) continue
+    if (consumeFenceLine(fenceState, line)) continue
 
     const markerMatch = line.match(FOLLOWUP_MARKER_PATTERN)
     if (!markerMatch) continue
@@ -308,31 +299,11 @@ function findFollowupAnswerHeadings(content) {
   const headings = []
   const lines = content.split('\n')
   let offset = 0
-  let inFence = false
-  let fenceChar = ''
-  let fenceLen = 0
+  const fenceState = createFenceState()
 
   for (const rawLine of lines) {
     const line = rawLine.replace(/\r$/, '')
-    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
-    if (!inFence && fenceMatch) {
-      const marker = fenceMatch[1]
-      const info = fenceMatch[2]
-      if (marker[0] !== '`' || !info.includes('`')) {
-        inFence = true
-        fenceChar = marker[0]
-        fenceLen = marker.length
-      }
-    } else if (inFence) {
-      const closingMatch = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
-      if (
-        closingMatch &&
-        closingMatch[1][0] === fenceChar &&
-        closingMatch[1].length >= fenceLen
-      ) {
-        inFence = false
-      }
-    } else {
+    if (!consumeFenceLine(fenceState, line)) {
       const headingMatch = line.match(/^\*\*(\d+)\.\s+(.+?)\*\*\s*$/)
       if (headingMatch) {
         headings.push({
@@ -447,8 +418,21 @@ export function validateFollowupSection(block) {
  * @returns {{ requireFollowups: boolean, followupFiles: string[] | null }}
  */
 export function parseFollowupArgs(argv = process.argv.slice(2)) {
+  const unknownArgs = argv.filter(
+    (arg) =>
+      arg !== '--require-followups' &&
+      !arg.startsWith('--followup-files='),
+  )
+  if (unknownArgs.length > 0) {
+    throw new Error(`未知参数：${unknownArgs.join('、')}`)
+  }
+
   const requireFollowups = argv.includes('--require-followups')
-  const fileArg = argv.find((arg) => arg.startsWith('--followup-files='))
+  const fileArgs = argv.filter((arg) => arg.startsWith('--followup-files='))
+  if (fileArgs.length > 1) {
+    throw new Error('--followup-files 不能重复')
+  }
+  const fileArg = fileArgs[0]
   const followupFiles = fileArg
     ? fileArg
         .slice('--followup-files='.length)
@@ -457,6 +441,9 @@ export function parseFollowupArgs(argv = process.argv.slice(2)) {
         .filter(Boolean)
     : null
 
+  if (fileArg && followupFiles?.length === 0) {
+    throw new Error('--followup-files 不能为空')
+  }
   if (followupFiles && !requireFollowups) {
     throw new Error('--followup-files 必须与 --require-followups 同时使用')
   }
@@ -595,7 +582,14 @@ export async function validateQuestionBank(options = {}) {
         failures.push(`${file} ${id} 参考答案为空`)
       }
 
-      for (const pattern of findPlaceholders(block)) {
+      let generalPlaceholderSource = block
+      if (requireFollowups && selectedFollowupFiles.has(file)) {
+        const followupDetails = extractFollowupAnswerDetails(block)
+        if (followupDetails.content) {
+          generalPlaceholderSource = block.replace(followupDetails.content, '')
+        }
+      }
+      for (const pattern of findPlaceholders(generalPlaceholderSource)) {
         failures.push(`${file} ${id} 含占位文案（${pattern}）`)
       }
 

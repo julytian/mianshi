@@ -52,7 +52,9 @@
 
 ::: details 追问参考答案
 
-先明确唯一性的业务范围。可把状态或可空删除标识纳入可执行约束，或维护一个仅代表有效记录的规范化唯一键；具体实现受 MySQL 对 `NULL` 唯一语义和索引能力约束，应通过并发用例验证。不要只在应用查询中加 `deleted_at IS NULL`，因为两个请求仍可能同时通过预查。恢复软删除记录时也必须走同一冲突规则。
+MySQL 没有通用的 partial unique index，可增加生成列：`active_unique_key = CASE WHEN deleted_at IS NULL THEN normalized_email ELSE NULL END`，再创建唯一索引 `(tenant_id, active_unique_key)`。MySQL 唯一索引允许多行含 `NULL`，因此多轮删除留下的历史记录可共存；同租户两条有效记录使用相同规范化值时则会冲突。
+
+`normalized_email` 的大小写、空白和 Unicode 规范化规则必须固定：可由应用写入独立列，或使用目标 MySQL 版本允许的确定性生成表达式，并明确索引列的 collation。应用预查只改善提示，并发兜底仍是数据库唯一约束；恢复旧记录时若已有新有效记录，应拒绝或先完成显式合并。若历史还要区分每轮注册身份，应保留独立主键、删除时间和审计事件，不能用邮箱唯一键代表历史实体身份。
 
 :::
 

@@ -191,7 +191,7 @@ CSS 的 `1px` 是一个 CSS 像素，在 DPR=3 时通常由约 3 个物理像素
 
 **1. 为什么有的机型 `100vh` 含键盘区域，布局会跳？**
 
-因为 `vh` 往往依据布局视口，而软键盘改变的是视觉视口；不同浏览器和 WebView 还可能选择 resize、pan 或覆盖页面，所以 `100vh` 不一定等于当前可见高度。现代内核可按场景选 `100svh`、`100lvh`、`100dvh`，并用 `visualViewport.height/offsetTop` 渐进增强；旧容器保留 CSS 变量或流式布局降级，不能只靠一次 `innerHeight`。
+默认 `interactive-widget=resizes-visual` 时，软键盘通常只缩小 VisualViewport，布局视口以及 `dvh`、`svh`、`lvh` 并不随键盘变化；只有内核支持并采用 `resizes-content` 时，布局视口和动态视口单位才可能跟随。键盘布局应以 `visualViewport.height/offsetTop` 和焦点状态为主，视口单位处理地址栏等变化，旧 WebView 再用流式布局降级。
 
 **2. 弹层内输入框聚焦，滚动容器该滚弹层还是 window？**
 
@@ -230,7 +230,7 @@ CSS 的 `1px` 是一个 CSS 像素，在 DPR=3 时通常由约 3 个物理像素
 
 **1. 微信支付 / 授权中间页跳回，栈乱了怎么修？**
 
-不要依赖固定 `back(-2)` 修栈，因为中间页、外部浏览器和 WebView 行为并不稳定。发起前保存一次性 state、returnUrl 与业务单号，回调页校验 state 后用 `replace` 回到目标路由，并通过查单恢复最终状态；无有效历史时提供明确兜底页。支付结果以服务端为准，回跳参数只作线索，避免重复支付或伪造成功。
+不要依赖固定 `back(-2)` 修栈。发起前生成随机一次性 OAuth state 并绑定服务端会话，适用时配合 PKCE；returnUrl 优先由服务端保存，否则只接受严格同源白名单，防止开放重定向。回调校验并消费 state 后用 `replace` 回目标页，再按业务单号查单恢复；支付结果以服务端为准，回跳参数不能证明成功。
 
 **2. `keep-alive` 列表页返回保留位置，和路由缓存怎么配？**
 
@@ -274,11 +274,11 @@ CSS 的 `1px` 是一个 CSS 像素，在 DPR=3 时通常由约 3 个物理像素
 
 **2. SPA 路由 PV 与浏览器刷新如何去重？**
 
-先定义口径：刷新通常是新的 page view，而同一次导航被路由钩子和组件重复观察才需要去重。为每次成功导航生成 navigationId，统一在 afterEach 上报；首屏由初始化流程上报一次，并记录 navigation type 区分 reload、back_forward 与 navigate。重定向链只记最终可见页，失败或取消导航不算 PV，参数规范化规则也要统一。
+刷新是新 PV，同一次导航被多处观察才去重。`PerformanceNavigationTiming.type` 只描述文档级 navigate、reload、back_forward，不能区分 SPA 的 afterEach。SPA 导航由 Router 生成 navigationId；返回结合 Router、`popstate` 和可用的 Navigation API，Soft Navigation 仅渐进增强。重定向只记最终页。
 
 **3. 和 App 原生埋点如何打通同一用户路径？**
 
-由原生在打开 WebView 时生成 sessionId/traceId，通过可信 Bridge 注入，H5 的 PV、点击和请求都携带它；H5 再生成 navigationId 与 eventId，双方共享事件字典、时间基准和版本字段。原生容器事件与 H5 业务事件职责互斥，避免同一点击双报。离线补报保留原发生时间，并禁止把 Token、手机号等敏感值塞进关联字段。
+由原生生成 sessionId/traceId，经可信 Bridge 注入，H5 的 PV、点击和请求继续携带；双方各自用本进程单调时钟记录阶段耗时，因为 Native 与 WebView 没有天然共享的单调时钟。通过导航边界握手或双端都观测到的事件校准时间轴，再关联 navigationId/eventId。离线补报保留原发生时间，且关联字段不得包含 Token、手机号等敏感值。
 
 :::
 
@@ -360,7 +360,7 @@ Bridge 是「前端调原生能力 / 原生调前端」的契约：登录态、�
 
 **3. 如何防止普通浏览器里恶意页调用你们的伪 Bridge？**
 
-H5 侧检测对象存在只能做能力判断，不能证明来源可信；真正的安全边界必须在原生侧。原生应校验当前页面的 scheme、host、证书与导航状态，对支付等敏感方法再要求用户手势、会话和原生确认，并只暴露最小能力集。WebView 跳到第三方域名时立即撤销注入；请求参数做 schema 校验，伪 Bridge 最多让页面误判，不能获得真实权限。
+Android `addJavascriptInterface` 暴露给所有 frame，当前 URL 不能证明调用 frame 来源。新实现优先用 WebMessageListener，以 `allowedOriginRules`、`sourceOrigin`、`isMainFrame` 限制来源。旧 Bridge 必须禁止第三方 frame，配合导航白名单、CSP 和参数校验；支付、取凭证等敏感能力还要基于会话与用户手势做原生二次鉴权。
 
 :::
 
@@ -434,7 +434,7 @@ H5 侧检测对象存在只能做能力判断，不能证明来源可信；真�
 
 **1. 横向滚动列表里懒加载为什么容易「该出不出」？**
 
-常见问题是 IntersectionObserver 默认以浏览器视口为 root，而真正滚动的是横向容器，或容器被 transform、裁剪后交叉区域与预期不同。应把实际滚动元素设为 root，按横向预取距离配置 rootMargin，并在节点复用、容器显示和尺寸变化后确认观察关系。低版本 WebView 不可靠时，可降级为节流计算容器与元素矩形，避免每帧读布局。
+IntersectionObserver 默认 root 是视口，但交叉计算仍会考虑滚动祖先裁剪；改成横向容器 root 又可能在容器整体离屏时提前预载。先排查容器尺寸、`hidden`、节点复用和调用 `observe` 的时机。预取应使用明确 root，并同时判断容器对页面与图片对容器的双层可见性；兼容内核支持后可评估 `scrollMargin`，旧 WebView 降级为节流矩形计算。
 
 **2. 背景图 `background-image` 如何懒加载？**
 

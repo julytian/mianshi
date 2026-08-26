@@ -37,6 +37,7 @@ export const EXPECTED_QUESTION_FILES = [
   '14-frontend-architecture.md',
   '15-database-prisma.md',
   '16-html-css-a11y.md',
+  '17-browser-web-api.md',
 ]
 
 const PLACEHOLDER_PATTERNS = [

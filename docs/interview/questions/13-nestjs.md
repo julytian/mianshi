@@ -2,7 +2,7 @@
 
 > **怎么用：** 先盖住答案，按 **机制 → 请求链路 → 数据与安全 → 生产运维** 口述 2～3 分钟，再展开答案补洞。追问用于模拟面试官加压；回答重点是能落地、能排障、能做权衡。
 
-> **版本基线：** 本文依据 NestJS 官方文档截至 2026-08 的公开行为编写，不绑定未核实的内部源码版本。NestJS 可运行在 Express 或 Fastify 等平台适配器上；默认值、第三方包 API 与实验能力可能随版本变化，生产配置应以项目锁定版本的官方文档、类型声明和实测结果为准。
+> **版本基线：** 本文以 NestJS 11.x 官方文档截至 2026-08 的公开行为为基线，不绑定未核实的内部源码版本。NestJS 可运行在 Express 或 Fastify 等平台适配器上；`@nestjs/cqrs`、Terminus、Throttler、BullMQ 集成、ORM 驱动等独立包可能采用各自版本节奏，默认值和 API 必须以项目锁定版本的官方文档、类型声明和实测结果为准。
 
 > **岗位定位：** 面向资深前端 / 全栈偏前与 Vue 3 + BFF 场景。要求讲清 Node.js、TypeScript、接口契约和生产治理，不机械套用 Spring 概念，也不伪装专职数据库或分布式系统专家。
 
@@ -87,21 +87,23 @@ Provider 默认只在宿主模块内可见。消费模块必须 `import` 提供�
 
 singleton 若依赖 request-scoped Provider，就无法在启动时固定一个实例，因此 request scope 会沿依赖链向上扩散，依赖它的 Controller 也会按请求创建。transient 的语义是「按消费者」，不会以相同方式让整个依赖链都变成 transient。官方文档也提示 request scope 会增加实例创建和回收成本，实际影响应压测。
 
+WebSocket Gateway 封装真实 socket，必须表现为 singleton，不应依赖 request-scoped Provider；官方文档指出相同限制也适用于 Passport Strategy、Cron Controller 等需要保持 singleton 的 Provider。不同协议的上下文 token 也不同：HTTP 可注入 `REQUEST`，GraphQL 应注入 `CONTEXT`，不能把 HTTP Request 假设复制到所有执行上下文。
+
 #### 工程场景
 
-多租户场景可从 Guard 解析租户，将 `tenantId` 放入请求上下文，再由小范围 request-scoped 门面读取；更高吞吐场景可用显式参数或经过评估的异步上下文方案。排障时统计 Provider 实例化次数、堆分配和 P95/P99，而不是只看平均延迟。
+多租户场景可从 Guard 解析租户，将 `tenantId` 放入请求上下文，再由小范围 request-scoped 门面读取；更高吞吐场景可用显式参数或经过评估的异步上下文方案。官方的 durable provider 需要自定义 `ContextIdStrategy`，把具有共同属性的请求复用到同一 DI 子树，并给 request-scoped Provider 标记 `durable: true`；它只适合租户数量受控、可安全复用子树等特定优化，不是把任意请求态变回 singleton。排障时统计实例化次数、堆分配和 P95/P99。
 
 #### 反例 / 踩坑
 
-为了拿 `request.user` 把日志、数据库、缓存整条链都设为 request scope，会造成大量对象创建；在 singleton 中保存当前用户则会串请求。后台任务和 CQRS 消息也不天然拥有 HTTP Request，不能把业务逻辑绑死在 `REQUEST` token。
+为了拿 `request.user` 把日志、数据库、缓存整条链都设为 request scope，会造成大量对象创建；在 singleton 中保存当前用户则会串请求。给 Gateway 或 Passport Strategy 注入 request-scoped 依赖，或在 GraphQL 中硬注入 `REQUEST`，都会把生命周期模型用错。后台任务和 CQRS 消息也不天然拥有 HTTP Request。
 
 #### 资深回答模板
 
-「判断：默认 singleton，只有确实存在请求生命周期状态才缩小范围使用 request scope。证据：检查 scope 冒泡后的实例数和延迟。兜底：身份、租户优先显式传参；后台任务定义独立上下文，不假设一定有 HTTP Request。」
+「判断：默认 singleton，只有确实存在请求生命周期状态才缩小范围使用 request scope。约束：Gateway、Passport Strategy、Cron 等 singleton 组件不向下依赖请求 scope，GraphQL 使用 `CONTEXT`。优化：durable provider 只在分组复用安全且压测有收益时采用。」
 
 :::
 
-**追问链：** request scope 如何影响 Controller？→ transient 是否每次属性访问都新建？→ WebSocket 或定时任务中的上下文怎么办？
+**追问链：** request scope 如何影响 Controller？→ GraphQL 为什么注入 `CONTEXT`？→ durable provider 的复用边界如何证明安全？
 
 ### Q3. 动态模块和异步配置解决什么问题？
 
@@ -177,7 +179,7 @@ TypeScript Decorator 本身不是 DI。应用启动时，Nest 根据根模块递
 
 #### 原理深挖
 
-Guard 通常按全局到 Controller 再到路由执行；Interceptor 入站同向，出站因 RxJS Observable 包裹而按路由到 Controller 再到全局返回。Pipe 在参数解析阶段执行。Filter 与其他组件不同，从最靠近路由的 Filter 开始；某个 Filter 已处理异常后，不会自动继续交给外层 Filter。
+Guard 通常按全局到 Controller 再到路由执行；Interceptor 入站同向，出站因 RxJS Observable 包裹而按路由到 Controller 再到全局返回。Pipe 的完整层级是 global → controller → route → parameter；同一层通过 `@UsePipes(PipeA, PipeB)` 绑定时按声明顺序执行。每一层处理多个方法参数时，从参数列表最后一个向第一个执行，例如 `(body, params, query)` 会先处理 `query`，再处理 `params`、`body`，然后进入下一层 Pipe。Filter 与其他组件不同，从最靠近路由的 Filter 开始；某个 Filter 已处理异常后，不会自动继续交给外层 Filter。
 
 #### 工程场景
 
@@ -185,15 +187,15 @@ Guard 通常按全局到 Controller 再到路由执行；Interceptor 入站同�
 
 #### 反例 / 踩坑
 
-在 Middleware 里读取 DTO 校验结果，此时 Pipe 尚未执行；在 Interceptor 里吞掉错误导致 Filter 不触发；认为全局 Filter 一定最先捕获；通过 `@Res()` 手动响应后仍期待标准响应映射完整接管。
+在 Middleware 里读取 DTO 校验结果，此时 Pipe 尚未执行；误以为方法参数从左到右经过 Pipe；在 Interceptor 里吞掉错误导致 Filter 不触发；认为全局 Filter 一定最先捕获；通过 `@Res()` 手动响应后仍期待标准响应映射完整接管。
 
 #### 资深回答模板
 
-「主链：Middleware、Guard、Interceptor 入站、Pipe、Handler、Interceptor 出站；未捕获异常进入最近的 Filter。职责：协议前置、授权、横切、参数、业务、异常各归其位。验证：用 trace 日志而不是靠猜。」
+「主链：Middleware、Guard、Interceptor 入站、Pipe、Handler、Interceptor 出站；未捕获异常进入最近的 Filter。Pipe 按 global、controller、route、parameter 分层，同层 FIFO，参数从最后到第一个。验证：用 trace 日志还原真实绑定顺序。」
 
 :::
 
-**追问链：** 多个 Interceptor 的返回顺序？→ Pipe 抛错后哪些层能观察到？→ route Filter 捕获后 global Filter 是否还执行？
+**追问链：** `(body, params, query)` 的 Pipe 顺序？→ Pipe 抛错后哪些层能观察到？→ route Filter 捕获后 global Filter 是否还执行？
 
 ### Q5. 五类请求组件分别应该做什么，不应该做什么？
 
@@ -250,23 +252,23 @@ DTO 用于协议边界，数据库 Entity 不应直接兼任输入 DTO。
 
 #### 原理深挖
 
-Observable 使执行前后、成功、错误、取消与异步结果统一在一条流中，因此多个 Interceptor 能形成嵌套结构。`tap` 适合观测而非改变值，`map` 负责响应映射，`catchError` 必须明确是转换后重新抛出还是恢复为正常值，`finalize` 更适合无论成功失败都要执行的清理和耗时记录。
+Observable 使执行前后、成功、错误和取消信号统一在一条流中，因此多个 Interceptor 能形成嵌套结构。`tap` 适合观测而非改变值，`map` 负责响应映射，`catchError` 必须明确是转换后重新抛出还是恢复为正常值，`finalize` 更适合无论成功失败都要执行的清理和耗时记录。RxJS `timeout` 会让当前订阅超时并转入错误路径，但取消订阅不等于自动取消已经启动的 Promise、数据库查询或 HTTP 副作用。
 
 #### 工程场景
 
-全局 Interceptor 写 traceId、耗时和状态；外部依赖调用在更靠近客户端的适配器设置超时，HTTP 总超时作为兜底。响应包装前识别流式下载、SSE、文件和 `@Res()` 场景，避免破坏协议。
+全局 Interceptor 写 traceId、耗时和状态；HTTP 总超时只作为兜底。真正限制资源占用，要把 deadline / `AbortSignal` 继续传给 HTTP 客户端，并使用数据库驱动的取消、statement timeout 等能力；不支持取消的操作仍需幂等和结果隔离。响应包装前识别流式下载、SSE、文件和 `@Res()` 场景，避免破坏协议。
 
 #### 反例 / 踩坑
 
-在 `catchError` 返回 `{ code: 500 }`，HTTP 状态仍为 200；用 `tap` 误以为能转换返回值；`map(data => ({ data }))` 包裹文件流；忘记返回 `next.handle()` 导致请求挂起或 handler 被跳过。
+把响应超时误当底层工作已停止，客户端收到 408/504 后数据库写入仍可能完成；在 `catchError` 返回 `{ code: 500 }`，HTTP 状态仍为 200；用 `tap` 误以为能转换返回值；`map(data => ({ data }))` 包裹文件流；忘记返回 `next.handle()` 导致 handler 被跳过。
 
 #### 资深回答模板
 
-「判断：Interceptor 是可组合的执行流边界。实现：`tap/finalize` 做观测，`map` 做明确的协议映射，`catchError` 保持错误语义，`timeout` 分层设置。例外：流式与手动响应接口单独处理。」
+「判断：Interceptor 是可组合的执行流边界。实现：`tap/finalize` 做观测，`map` 做协议映射，`catchError` 保持错误语义。超时：Observable 停止订阅不等于副作用取消，deadline 必须下传到支持 AbortSignal 或驱动取消的底层。」
 
 :::
 
-**追问链：** `catchError` 后 Filter 何时还能收到异常？→ 缓存命中如何跳过 handler？→ `finalize` 为什么比只在成功分支打点稳妥？
+**追问链：** `catchError` 后 Filter 何时还能收到异常？→ RxJS 超时后数据库写入为何可能继续？→ 如何把 deadline 传到底层？
 
 ### Q7. 如何建立统一异常和错误码契约？
 
@@ -274,9 +276,9 @@ Observable 使执行前后、成功、错误、取消与异步结果统一在一
 
 ::: details 参考答案
 
-业务层抛出与 HTTP 解耦的领域 / 应用错误，协议层由全局 Filter 映射成 `{ code, message, details, traceId }` 与合适 HTTP 状态。`code` 稳定供前端分支处理，`message` 可本地化，`details` 只放安全的字段错误，`traceId` 用于定位；未知异常统一返回通用文案并记录完整堆栈。
+业务层抛出与 HTTP 解耦的领域 / 应用错误，协议层由全局 Filter 映射成 `{ code, message, details, traceId }` 与合适 HTTP 状态。错误分类至少区分输入无效、未认证、无权限、资源冲突、依赖不可用和未知故障；未知异常返回通用文案并记录完整堆栈。前端刷新与页面状态机见 D16，本题重点是服务端错误分类和协议映射。
 
-不要把所有错误都返回 200，也不要把数据库错误、路径、SQL、token 原因直接暴露。Filter 还需分别适配 HTTP、RPC 或 WebSocket 上下文，不能假设同一响应 API 到处可用。
+`code` 是稳定机器契约，`message` 可本地化，`details` 只放安全的字段错误，`traceId` 用于定位。不要把所有错误都返回 200，也不要暴露数据库错误、路径、SQL、token 原因。Filter 还需分别适配 HTTP、RPC 或 WebSocket 上下文。
 
 **追问：**
 1. 401 与 403 如何区分？
@@ -346,15 +348,15 @@ Vue 客户端从 OpenAPI 生成类型和请求层，CI 检查 breaking change。
 
 #### 工程场景
 
-刷新端点只接收 Cookie 中 refresh token，校验哈希后在事务内旋转，返回短期 access token 并覆盖 Cookie。前端使用 single-flight：多个 401 只触发一次刷新，其他请求等待后重试一次；刷新失败清理身份状态并跳登录。
+刷新端点只接收 Cookie 中 refresh token，先校验 `Origin` / `Referer` 等同源信号，并使用 CSRF token（如同步 token 或双提交 Cookie）或等价防护，再在事务内校验哈希并旋转，返回短期 access token 并覆盖 Cookie。`SameSite` 只是纵深防御，受部署拓扑、浏览器行为和同站攻击面影响，不能替代完整 CSRF 设计。前端刷新状态机见 D16。
 
 #### 反例 / 踩坑
 
-refresh token 永久不轮换；明文入库；多个标签页触发刷新风暴；任何 401 都无限重试；登出只删除前端 token，不撤销服务端会话；日志记录完整 token。
+refresh token 永久不轮换；明文入库；只设置 `SameSite` 就宣称没有 CSRF；多个标签页触发刷新风暴；登出只删除前端 token，不撤销服务端会话；日志记录完整 token。
 
 #### 资深回答模板
 
-「判断：refresh token 是可撤销会话凭证，不只是更长的 JWT。落地：短 access token、refresh 哈希存储、事务轮换、重放撤销 token family。前端：single-flight 刷新且最多重试一次。」
+「判断：refresh token 是可撤销会话凭证，不只是更长的 JWT。落地：短 access token、refresh 哈希存储、事务轮换、重放撤销 token family。浏览器：同源校验加 CSRF token 或等价防护，SameSite 不单独承担安全边界。」
 
 :::
 
@@ -383,15 +385,15 @@ RBAC 按角色聚合权限，简单稳定；ABAC 根据主体、资源、动作�
 
 #### 基础结论
 
-TypeORM 偏 Data Mapper / Active Record 风格并深度使用 Decorator，Repository 与实体关系表达直接；Prisma 以 Schema、生成客户端和显式查询为核心，类型体验与迁移工具链清晰。选择应看团队经验、数据库能力、查询复杂度、迁移治理和可观测性，不应只看语法短。
+TypeORM 偏 Data Mapper / Active Record 风格并深度使用 Decorator，Repository 与实体关系表达直接；Prisma 以 Schema、生成客户端和显式查询为核心，类型体验与迁移工具链清晰。选择应看团队经验、目标数据库能力、复杂查询、迁移回滚、生成物和 SQL 可观测性，不应只看语法短。模块数据所有权与跨模块约束见 D15。
 
 #### 原理深挖
 
-ORM 解决映射和查询构造，不消除数据库约束、索引、事务与执行计划。领域模型也不必等于 ORM Entity：复杂业务可用 Repository 端口隔离持久化模型；CRUD BFF 可适度简化，但仍要避免把数据库字段直接暴露成 API。
+ORM 解决映射和查询构造，不消除数据库约束、索引、事务与执行计划。这里的核心决策是工具能力是否匹配查询和迁移，而不是为了「纯架构」增加映射层；复杂领域可隔离持久化模型，CRUD BFF 可适度简化，但数据库字段仍不应直接成为 API 契约。
 
 #### 工程场景
 
-POC 用真实数据验证复合索引、关系查询、批量写入、事务、迁移回滚和 SQL 可观测性。Nest 模块注入 Repository 或 PrismaService，但应用服务依赖仓储接口；高风险报表可用显式 SQL / query builder，而不是强迫 ORM 表达所有查询。
+POC 用真实数据验证复合索引、关系查询、批量写入、事务、迁移回滚、连接复用和 SQL 可观测性；高风险报表可用显式 SQL / query builder，而不是强迫 ORM 表达所有查询。最终记录版本、驱动限制和退出成本。
 
 #### 反例 / 踩坑
 
@@ -477,7 +479,7 @@ cursor 排序必须确定，例如 `createdAt DESC, id DESC`；查询条件和�
 - 定时任务：多实例部署会重复执行，需要分布式锁、leader election 或外部调度器；记录计划时间、实际时间和执行 ID。
 - 文件上传：限制大小、数量、MIME 与文件签名，随机化对象 key，做病毒扫描；大文件优先客户端直传对象存储的短期签名 URL，服务端只保存元数据。
 
-不能把长任务留在 HTTP 请求里等待，也不能只凭扩展名信任上传内容。
+默认不要让不可恢复的长任务占住普通 HTTP 请求；需要实时增量结果时可用 SSE / 流式响应，需要强同步语义时也可在明确超时与资源上限内有界等待。其余任务返回任务 ID 后异步执行。上传内容不能只凭扩展名信任。
 
 **追问：**
 1. 队列「恰好一次」为何通常要拆成业务幂等？
@@ -502,7 +504,7 @@ cursor 排序必须确定，例如 `createdAt DESC, id DESC`；查询条件和�
 
 #### 工程场景
 
-启动前用 Schema 验证端口、URL、枚举和必填密钥；生产日志脱敏 authorization、Cookie、手机号和 token。`/live` 只检查事件循环 / 进程基本状态，`/ready` 检查关键数据库连接并设置短超时。发布时按 release 对比错误率、P95/P99 和池等待。
+启动前用 Schema 验证端口、URL、枚举和必填密钥；生产日志脱敏 authorization、Cookie、手机号和 token。事件循环 lag 默认作为指标和告警信号，不直接让 liveness 失败，否则负载尖峰可能触发重启风暴；只有经过持续阈值、故障预算和演练验证后才考虑自动处置。`/ready` 检查关键数据库连接并设置短超时。
 
 #### 反例 / 踩坑
 
@@ -522,7 +524,7 @@ cursor 排序必须确定，例如 `createdAt DESC, id DESC`；查询条件和�
 
 ::: details 参考答案
 
-限流按 IP、用户、租户或接口成本选择维度，单实例内存计数不适合多副本全局限流；边缘网关做第一层，Nest Guard 做身份感知的第二层。创建 / 支付类接口接收 idempotency key，在数据库唯一约束或原子存储中绑定「调用方 + 操作 + 请求摘要 + 结果」，重复请求返回同一结果，冲突摘要则拒绝。
+限流按 IP、用户、租户或接口成本选择维度，单实例内存计数不适合多副本全局限流；边缘网关做第一层，Nest Guard 做身份感知的第二层。创建 / 支付类接口接收 idempotency key，在数据库唯一约束或原子存储中绑定「调用方 + 操作 + 请求摘要 + 状态 + 结果」。已完成的同摘要请求返回原结果；摘要冲突返回 409；仍处理中则需预先约定返回 202 和查询地址、返回 409，或在短时上限内等待，不能让并发副本各自执行。
 
 安全基线还包括严格 CORS allowlist、Helmet / 安全响应头、输入校验、参数化查询、Cookie 属性、密钥轮换、依赖审计、上传限制和最小权限。Helmet、CORS 在 Express / Fastify 下的注册方式和顺序可能不同，应按适配器文档配置。
 
@@ -584,14 +586,14 @@ Guard 单测覆盖 metadata、无身份、权限不足和资源属性；Intercep
 
 ::: details 参考答案
 
-镜像采用锁定依赖、多阶段构建、非 root 用户和精简运行时；配置通过环境或密钥注入，不烘焙进镜像。应用调用 `enableShutdownHooks()` 后，Nest 才能在相应终止信号下执行关闭生命周期；钩子中停止接收新任务、等待在途请求到有界超时，再关闭队列、数据库和遥测导出器。
+镜像采用锁定依赖、多阶段构建、非 root 用户和精简运行时；配置通过环境或密钥注入。关闭顺序按官方生命周期是 `onModuleDestroy()` → `beforeApplicationShutdown()` → 关闭现有连接（`app.close()`）→ `onApplicationShutdown()`，异步钩子会被等待。显式调用 `app.close()` 会触发终止阶段；`enableShutdownHooks()` 的作用是注册系统信号监听，让 SIGTERM 等信号也进入该流程，它不是调用 `app.close()` 的前提。
 
-Kubernetes 中先让 readiness 失败并摘流，再在 `terminationGracePeriodSeconds` 内排空；消费者先停止拉新消息。钩子必须幂等且有超时，不能无限等待。具体信号与平台行为要在目标运行环境演练。
+Nest 生命周期钩子本身不自动保证 Kubernetes 已摘流或所有在途请求已排空。应用需要先切换 readiness、停止拉取新任务并跟踪在途工作；Kubernetes / 负载均衡器需要传播摘流，`preStop`、终止宽限期和应用有界 drain 必须协作。最后关闭数据库、队列和遥测导出器；钩子要幂等、有超时，并在目标环境演练。
 
 **追问：**
-1. 只收到 SIGKILL 能否优雅停机？
-2. HTTP 长连接和队列消费者如何排空？
-3. readiness 何时切为失败？
+1. `app.close()` 与 `enableShutdownHooks()` 各负责什么？
+2. `beforeApplicationShutdown()` 前后连接状态如何变化？
+3. readiness 摘流与在途排空由谁协作完成？
 
 :::
 
@@ -623,24 +625,23 @@ Node.js 单进程主要在一个事件循环线程执行 JavaScript。利用多�
 
 **追问链：** 每个 Pod 的连接池如何预算？→ WebSocket 如何滚动发布？→ 定时任务为何会重复执行？
 
-### Q16. 如何发现事件循环阻塞，Worker Thread 与 Queue 怎么选？
+### Q16. 如何发现事件循环阻塞，Worker / 进程与 Queue 怎么组合？
 
-**考察点：** Node.js 性能、CPU / I/O 区分、任务卸载
+**考察点：** Node.js 性能、CPU 隔离、持久化调度
 
 ::: details 参考答案
 
-监控 event loop delay / utilization、CPU profile、单次长任务、堆与 GC，并用 trace 找到同步阻塞点。典型风险包括超大 JSON 解析、同步加密 / 压缩、灾难性正则、图片处理和无界循环。
+监控 event loop delay / utilization、CPU profile、单次长任务、堆与 GC，并用 trace 找到同步阻塞点。选型要拆成两个正交维度：
 
-- 短而可并行的 CPU 密集计算，可用 Worker Thread 或专用计算服务。
-- 耗时长、需重试、可削峰和可恢复的任务，用持久化 Queue。
-- 普通异步 I/O 不因放进 Worker 就必然更快。
+- **执行隔离：** Worker Thread、子进程或独立计算服务把 CPU 密集工作移出主事件循环。Worker 有消息序列化 / transferable、调度和内存成本，应复用有界线程池，不能每个请求新建线程；不可信或高故障风险任务可用进程隔离。
+- **任务交付：** 持久化 Queue 负责削峰、重试、延迟执行、任务状态和崩溃恢复，但 Queue 消费者仍可能阻塞自己的事件循环；消费者内部可继续使用 Worker 池或独立计算进程。
 
-先优化算法、限制输入和分片，再决定扩容；只加 Pod 可能让每个请求仍超时。
+普通异步 I/O 不因放进 Worker 就必然更快。先优化算法、限制输入和分片，再按「是否需 CPU 隔离」与「是否需持久化调度」分别组合方案。
 
 **追问：**
-1. CPU 低是否能排除事件循环阻塞？
-2. Worker 崩溃后的任务如何恢复？
-3. 大 JSON 响应怎样降低主线程压力？
+1. 为什么 Queue 不能自动解决消费者 CPU 阻塞？
+2. Worker 池大小和线程通信成本如何评估？
+3. 哪类任务需要「Queue + Worker」组合？
 
 :::
 
@@ -656,23 +657,23 @@ NestJS 为多种 transporter 提供统一编程抽象，并支持 request-respon
 
 #### 原理深挖
 
-`ClientProxy.send()` 表达请求响应，`emit()` 表达事件；底层 broker 的确认、重投、消费组、保留和背压行为仍不同。切换 transport 可能不改 Decorator，却会改变交付保证、错误模型、序列化、超时和观测，不能宣称零成本替换。
+`ClientProxy.send()` 表达请求响应并返回 cold Observable：没有订阅就不会发送；`emit()` 表达事件并返回 hot Observable，会立即尝试投递，不依赖显式订阅，但「立即尝试」不等于可靠落库或业务已消费。底层 broker 的确认、重投、消费组、保留和背压行为仍不同。
 
 #### 工程场景
 
-内部强类型低延迟 RPC 可评估 gRPC；需要工作队列、确认和路由可评估 RabbitMQ；高吞吐事件流与回放可评估 Kafka；小系统先用 HTTP + 模块化单体往往成本更低。先定义消息 envelope、版本、trace、幂等 key 和死信策略。
+内部强类型低延迟 RPC 可评估 gRPC；需要工作队列、确认和路由可评估 RabbitMQ；高吞吐事件流与回放可评估 Kafka；小系统先用 HTTP + 模块化单体往往成本更低。Kafka request-response 需要 request topic 与 reply topic：客户端先 `subscribeToResponseOf()`，异步初始化时必须在 `connect()` 前调用；每个运行中的 Nest 应用至少要有一个 reply topic partition，否则部分实例无法发送请求。
 
 #### 反例 / 踩坑
 
-只因 Nest 支持就引入 broker；把 `emit` 当可靠落库；消费者异常后无限重试毒消息；RPC 链过深造成级联超时；忽略 transport 特定配置并声称随时可切换。
+调用 `send()` 却未订阅，消息根本未发；把 `emit()` 返回 hot Observable 误当可靠交付证明；Kafka reply partition 少于客户端应用实例；消费者异常后无限重试毒消息；RPC 链过深造成级联超时；忽略 transport 特定配置并声称随时可切换。
 
 #### 资深回答模板
 
-「判断：先定交互语义，再选 transport。同步查询看延迟与超时，异步事件看确认、重放、顺序和积压。边界：Nest 统一开发接口，broker 语义仍必须显式设计和压测。」
+「判断：先定交互语义，再选 transport。`send()` 需订阅才发送，`emit()` 立即尝试但不承诺可靠交付；Kafka RPC 还要规划 reply topic、partition 和订阅时机。Nest 统一开发接口，broker 语义仍必须显式设计和压测。」
 
 :::
 
-**追问链：** `send` 与 `emit` 的失败语义？→ 如何传播 trace？→ 更换 broker 哪些代码之外的部分必须重做？
+**追问链：** `send()` 不订阅会怎样？→ Kafka reply partition 如何预算？→ `emit()` 成功返回为何不等于业务已处理？
 
 ### Q17. 事件驱动系统如何处理重复、乱序和最终一致性？
 
@@ -789,23 +790,23 @@ Nest Module 是代码组织工具，不自动保证领域隔离；可通过依�
 
 #### 基础结论
 
-后端返回稳定 HTTP 状态、业务 `code`、安全 `message`、可选字段错误和 `traceId`；前端请求层统一处理凭证、single-flight 刷新、错误归一化与一次重试，页面只处理业务分支。路由和按钮权限用于体验，后端 Guard 始终做最终授权。
+服务端错误分类与 envelope 见 Q7，refresh token 的服务端轮换和 CSRF 见 D7。本题只回答 Vue 客户端状态机：请求层统一做错误归一化、single-flight 刷新与一次重试；路由层负责页面准入，组件层根据同一权限 key 控制体验，但后端 Guard 始终最终授权。
 
 #### 原理深挖
 
-401 表示身份无效或需重新认证，403 表示身份有效但无权；422 或 400 的选择需团队统一。若每个页面各自刷新 token，会产生竞态；若只按 HTTP 200 判断成功，会吞掉缓存、监控和代理语义。traceId 将浏览器报错与后端日志关联，但不能包含敏感信息。
+前端鉴权应建模为初始化、已认证、刷新中、匿名和失效等状态，避免「是否有 token」一个布尔值。多个请求同时 401 时，共享同一个刷新 Promise；原请求最多重放一次，刷新端点必须排除自身拦截。多标签页可通过 BroadcastChannel 等机制协调结果，但不得广播 token 本体。
 
 #### 工程场景
 
-Axios / Fetch 封装维护刷新 Promise，401 时排队，刷新成功重放一次原请求；refresh 失败统一清理 Pinia 状态和动态路由。表单按 `details.fields` 映射错误，其余交给全局提示。联调单据记录 release、request ID、请求摘要和后端 trace。
+应用启动先恢复会话，再挂载需要鉴权的动态路由，避免页面闪烁和守卫循环。刷新失败统一清理 Pinia、查询缓存和动态路由，再保留安全的回跳地址。表单消费 Q7 定义的字段错误，其余错误进入全局通知；联调单据记录 release、request ID 和 traceId。
 
 #### 反例 / 踩坑
 
-前端根据中文 `message` 判断业务；刷新接口自身 401 仍进入拦截器无限循环；按钮隐藏就不做后端权限；把 access token 打进前端日志；后端所有异常返回 200；动态路由未在登出时重置。
+多个 Axios 实例各自刷新；刷新接口自身 401 进入无限循环；刷新期间直接判匿名导致路由抖动；多标签页广播 token；按钮隐藏就假设已经授权；登出时未清查询缓存和动态路由。
 
 #### 资深回答模板
 
-「契约：HTTP 状态表达协议结果，业务 code 稳定分支，traceId 负责定位。鉴权：后端最终裁决，前端 single-flight 刷新且只重试一次。联调：Schema、mock、契约测试和可关联日志一起治理。」
+「边界：Q7 定义错误契约，D7 保证 refresh 服务端安全；Vue 只维护一个鉴权状态机。并发：single-flight 刷新、原请求最多重试一次、多标签页只同步状态。退出：清身份、查询缓存和动态路由，再安全回跳。」
 
 :::
 

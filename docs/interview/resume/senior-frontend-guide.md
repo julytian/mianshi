@@ -122,9 +122,12 @@
 建议命名：
 
 ```text
-姓名-SeniorFrontend-公司简称-YYYYMM.[pdf/docx]
-姓名-TechLead-公司简称-YYYYMM.[pdf/docx]
-姓名-全栈偏前-公司简称-YYYYMM.[pdf/docx]
+姓名-SeniorFrontend-公司简称-YYYYMM.pdf
+姓名-SeniorFrontend-公司简称-YYYYMM.docx
+姓名-TechLead-公司简称-YYYYMM.pdf
+姓名-TechLead-公司简称-YYYYMM.docx
+姓名-全栈偏前-公司简称-YYYYMM.pdf
+姓名-全栈偏前-公司简称-YYYYMM.docx
 ```
 
 每个版本只调整排序、措辞和证据重点，不改变事实。保存职位描述、投递日期、简历版本和项目证据来源，便于面试前回看。若平台要求 DOCX，就提交经过解析测试的 DOCX；若要求 PDF，就提交经过解析测试的 PDF，不默认任何格式更适合 ATS。

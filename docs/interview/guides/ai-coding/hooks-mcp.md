@@ -70,6 +70,8 @@ Shell 的 matcher 必须覆盖所有命令，避免只检查「看起来危险�
 ```js
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process'
+
 const MAX_COMMAND_LENGTH = 4096
 
 const MCP_READ_ALLOWLIST = new Set([
@@ -86,61 +88,148 @@ const SHELL_ALLOWLIST = [
   /^git log -n [1-9]\d{0,2} --oneline$/
 ]
 
-let event
-try {
-  event = JSON.parse(await readStdin())
-} catch {
-  finish('deny', 'Hook 输入不是有效 JSON。', 2)
+if (process.argv.includes('--self-test')) {
+  process.exitCode = runSelfTests()
+} else {
+  await main()
 }
 
-if (
-  Object.prototype.hasOwnProperty.call(event, 'mcp_server_name') ||
-  Object.prototype.hasOwnProperty.call(event, 'tool_name')
-) {
-  const server = typeof event.mcp_server_name === 'string'
-    ? event.mcp_server_name
-    : ''
-  const tool = typeof event.tool_name === 'string' ? event.tool_name : ''
-  let params
+async function main() {
+  const decision = decideRawInput(await readStdin())
+  await writeStdout(serializeOutput(decision))
+  process.exitCode = decision.exitCode
+}
 
+function decideRawInput(raw) {
+  let event
   try {
-    if (typeof event.tool_input !== 'string') throw new TypeError()
-    params = JSON.parse(event.tool_input)
-    if (params === null || typeof params !== 'object' || Array.isArray(params)) {
-      throw new TypeError()
-    }
+    event = JSON.parse(raw)
   } catch {
-    finish('deny', 'MCP tool_input 不是有效的 JSON 对象字符串。', 2)
+    return deny('Hook 输入不是有效 JSON。')
   }
 
-  const key = `${server}:${tool}`
-  if (server && tool && MCP_READ_ALLOWLIST.has(key)) {
-    finish('allow', `允许只读 MCP 工具：${key}`)
+  if (event === null || typeof event !== 'object' || Array.isArray(event)) {
+    return deny('Hook 输入必须是非 null 的 JSON 对象。')
   }
-  finish('ask', `未知或非只读 MCP 工具：${key || '(missing)'}，请人工确认。`)
+
+  return decideEvent(event)
 }
 
-if (typeof event.command === 'string') {
-  const command = event.command.trim()
-  if (!command) finish('deny', 'Shell command 为空。', 2)
-  if (command.length > MAX_COMMAND_LENGTH) {
-    finish('ask', `Shell command 超过 ${MAX_COMMAND_LENGTH} 字符，请人工检查。`)
+function decideEvent(event) {
+  if (
+    Object.prototype.hasOwnProperty.call(event, 'mcp_server_name') ||
+    Object.prototype.hasOwnProperty.call(event, 'tool_name')
+  ) {
+    const server = typeof event.mcp_server_name === 'string'
+      ? event.mcp_server_name
+      : ''
+    const tool = typeof event.tool_name === 'string' ? event.tool_name : ''
+
+    try {
+      if (typeof event.tool_input !== 'string') throw new TypeError()
+      const params = JSON.parse(event.tool_input)
+      if (params === null || typeof params !== 'object' || Array.isArray(params)) {
+        throw new TypeError()
+      }
+    } catch {
+      return deny('MCP tool_input 不是有效的 JSON 对象字符串。')
+    }
+
+    const key = `${server}:${tool}`
+    if (server && tool && MCP_READ_ALLOWLIST.has(key)) {
+      return allow()
+    }
+    return ask(`未知或非只读 MCP 工具：${key || '(missing)'}，请人工确认。`)
   }
-  if (SHELL_ALLOWLIST.some((pattern) => pattern.test(command))) {
-    finish('allow', `允许低风险命令：${command}`)
+
+  if (typeof event.command === 'string') {
+    const command = event.command.trim()
+    if (!command) return deny('Shell command 为空。')
+    if (command.length > MAX_COMMAND_LENGTH) {
+      return ask(`Shell command 超过 ${MAX_COMMAND_LENGTH} 字符，请人工检查。`)
+    }
+    if (SHELL_ALLOWLIST.some((pattern) => pattern.test(command))) {
+      return allow()
+    }
+    return ask('Shell 命令不在低风险 allowlist 中，请人工确认。')
   }
-  finish('ask', 'Shell 命令不在低风险 allowlist 中，请人工确认。')
+
+  return deny('无法识别 Hook 事件输入。')
 }
 
-finish('deny', '无法识别 Hook 事件输入。', 2)
+function allow() {
+  return { permission: 'allow', exitCode: 0 }
+}
 
-function finish(permission, message, exitCode = 0) {
-  process.stdout.write(JSON.stringify({
-    permission,
-    user_message: message,
-    agent_message: message
-  }))
-  process.exit(exitCode)
+function ask(message) {
+  return { permission: 'ask', message, exitCode: 0 }
+}
+
+function deny(message) {
+  return { permission: 'deny', message, exitCode: 2 }
+}
+
+function serializeOutput(decision) {
+  if (decision.permission === 'allow') {
+    return JSON.stringify({ permission: 'allow' })
+  }
+  return JSON.stringify({
+    permission: decision.permission,
+    user_message: decision.message,
+    agent_message: decision.message
+  })
+}
+
+function runSelfTests() {
+  const cases = [
+    ['allowlist shell', '{"command":"pwd"}', 'allow', 0],
+    ['rm -fr', '{"command":"rm -fr /tmp/demo"}', 'ask', 0],
+    ['git -C force push', '{"command":"git -C repo push --force origin main"}', 'ask', 0],
+    ['wrapped shell', `{"command":"bash -c 'git status'"}`, 'ask', 0],
+    ['long command', JSON.stringify({ command: 'x'.repeat(4097) }), 'ask', 0],
+    ['allowlist MCP read', JSON.stringify({
+      mcp_server_name: 'project-api-docs',
+      tool_name: 'search_openapi',
+      tool_input: '{"query":"UserList"}'
+    }), 'allow', 0],
+    ['unknown MCP write', JSON.stringify({
+      mcp_server_name: 'deployment',
+      tool_name: 'create_release',
+      tool_input: '{"environment":"production"}'
+    }), 'ask', 0],
+    ['malformed tool_input', JSON.stringify({
+      mcp_server_name: 'project-api-docs',
+      tool_name: 'search_openapi',
+      tool_input: '{bad'
+    }), 'deny', 2],
+    ['invalid outer input', ['null', '{bad'], 'deny', 2]
+  ]
+
+  let passed = 0
+  for (const [name, rawOrList, permission, exitCode] of cases) {
+    const inputs = Array.isArray(rawOrList) ? rawOrList : [rawOrList]
+    const ok = inputs.every((raw) => {
+      const child = spawnSync(process.execPath, [process.argv[1]], {
+        input: raw,
+        encoding: 'utf8'
+      })
+      let output
+      try {
+        output = JSON.parse(child.stdout)
+      } catch {
+        return false
+      }
+      const allowHasOnlyPermission = permission !== 'allow'
+        || Object.keys(output).length === 1
+      return output.permission === permission
+        && child.status === exitCode
+        && allowHasOnlyPermission
+    })
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${name}: ${permission} exit=${exitCode}`)
+    if (ok) passed += 1
+  }
+  console.log(`TOTAL ${passed}/${cases.length}`)
+  return passed === cases.length ? 0 : 1
 }
 
 function readStdin() {
@@ -152,13 +241,29 @@ function readStdin() {
     process.stdin.on('error', reject)
   })
 }
+
+function writeStdout(text) {
+  return new Promise((resolve, reject) => {
+    process.stdout.write(text, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
 ```
 
 这不是通用 Shell 解析器。精确 allowlist 只识别预期字符串；引号、换行、管道、`bash -c`、别名、包装器、`git -C` 和其他复杂形式全部落入 `ask`，不能声称几个正则能理解任意 Shell 语义。
 
 ### 安全用例表
 
-保存脚本并执行 `chmod +x .cursor/hooks/security-gate.mjs` 后，至少验证：
+保存脚本并执行 `chmod +x .cursor/hooks/security-gate.mjs` 后，直接运行内置测试：
+
+```bash
+node .cursor/hooks/security-gate.mjs --self-test
+# 最后一行应为：TOTAL 9/9
+```
+
+9 组可重复用例如下；测试模式会为每个输入启动脚本的正常模式，捕获真实 stdout 后重新 `JSON.parse`，并检查 `allow` 输出只有 `permission`：
 
 - `pwd` → `allow`；
 - `rm -fr /tmp/demo` → `ask`；
@@ -168,7 +273,7 @@ function readStdin() {
 - `project-api-docs:search_openapi` + 合法 JSON 字符串 → `allow`；
 - 未知 MCP 写工具 `deployment:create_release` → `ask`；
 - 畸形 `tool_input` 字符串 → `deny`，退出码 `2`；
-- 畸形外层 JSON → `deny`，退出码 `2`。
+- 外层输入为 `null` 或畸形 JSON → 结构化 `deny`，退出码 `2`。
 
 每次修改 allowlist 后都应重复这些用例，并在 Cursor 的 Hooks 输出中触发真实事件复核。
 
@@ -191,20 +296,46 @@ function readStdin() {
 ```js
 #!/usr/bin/env node
 
-let input = ''
-process.stdin.setEncoding('utf8')
-process.stdin.on('data', (chunk) => { input += chunk })
-process.stdin.on('end', () => {
-  try {
-    const event = JSON.parse(input)
-    const path = event.file_path ?? event.tool_input?.path ?? 'unknown'
-    console.error(`[cursor-audit] edited=${path}`)
-    process.stdout.write('{}')
-  } catch {
-    console.error('[cursor-audit] invalid JSON')
-    process.stdout.write('{}')
+try {
+  await main()
+} catch (error) {
+  console.error(`[cursor-audit] ${error.message}`)
+  process.exitCode = 1
+}
+
+async function main() {
+  const event = JSON.parse(await readStdin())
+  if (event === null || typeof event !== 'object' || Array.isArray(event)) {
+    throw new TypeError('input must be a JSON object')
   }
-})
+  if (typeof event.file_path !== 'string' || !Array.isArray(event.edits)) {
+    throw new TypeError('file_path or edits is invalid')
+  }
+
+  console.error(
+    `[cursor-audit] edited=${event.file_path} edits=${event.edits.length}`
+  )
+  await writeStdout('{}')
+}
+
+function readStdin() {
+  return new Promise((resolve, reject) => {
+    let data = ''
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', (chunk) => { data += chunk })
+    process.stdin.on('end', () => resolve(data))
+    process.stdin.on('error', reject)
+  })
+}
+
+function writeStdout(text) {
+  return new Promise((resolve, reject) => {
+    process.stdout.write(text, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
 ```
 
 审计 Hook 默认 fail-open 是合理的，因为日志失败不应阻断普通编辑；安全关键 Hook 可用 `failClosed` 防止脚本异常时放行，但仍需测试策略覆盖率。

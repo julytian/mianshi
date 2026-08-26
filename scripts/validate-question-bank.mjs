@@ -20,6 +20,23 @@ export const DEEP_SECTIONS = [
   '追问链',
 ]
 
+export const EXPECTED_QUESTION_FILES = [
+  '01-js-ts.md',
+  '02-vue3.md',
+  '03-engineering.md',
+  '04-admin-antdv.md',
+  '05-h5-vant.md',
+  '06-uniapp-miniprogram.md',
+  '07-java-fullstack.md',
+  '08-architecture-lead.md',
+  '09-ai-vibe-coding.md',
+  '10-handwriting.md',
+  '11-frontend-system-design.md',
+  '12-microfrontend.md',
+  '13-nestjs.md',
+  '14-frontend-architecture.md',
+]
+
 const PLACEHOLDER_PATTERNS = [
   /内容建设中/,
   /稍后补充/,
@@ -51,17 +68,20 @@ export function parseLimit(raw, name) {
 
 /**
  * @param {NodeJS.ProcessEnv} [env]
- * @returns {{ min: number, max: number }}
+ * @returns {{ min: number, max: number, expected: number | null }}
  */
 export function parseQuestionLimits(env = process.env) {
   const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '201', 'MIN_TOTAL_QUESTIONS')
   const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '410', 'MAX_TOTAL_QUESTIONS')
+  const expected = env.EXPECTED_TOTAL_QUESTIONS === undefined
+    ? null
+    : parseLimit(env.EXPECTED_TOTAL_QUESTIONS, 'EXPECTED_TOTAL_QUESTIONS')
   if (min > max) {
     throw new Error(
       `MIN_TOTAL_QUESTIONS (${min}) 不能大于 MAX_TOTAL_QUESTIONS (${max})`,
     )
   }
-  return { min, max }
+  return { min, max, expected }
 }
 
 /**
@@ -204,23 +224,38 @@ export function findPlaceholders(text) {
  *   repoRoot?: string,
  *   min?: number,
  *   max?: number,
+ *   expected?: number | null,
  * }} [options]
  * @returns {Promise<{ failures: string[], total: number, fileStats: string[] }>}
  */
 export async function validateQuestionBank(options = {}) {
   const repoRoot = options.repoRoot ?? REPO_ROOT
-  const min = options.min ?? parseQuestionLimits().min
-  const max = options.max ?? parseQuestionLimits().max
+  const limits = parseQuestionLimits()
+  const min = options.min ?? limits.min
+  const max = options.max ?? limits.max
+  const expected = options.expected ?? limits.expected
   const questionDir = path.join(repoRoot, 'docs/interview/questions')
 
-  const files = (await readdir(questionDir))
-    .filter((file) => /^\d{2}-.+\.md$/.test(file))
+  const actualFiles = (await readdir(questionDir))
+    .filter((file) => file.endsWith('.md'))
     .sort()
-
+  const expectedSet = new Set(EXPECTED_QUESTION_FILES)
+  const actualSet = new Set(actualFiles)
+  const missingFiles = EXPECTED_QUESTION_FILES.filter((file) => !actualSet.has(file))
+  const extraFiles = actualFiles.filter((file) => !expectedSet.has(file))
   const failures = []
   const fileStats = []
   let total = 0
 
+  if (missingFiles.length > 0 || extraFiles.length > 0) {
+    const details = [
+      missingFiles.length > 0 ? `缺失：${missingFiles.join('、')}` : '',
+      extraFiles.length > 0 ? `额外：${extraFiles.join('、')}` : '',
+    ].filter(Boolean)
+    failures.push(`题库文件集合不符合预期（${details.join('；')}）`)
+  }
+
+  const files = EXPECTED_QUESTION_FILES.filter((file) => actualSet.has(file))
   for (const file of files) {
     const content = await readFile(path.join(questionDir, file), 'utf8')
     const matches = findQuestionHeadings(content)
@@ -275,13 +310,20 @@ export async function validateQuestionBank(options = {}) {
   if (total < min || total > max) {
     failures.push(`总题量 ${total} 不在 ${min}–${max} 范围`)
   }
+  if (expected !== null && total !== expected) {
+    failures.push(`总题量 ${total} 不等于精确要求 ${expected}`)
+  }
 
   return { failures, total, fileStats }
 }
 
 async function main() {
-  const { min, max } = parseQuestionLimits()
-  const { failures, total, fileStats } = await validateQuestionBank({ min, max })
+  const { min, max, expected } = parseQuestionLimits()
+  const { failures, total, fileStats } = await validateQuestionBank({
+    min,
+    max,
+    expected,
+  })
 
   for (const line of fileStats) {
     console.log(line)

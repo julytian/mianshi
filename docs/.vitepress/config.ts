@@ -6,7 +6,6 @@ export default defineConfig({
   lang: 'zh-CN',
   // GitHub Pages 项目站：https://julytian.github.io/mianshi/
   base: '/mianshi/',
-  ignoreDeadLinks: true,
   srcExclude: ['**/superpowers/**'],
   cleanUrls: true,
   themeConfig: {

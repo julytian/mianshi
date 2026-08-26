@@ -17,7 +17,7 @@
 
 **画像：** ToB / 业务系统；看重稳定交付、中后台与工程化；可能问接口联调，不深挖微服务。  
 **面试净时长：** 60 分钟；复盘 5 分钟另计。
-**主故事：** [示例 A 管理后台](/interview/stories/examples#示例-aant-design-vue-管理后台)；备用一句带过 [示例 C](/interview/stories/examples#示例-cai--java-spring-boot--vue-全栈快速交付)。
+**主故事：** [示例 A 管理后台](/interview/stories/examples#示例-a-ant-design-vue-管理后台)；备用一句带过 [示例 C](/interview/stories/examples#示例-c-ai-java-spring-boot-vue-全栈快速交付)。
 **计分覆盖：** 技术深度、表达结构、前后端闭环、架构约束识别、原理深度、故障治理、演进能力；按岗位需要补决策取舍或 AI 协作。
 
 | 阶段 | 建议耗时 | 面试官做什么 | 候选人目标 |
@@ -76,7 +76,7 @@
 
 **画像：** 节奏快、要闭环；关心 AI 协作方式与全栈偏前能不能扛简单后端。  
 **面试净时长：** 60 分钟；复盘 5 分钟另计。
-**主故事：** [示例 C AI + Java + Vue](/interview/stories/examples#示例-cai--java-spring-boot--vue-全栈快速交付)；用 [示例 A](/interview/stories/examples#示例-aant-design-vue-管理后台) 或 [B](/interview/stories/examples#示例-buni-app--小程序跨端) 证明前端基本功（各 30～60s）。
+**主故事：** [示例 C AI + Java + Vue](/interview/stories/examples#示例-c-ai-java-spring-boot-vue-全栈快速交付)；用 [示例 A](/interview/stories/examples#示例-a-ant-design-vue-管理后台) 或 [B](/interview/stories/examples#示例-b-uni-app-小程序跨端) 证明前端基本功（各 30～60s）。
 **计分覆盖：** 决策取舍、AI 协作成熟度、前后端闭环、架构约束识别、原理深度、故障治理、演进能力；按岗位需要补技术深度或表达结构。
 
 | 阶段 | 建议耗时 | 面试官做什么 | 候选人目标 |

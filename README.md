@@ -16,7 +16,15 @@
 pnpm install
 pnpm docs:dev        # 本地预览，默认 http://localhost:5173/mianshi/
 pnpm docs:validate   # 校验 14 个题库的结构、题号与统计
+pnpm docs:validate:test # 运行题库校验器边界自测
 pnpm docs:check      # 依次执行 validate 与 build
+```
+
+发布前使用与 CI 相同的严格门禁（以下环境变量写法用于 GitHub Linux 与 macOS/Linux Shell；普通本地开发仍直接运行上面的跨平台脚本）：
+
+```bash
+pnpm docs:validate:test
+MIN_TOTAL_QUESTIONS=380 MAX_TOTAL_QUESTIONS=410 EXPECTED_TOTAL_QUESTIONS=382 pnpm docs:check
 ```
 
 构建与预览静态站点：

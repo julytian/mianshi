@@ -3,6 +3,8 @@
  */
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -34,8 +36,17 @@ function testParseQuestionLimits() {
   const limits = parseQuestionLimits({
     MIN_TOTAL_QUESTIONS: '10',
     MAX_TOTAL_QUESTIONS: '20',
+    EXPECTED_TOTAL_QUESTIONS: '15',
   })
-  assert.deepEqual(limits, { min: 10, max: 20 })
+  assert.deepEqual(limits, { min: 10, max: 20, expected: 15 })
+
+  assert.deepEqual(
+    parseQuestionLimits({
+      MIN_TOTAL_QUESTIONS: '10',
+      MAX_TOTAL_QUESTIONS: '20',
+    }),
+    { min: 10, max: 20, expected: null },
+  )
 
   assert.throws(
     () =>
@@ -53,6 +64,16 @@ function testParseQuestionLimits() {
         MAX_TOTAL_QUESTIONS: '410',
       }),
     /MIN_TOTAL_QUESTIONS/,
+  )
+
+  assert.throws(
+    () =>
+      parseQuestionLimits({
+        MIN_TOTAL_QUESTIONS: '10',
+        MAX_TOTAL_QUESTIONS: '20',
+        EXPECTED_TOTAL_QUESTIONS: 'x',
+      }),
+    /EXPECTED_TOTAL_QUESTIONS/,
   )
 }
 
@@ -189,6 +210,52 @@ async function testWorksFromNonRepoRoot() {
   assert.match(result.stdout, /01-js-ts\.md: Q=\d+ D=\d+ total=\d+/)
 }
 
+async function testRejectsWrongQuestionFileSet() {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'question-bank-files-'))
+  const questionDir = path.join(repoRoot, 'docs/interview/questions')
+
+  try {
+    await mkdir(questionDir, { recursive: true })
+    await writeFile(path.join(questionDir, '01-js-ts.md'), '# JS / TS\n')
+    await writeFile(path.join(questionDir, '99-extra.md'), '# 额外题库\n')
+
+    const { failures } = await validateQuestionBank({
+      repoRoot,
+      min: 0,
+      max: 999_999,
+    })
+    const message = failures.join('\n')
+
+    assert.match(message, /题库文件集合不符合预期/)
+    assert.match(message, /缺失：02-vue3\.md/)
+    assert.match(message, /额外：99-extra\.md/)
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true })
+  }
+}
+
+async function testExactQuestionTotal() {
+  const baseline = await validateQuestionBank({ min: 0, max: 999_999 })
+  assert.equal(baseline.failures.length, 0, baseline.failures.join('\n'))
+
+  const matching = await validateQuestionBank({
+    min: 0,
+    max: 999_999,
+    expected: baseline.total,
+  })
+  assert.equal(matching.failures.length, 0, matching.failures.join('\n'))
+
+  const mismatching = await validateQuestionBank({
+    min: 0,
+    max: 999_999,
+    expected: baseline.total + 1,
+  })
+  assert.match(
+    mismatching.failures.join('\n'),
+    new RegExp(`总题量 ${baseline.total} 不等于精确要求 ${baseline.total + 1}`),
+  )
+}
+
 testParseLimit()
 testParseQuestionLimits()
 testFindQuestionHeadingsSkipsCodeFence()
@@ -196,5 +263,7 @@ testExtractAnswerDetails()
 testHasDeepSection()
 testInvalidEnvExitsOne()
 await testWorksFromNonRepoRoot()
+await testRejectsWrongQuestionFileSet()
+await testExactQuestionTotal()
 
-console.log('validate-question-bank 边界自测通过（7 组）')
+console.log('validate-question-bank 边界自测通过（9 组）')

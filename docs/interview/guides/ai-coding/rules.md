@@ -174,4 +174,3 @@ alwaysApply: false
 - [Cursor Rules](https://cursor.com/docs/rules.md)
 - [Cursor Skills](https://cursor.com/docs/skills.md)
 - [Cursor Hooks](https://cursor.com/docs/hooks.md)
-

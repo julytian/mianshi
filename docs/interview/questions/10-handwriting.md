@@ -65,7 +65,7 @@ function throttle(fn, wait = 300, { leading = true, trailing = true } = {}) {
   let lastArgs
   let lastThis
 
-  return function (...args) {
+  const throttled = function (...args) {
     lastArgs = args
     lastThis = this
     const now = Date.now()
@@ -87,8 +87,14 @@ function throttle(fn, wait = 300, { leading = true, trailing = true } = {}) {
         fn.apply(lastThis, lastArgs)
         lastArgs = lastThis = undefined
       }, remaining)
+    } else if (!trailing) {
+      // 本窗口不会再使用参数，立即释放对象引用
+      lastArgs = lastThis = undefined
     }
   }
+  throttled.pending = () =>
+    timer !== null || lastArgs !== undefined || lastThis !== undefined
+  return throttled
 }
 
 // 自测：尾触发必须使用窗口内最后一次调用的参数
@@ -98,9 +104,14 @@ onScroll('first')
 onScroll('second')
 onScroll('last')
 setTimeout(() => console.log(calls), 30) // ['first', 'last']
+
+const noTrailing = throttle(() => {}, 20, { trailing: false })
+noTrailing({ large: new Array(10_000) })
+noTrailing({ shouldBeReleased: true })
+if (noTrailing.pending()) throw new Error('unexpected retained arguments')
 ```
 
-**讲解：** 时间戳法保证 leading 准时；定时器补 trailing。`lastArgs` / `lastThis` 每次调用都更新，保证尾触发拿到窗口内最后一次调用，而不是创建定时器那次。面试写清 leading/trailing 语义比抄完整 lodash 更加分。别和防抖混：防抖是「合并成最后一次」，节流是「均匀抽样」。
+**讲解：** 时间戳法保证 leading 准时；定时器补 trailing。`lastArgs` / `lastThis` 每次调用都更新，保证尾触发拿到窗口内最后一次调用，而不是创建定时器那次。`trailing=false` 且本次不执行时没有未来消费者，必须立即清引用；`pending()` 测试证明闭包不再持有参数或调用对象。面试写清 leading/trailing 语义比抄完整 lodash 更加分。
 :::
 
 **追问：**
@@ -363,15 +374,20 @@ bus.emit('msg', 3) // 无输出（once 与 a 都已解绑）
 
 ```js
 function myInstanceof(obj, Ctor) {
-  if (
-    Ctor != null &&
-    Object.prototype.hasOwnProperty.call(Ctor, Symbol.hasInstance)
-  ) {
-    const custom = Ctor[Symbol.hasInstance]
-    if (typeof custom !== 'function') {
-      throw new TypeError('@@hasInstance must be callable')
+  // 沿构造器原型链找自定义钩子，但跳过内建默认实现
+  let owner = Ctor
+  while (owner != null) {
+    if (Object.prototype.hasOwnProperty.call(owner, Symbol.hasInstance)) {
+      if (owner !== Function.prototype) {
+        const custom = owner[Symbol.hasInstance]
+        if (typeof custom !== 'function') {
+          throw new TypeError('@@hasInstance must be callable')
+        }
+        return !!custom.call(Ctor, obj)
+      }
+      break
     }
-    return !!custom.call(Ctor, obj)
+    owner = Object.getPrototypeOf(owner)
   }
 
   if (typeof Ctor !== 'function') {
@@ -402,10 +418,12 @@ class Even {
     return Number.isInteger(value) && value % 2 === 0
   }
 }
-console.log(myInstanceof(2, Even)) // true：仅自有自定义钩子走特判
+class PositiveEven extends Even {}
+console.log(myInstanceof(2, Even)) // true：自有自定义钩子
+console.log(myInstanceof(4, PositiveEven)) // true：继承的自定义钩子
 ```
 
-**讲解：** 普通函数会从 `Function.prototype` 继承默认 `Symbol.hasInstance`；若直接读取并调用它，就绕过了「手写原型链」考点。因此这里只对构造器**自有**的自定义 `@@hasInstance` 特判，普通函数显式遍历原型链。跨 iframe 的 `Array` 不同，数组检测应使用 `Array.isArray`。
+**讲解：** 原生属性查找允许子类继承父类的自定义 `@@hasInstance`，所以这里沿构造器原型链查找并调用；但遇到 `Function.prototype` 的内建默认实现时主动跳过，避免绕回原生 `instanceof`，普通函数继续显式遍历对象原型链。跨 iframe 的 `Array` 不同，数组检测应使用 `Array.isArray`。
 :::
 
 **追问：**
@@ -658,6 +676,8 @@ console.log(user.name, user instanceof User) // Ada true
 定高 `itemHeight` 时：
 
 ```ts
+import assert from 'node:assert/strict'
+
 function getRange(
   scrollTop: number,
   viewportHeight: number,
@@ -683,20 +703,37 @@ function getRange(
 
   const safeScrollTop = Math.max(0, scrollTop)
   const visibleStart = Math.floor(safeScrollTop / itemHeight)
-  const start = Math.max(0, visibleStart - overscan)
-  const end = Math.min(
+  const start = Math.min(
     count,
-    Math.ceil((safeScrollTop + viewportHeight) / itemHeight) + overscan,
+    Math.max(0, visibleStart - overscan),
+  )
+  const end = Math.max(
+    start,
+    Math.min(
+      count,
+      Math.ceil((safeScrollTop + viewportHeight) / itemHeight) + overscan,
+    ),
   )
   return { start, end, offset: start * itemHeight, total: count * itemHeight }
 }
 
-console.assert(getRange(-20, 100, 20, 10).start === 0)
-console.assert(getRange(180, 100, 20, 10).end === 10)
-console.assert(getRange(0, 100, 20, 0).total === 0)
-try { getRange(0, 100, 0, 10); console.assert(false) } catch {}
-try { getRange(0, -1, 20, 10); console.assert(false) } catch {}
-try { getRange(0, 100, 20, -1); console.assert(false) } catch {}
+assert.equal(getRange(-20, 100, 20, 10).start, 0)
+assert.deepEqual(
+  getRange(999, 100, 20, 10),
+  { start: 10, end: 10, offset: 200, total: 200 },
+)
+// 数据从很多条骤减为 3 条，旧 scrollTop 仍必须得到合法空窗口
+assert.deepEqual(
+  getRange(800, 100, 20, 3),
+  { start: 3, end: 3, offset: 60, total: 60 },
+)
+assert.deepEqual(
+  getRange(0, 100, 20, 0),
+  { start: 0, end: 0, offset: 0, total: 0 },
+)
+assert.throws(() => getRange(0, 100, 0, 10), RangeError)
+assert.throws(() => getRange(0, -1, 20, 10), RangeError)
+assert.throws(() => getRange(0, 100, 20, -1), RangeError)
 ```
 
 计算是 O(1)，实际渲染 O(k)，`k` 为窗口元素数；空间 O(k)。overscan 用少量额外 DOM 换快速滚动稳定性。
@@ -944,7 +981,7 @@ type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
 取消是协作式的：任务必须把收到的 `signal` 传给 fetch、计时器等底层操作。忽略 signal 的任务无法被 JavaScript 强制终止；池只能立即拒绝、丢弃其晚到结果，并让该任务在后台自行结束。若业务需要收集全部结果，应另做 all-settled 版本，不要混用两套失败语义。
 
 #### 原理深挖
-核心状态是 `nextIndex`、`fatal`、结果数组和内部取消信号。每个 worker 同步领取唯一索引，再异步执行，天然限制并发；写回原索引保证顺序。第 n 次退避上限为 `min(maxDelay, baseDelay * 2 ** n)`，再由 jitter 选择实际等待，避免客户端同步重试形成惊群。
+核心状态是 `nextIndex`、独立布尔值 `hasFatal`、错误值 `fatal`、结果数组和内部取消信号。不能用 `fatal === null` 判断状态，因为任务合法地可能抛出 `null`、`undefined` 或 `0`。每个 worker 同步领取唯一索引，再异步执行，天然限制并发；写回原索引保证顺序。
 
 ```js
 function abortReason(signal) {
@@ -1036,10 +1073,12 @@ async function requestPool(tasks, options = {}) {
   const results = new Array(tasks.length)
   const internal = new AbortController()
   let nextIndex = 0
-  let fatal = null
+  let hasFatal = false
+  let fatal
 
   const fail = (error) => {
-    if (fatal === null) {
+    if (!hasFatal) {
+      hasFatal = true
       fatal = error
       internal.abort(error)
     }
@@ -1058,7 +1097,7 @@ async function requestPool(tasks, options = {}) {
   signal.addEventListener('abort', onExternalAbort, { once: true })
 
   async function worker() {
-    while (fatal === null) {
+    while (!hasFatal) {
       const index = nextIndex
       nextIndex += 1
       if (index >= tasks.length) return
@@ -1072,7 +1111,7 @@ async function requestPool(tasks, options = {}) {
           shouldRetry,
           jitter,
         })
-        if (fatal !== null) return // 忽略不响应取消的任务的晚到结果
+        if (hasFatal) return // 忽略不响应取消的任务的晚到结果
         results[index] = value
       } catch (error) {
         throw fail(error)
@@ -1094,7 +1133,7 @@ async function requestPool(tasks, options = {}) {
 ```
 
 #### 工程场景
-HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`；非幂等 POST 需要幂等键。`fatal` 必须在 `internal.abort()` 前写入，避免其他 worker 把 AbortError 误当第一根因。调用方取消走同一 fatal 路径，确保取消后不再领取。
+HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`；非幂等 POST 需要幂等键。`hasFatal` 和 `fatal` 必须在 `internal.abort()` 前写入，避免其他 worker 把 AbortError 误当第一根因。调用方取消走同一 fatal 路径，确保取消后不再领取。
 
 设任务数为 n、实际总尝试次数为 A：调度与结果写入时间为 O(A)，不含任务自身耗时和退避等待；结果数组占 O(n)，worker 与在途任务占 O(min(n, limit))，总空间 O(n + min(n, limit))。
 
@@ -1190,7 +1229,35 @@ await assert.rejects(
 )
 assert.deepEqual(startedAfterFatal, [0, 1])
 
-// 8. shouldRetry=false：即使 retries > 0 也只执行一次
+// 8. 抛出 null / undefined / 0 也会设置 fatal，不再领取新任务
+for (const falsyReason of [null, undefined, 0]) {
+  const started = []
+  let fulfilled = true
+  let rejection
+  try {
+    await requestPool([
+      async () => {
+        started.push(0)
+        await rawWait(1)
+        throw falsyReason
+      },
+      async () => {
+        started.push(1)
+        await rawWait(5) // 故意忽略 signal
+      },
+      async () => started.push(2),
+    ], { limit: 2 })
+  } catch (error) {
+    fulfilled = false
+    rejection = error
+  }
+  await rawWait(10)
+  assert.equal(fulfilled, false)
+  assert.equal(rejection, falsyReason)
+  assert.deepEqual(started, [0, 1])
+}
+
+// 9. shouldRetry=false：即使 retries > 0 也只执行一次
 let noRetryAttempts = 0
 await assert.rejects(
   requestPool([
@@ -1203,7 +1270,7 @@ await assert.rejects(
 )
 assert.equal(noRetryAttempts, 1)
 
-// 9. 指数退避不超过 maxDelay
+// 10. 指数退避不超过 maxDelay
 const ceilings = []
 await assert.rejects(
   requestPool([
@@ -1226,7 +1293,7 @@ await assert.rejects(
 )
 assert.deepEqual(ceilings, [10, 20, 25])
 
-// 10. 外部取消后不领取下一项
+// 11. 外部取消后不领取下一项
 const cancelController = new AbortController()
 const startedAfterCancel = []
 const cancelBeforeNext = requestPool([
@@ -1240,7 +1307,7 @@ setTimeout(() => cancelController.abort(new Error('user cancel')), 5)
 await assert.rejects(cancelBeforeNext, /user cancel/)
 assert.deepEqual(startedAfterCancel, [0])
 
-// 11. 忽略 signal 的任务不能强停，但晚到结果会被丢弃
+// 12. 忽略 signal 的任务不能强停，但晚到结果会被丢弃
 let ignoredFinished = false
 let thirdStarted = false
 const ignoreSignal = requestPool([
@@ -1258,7 +1325,7 @@ assert.equal(ignoredFinished, false)
 await rawWait(35)
 assert.equal(ignoredFinished, true)
 
-// 12. 非法退避参数
+// 13. 非法退避参数
 await assert.rejects(
   () => requestPool([], { baseDelay: -1 }),
   RangeError,
@@ -1286,7 +1353,7 @@ await assert.rejects(
   RangeError,
 )
 
-console.log('requestPool tests passed (12 groups)')
+console.log('requestPool tests passed (13 groups)')
 ```
 
 #### 反例 / 踩坑

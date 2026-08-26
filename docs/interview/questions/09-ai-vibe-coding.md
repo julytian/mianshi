@@ -582,23 +582,24 @@ Prompt injection 可藏在网页、Issue、日志、README、工具返回和依�
 先拆成两层：MCP 协议与授权层解决「客户端如何调用服务器以及服务器接受什么 Token」；宿主 Agent / IDE 的沙箱与策略层解决「进程能读写哪些文件、分支、网络与环境，以及哪些动作要人工确认」。最小权限必须两层同时落实，不能把宿主隔离能力宣传成 MCP 协议自动保证。
 
 #### 原理深挖
-MCP 远程授权基于 OAuth 约束时，要区分：
+MCP 远程授权基于 OAuth 约束时，先依据受保护资源元数据与授权服务器元数据确定 issuer、授权端点、JWKS 或 introspection 能力，不能看到 Bearer Token 就假设它一定是 JWT。需要区分：
 
 - **scope**：Token 被授予哪些操作；
 - **resource**：授权请求指向哪个受保护资源；
 - **audience**：Token 是否确实签发给当前 MCP Server；
-- **Token 校验**：服务端校验签名、issuer、audience、时效与 scope，禁止把上游 Token 透传给其他服务冒用。
+- **JWT**：按元数据取得可信密钥，限制算法并校验签名、issuer、audience、`exp` / `nbf` 与 scope；
+- **opaque token**：调用授权服务器声明的 introspection endpoint，校验响应可信且 `active=true`，再核对 audience/resource、scope、client/subject 和过期信息。
 
-这些约束不负责本地文件系统或 Git 权限。宿主侧另行限制允许目录、只读/可写、目标分支、网络域名、凭证可见范围和运行时限；发布、删除、合并等高后果动作保留人工确认。工具调用还会面对超时、部分成功、重复提交和返回值注入，写操作需要幂等键或可查询状态。
+Token 有效不等于当前操作仍有效：MCP Server 还要结合本地策略判断账号/租户是否启用、授权是否已撤销、目标工具与资源是否仍允许。禁止把上游 Token 透传给其他服务冒用。这些约束不负责本地文件系统或 Git 权限；宿主侧另行限制允许目录、只读/可写、目标分支、网络域名、凭证可见范围和运行时限，高后果动作保留人工确认。
 
 #### 工程场景
-MCP Server 只接受面向自身 resource / audience 且具备所需 scope 的短期 Token；宿主再把代码审查 Agent 限为只读仓库，把修复 Agent 限为目标目录和目标分支，把部署工具限制在测试环境与允许域名。每次调用记录 actor、参数摘要、资源、结果和关联 id；中断后先查远端状态，确认未创建 PR/工单再重试。
+MCP Server 按元数据选择 JWT 本地验证或 opaque introspection，只接受 `active` 且面向自身 resource / audience、具备所需 scope、通过当前本地授权策略的 Token。宿主再把代码审查 Agent 限为只读仓库，把修复 Agent 限为目标目录和目标分支，把部署工具限制在测试环境与允许域名。
 
 #### 反例 / 踩坑
-只校验 Token 有 scope 却不校验 resource / audience；把用户 Token 透传给下游；宣称「用了 MCP 就自动限制文件和网络」；给宿主进程永久管理员权限；超时后重复创建资源。
+把所有 Token 当 JWT 解码；opaque introspection 只读 `scope` 不检查 `active`；只校验 Token 有 scope 却不校验 resource / audience 和当前账号状态；把用户 Token 透传给下游；宣称「用了 MCP 就自动限制文件和网络」。
 
 #### 资深回答模板
-「MCP 授权层校验 scope、resource、audience 与 Token，宿主策略层再限制文件、分支、网络、时限和人工确认。两层不能混为一谈；写操作还必须可审计、可查询、可幂等。」
+「我先按授权元数据识别验证路径：JWT 验签与 claims，opaque token 做 introspection；两者都检查 resource/audience、scope 和 active/effective 状态。宿主策略层再限制文件、分支、网络、时限和人工确认。」
 
 #### 追问链
 1. 工具返回 500 时如何判断是否已产生副作用？

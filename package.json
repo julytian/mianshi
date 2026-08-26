@@ -5,7 +5,9 @@
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "docs:validate": "node scripts/validate-question-bank.mjs",
+    "docs:check": "pnpm docs:validate && pnpm docs:build"
   },
   "devDependencies": {
     "vitepress": "^1.6.3",

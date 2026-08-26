@@ -353,7 +353,7 @@ qiankun 预取一旦已发出，公开配置没有通用的底层请求取消承
 
 **2. `offGlobalStateChange` 应在何时调用？**
 
-每次 `mount` 注册 `onGlobalStateChange` 时，就应保存可对称清理的订阅关系，并在对应 `unmount` 调用 `offGlobalStateChange`；若订阅确属整个应用生命周期，可在最终销毁时清理，但不能跨租户残留。还要避免匿名函数导致业务事件无法解绑。重复进入后回调数始终为一，是基本验收条件。
+qiankun 会在微应用 `unmount` 时默认调用 `offGlobalStateChange`，常规场景可依赖自动清理；需要提前停止监听时也可显式调用，但该 API 不接收 callback，而是幂等移除当前应用的全局状态监听，不能按函数逐个解绑。匿名函数引用导致无法解绑只适用于普通 EventBus 等按 callback 注销的接口。重复进入后仍应验证监听数不增长。
 
 **3. 保活与真正卸载的验收标准有什么不同？**
 
@@ -467,7 +467,7 @@ Garfish 预加载说明中的独立内存缓存由当前页面运行时持有，
 
 **2. 如何避免预加载旧版本、挂载新版本？**
 
-应用清单先解析出不可变 release，预加载与实际 mount 都绑定同一入口和资源摘要，单次会话不得重新读取 `latest`。HTML/清单短缓存，带内容哈希的脚本长缓存；发布时成套保留旧资产。若清单代次已变化，丢弃旧预载结果并重新加载，不能把旧 HTML 与新 chunk 混装。
+`preloadApp(appName)` 的公开返回类型是 `void`，没有通用的取消或清空预加载内存缓存 API。应先把会话固定到不可变 release，让预加载与挂载使用版本化入口及应用 key；切版时还要处理 `loadApp` 的实例缓存，避免旧上下文复用新配置。无法证明缓存一致时整页刷新，不能宣称已撤回在途请求或清掉旧资源。
 
 **3. 怎样判断智能预加载策略真的有效？**
 
@@ -823,11 +823,11 @@ Wujie 把子应用 JS 放在同域 iframe 的独立 `window` 中执行，获得�
 
 **2. 同域 iframe 与跨域 iframe 的安全边界有何不同？**
 
-同域 iframe 受同源策略允许主子窗口直接访问 DOM、Cookie、Storage 和 JS 对象，因此 Wujie 的同域 iframe 主要提供运行环境隔离，不是对恶意代码的安全边界；跨域 iframe 默认阻止直接互访，只能走受控消息。低信任应用应独立域，并配置 iframe `sandbox`、CSP 和严格 origin/source 校验。
+Wujie 标准模式把通过远程 `url` / `fetch` 取得的代码注入主应用同源的运行 iframe，代码来源使用独立资源域并不会把执行环境变成跨域安全边界，主子窗口仍可同源互访。低信任应用应改用真正将 `src` 导航到独立 origin 的普通 iframe，并配置最小 `sandbox`、严格 CSP，以及对 `postMessage` 的 origin、source 和 Schema 校验。
 
 **3. Web Component 是否等于 Shadow DOM？**
 
-不等于。Web Components 是 Custom Elements、Shadow DOM 等技术集合，使用自定义元素并不必然创建 Shadow Root；Wujie 用 Web Component 承载子应用 DOM，也不能据此推断所有样式都由 Shadow DOM 隔离。验收应检查实际 DOM 结构、样式注入与弹层路径，而不是根据标签名判断隔离强度。
+概念上不等于，但 Wujie 标准路径的 `wujie-app` 实际会调用 `attachShadow({ mode: 'open' })`，因此默认渲染容器具有可访问的 open Shadow Root，不能只按一般 Custom Element 下结论。降级 iframe 路径、CSS 继承属性、主题变量、Portal 或挂到外部的节点仍要分别验证，不能据此宣称所有样式路径都已隔离。
 
 :::
 
@@ -869,7 +869,7 @@ Wujie 把子应用 JS 放在同域 iframe 的独立 `window` 中执行，获得�
 
 **2. 同名实例如何共享？**
 
-多个入口使用同一 `name` 可复用同一 Wujie 实例及承载 JS 的 iframe；单例模式切换通常经历卸载当前业务实例、同步新路由、再挂载。共享的是执行环境，不应把不同租户或权限上下文无条件复用。主壳需串行化切换、校验目标 URL，并在 mount 前重置订阅和页面级状态。
+同一 `name` 只能用于同一个子应用的不同页面 URL，以复用其 Wujie 实例和运行 iframe；相关调用中的 `url` / `fetch` / `alive` / `degrade` 等关键配置必须保持同一应用语义和预加载—启动一致性。不同应用、不同入口或不兼容配置必须使用不同 name，不能为省 iframe 强行复用；切页仍要串行卸载、同步路由并重新挂载。
 
 **3. 如何制定 LRU 回收策略？**
 
@@ -1208,7 +1208,7 @@ Manifest 带来元数据和预加载能力，也可能多一次请求；可由�
 
 **2. stale-if-error 适合缓存什么？**
 
-适合可公开、可版本化且短时陈旧仍安全的应用清单、HTML Entry 或 Manifest，让源站暂时失败时继续使用上一已验证版本；哈希静态资产本就应长缓存。权限、租户敏感数据和撤销信息不宜盲目陈旧复用。响应需设明确 stale 窗口、release 与告警，过期后切 LKG 或降级页。
+`stale-if-error` 是 HTTP 缓存扩展，不是 Module Federation Manifest 或运行时自带能力；只有确认浏览器、代理和 CDN 链路支持并按预期执行时，才为可公开、可版本化的清单或 Manifest 配置。客户端 LKG 必须显式实现，并校验签名、撤销状态、release 与最大陈旧上限；权限数据和已撤销版本不得因源站失败继续复用。
 
 **3. shared 是优化还是单点瓶颈？**
 

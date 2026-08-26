@@ -667,7 +667,7 @@ MF 2.0 可通过默认或手动创建的 Federation 实例，在运行时注册 
 
 **2. 已执行的 remote 能否靠改 URL 热切换？**
 
-不能安全地假定可以。remote 容器、模块 Promise、已求值模块和 shared 往往已被当前实例缓存，改注册 URL 不会撤销旧代码的副作用或替换现有引用；`registerRemotes({ force: true })` 也不等于业务状态热迁移。稳妥做法是会话固定 release，切换后刷新或创建隔离实例，并提供旧版回滚。
+不能安全地假定可以。remote 容器、模块 Promise、已求值模块和 shared 往往已被当前实例缓存，改注册 URL 不会撤销旧代码的副作用或替换现有引用。官方形式是 `registerRemotes(remotes, { force: true })`：第一参为 remote 配置数组，`force` 位于第二参 options；即使强制重注册也不等于业务状态热迁移。稳妥做法是会话固定 release，切换后刷新或创建隔离实例，并提供旧版回滚。
 
 **3. 如何防止入口地址被篡改？**
 

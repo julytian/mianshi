@@ -36,7 +36,7 @@ Unit 测试验证纯函数、类或 composable 等最小行为单元，依赖通
 
 测试应围绕可观察行为组织，使用清晰的 arrange、act、assert，并让名称描述输入、动作和结果。纯逻辑优先用参数化测试覆盖等价类、边界值和错误路径；每个用例独立创建数据，固定时区、locale、随机种子和系统时间，不能依赖执行顺序或开发机环境。失败信息应能指出业务规则，而不只是“快照不同”。
 
-Vitest 的 `vi.fn()` 适合记录协作者调用，`vi.spyOn()` 适合观察对象边界，模块 Mock 只用于难以控制的外部边界。用 `beforeEach` 重建状态，并按语义选择 `vi.clearAllMocks()`、`vi.resetAllMocks()` 或 `vi.restoreAllMocks()`；不要共享可变单例。优先注入时钟、ID 生成器和 API 客户端，避免全局 Mock。测试还应能在随机顺序、并行和 CI 环境中稳定运行。
+Vitest 的 `vi.fn()` 适合记录协作者调用，`vi.spyOn()` 适合观察对象边界，模块 Mock 只用于难以控制的外部边界。用 `beforeEach` 重建状态，并按当前 Vitest 语义选择 `vi.clearAllMocks()`、`vi.resetAllMocks()` 或 `vi.restoreAllMocks()`；这些 API 与旧 Vitest / Jest 文档不一定一致，升级时应核对目标版本。不要共享可变单例。优先注入时钟、ID 生成器和 API 客户端，避免全局 Mock。测试还应能在随机顺序、并行和 CI 环境中稳定运行。
 
 :::
 
@@ -44,7 +44,7 @@ Vitest 的 `vi.fn()` 适合记录协作者调用，`vi.spyOn()` 适合观察对�
 
 ::: details 追问参考答案
 
-`clearAllMocks` 清除调用记录但保留 Mock 实现；`resetAllMocks` 还重置 Mock 实现，适合每例重新定义行为；`restoreAllMocks` 把通过 `spyOn` 等替换的原始实现恢复。机械地全部调用会掩盖生命周期设计问题。应明确测试是否只需清调用、是否要丢弃实现，以及是否修改了真实对象，并在每例建立独立状态。
+`vi.clearAllMocks()` 对所有 mock 调用 `mockClear()`：清调用、结果等历史，但保留实现。`vi.resetAllMocks()` 调用 `mockReset()`，同时清历史和 once 队列；当前 Vitest 中，`vi.fn()` 回到返回 `undefined` 的空实现，`vi.fn(initialImpl)` 回到该初始实现，`vi.spyOn` 仍是 spy，但回到被观察的原实现。`vi.restoreAllMocks()` 只恢复 `vi.spyOn` 等可 restore 对象的原 descriptor，不影响 automock，也不会像单个 `mockRestore()` 那样替所有 mock 通用清历史或重置实现。应按目标版本官方文档选择，不能照抄旧 Jest 口径或机械地三者全调。
 
 :::
 
@@ -56,9 +56,9 @@ Vitest 的 `vi.fn()` 适合记录协作者调用，`vi.spyOn()` 适合观察对�
 
 ::: details 参考答案
 
-组件测试从公开契约出发：传入 props 和插槽，通过真实点击、输入等操作，断言可访问 DOM、状态提示和 emitted 事件。优先按 role、label、可见文本或稳定业务标识定位，避免依赖 CSS 层级、内部 ref、私有方法、组件实例字段和实现时序。重构 Composition API、拆分函数或调整 class 后，只要用户行为不变，测试就不应失败。
+组件测试从公开契约出发：传入 props 和插槽，通过真实点击、输入等操作，断言可访问 DOM、状态提示和 emitted 事件。Vue Test Utils（VTU）本身提供 `find` / `get` 等 selector API；`getByRole`、`getByLabelText` 等语义查询来自 `@testing-library/vue`，两套 API 不能混写成 VTU 能力。使用 Testing Library 时优先按 role、label 和可见文本定位；仅用 VTU 时可采用稳定业务标识，避免依赖 CSS 层级、内部 ref、私有方法、组件实例字段和实现时序。
 
-`mount` 能保留更真实的子组件交互，`shallowMount` 适合昂贵或独立验证的子树，但过度 stub 会漏掉 props、slot、provide/inject 和事件协作问题。Teleport、Transition 与全局插件应按测试目标配置。断言前只等待该动作真正引起的 Vue 更新或 Promise，不使用任意 sleep。失败时保留渲染 DOM 与关键输入，便于判断是产品回归还是测试错误。
+`mount` 能保留更真实的子组件交互，`shallowMount` 适合昂贵或独立验证的子树，但过度 stub 会漏掉 props、slot、provide/inject 和事件协作问题。Teleport、Transition 与全局插件应按测试目标配置。测试设置可调用 `enableAutoUnmount(afterEach)`，或在每例显式 `wrapper.unmount()`；还要清理 Teleport 到 `document.body` 的节点、全局监听器以及插件或单例状态。断言前只等待该动作真正引起的 Vue 更新或 Promise，不使用任意 sleep。
 
 :::
 
@@ -88,7 +88,7 @@ Vitest 的 `vi.fn()` 适合记录协作者调用，`vi.spyOn()` 适合观察对�
 
 ::: details 追问参考答案
 
-Mock 调用记录不是运行资源。未卸载宿主或未停止 scope，可能留下 watcher、全局监听、定时器和异步回调，污染后续用例并形成偶发失败。测试应调用 `unmount()`、`scope.stop()` 或 composable 提供的 dispose，恢复被替换的全局对象，并断言取消信号或 remove 操作发生，从资源所有权上保证隔离。
+Mock 调用记录不是运行资源。未卸载宿主或未停止 scope，可能留下 watcher、Teleport 节点、全局监听、插件单例、定时器和异步回调，污染后续用例并形成偶发失败。测试可统一 `enableAutoUnmount(afterEach)`，也可显式 `wrapper.unmount()`、`scope.stop()` 或调用 composable 的 dispose；同时清理 body 容器、恢复插件与全局对象，并断言取消信号或 remove 操作发生。
 
 :::
 
@@ -148,7 +148,7 @@ Router 使用 `createMemoryHistory()` 和每例新的路由实例，配置最小
 
 Stub 为调用返回预设结果，Mock 还验证交互，Fake 是具有简化但可工作的实现，例如内存仓库或可控时钟。选择取决于要隔离的边界：纯函数依赖可用 Stub；必须确认向支付网关发出一次幂等请求时可用 Mock；需要多步状态变化时 Fake 往往比大量调用脚本更稳。
 
-MSW 在 `fetch` / XHR 的网络边界拦截请求，应用仍运行真实序列化、客户端、缓存和错误处理，适合 component / integration 测试。handler 应按 API 契约返回成功、校验失败、超时和乱序响应，并对未处理请求报错。不要 Mock 自己的 composable 或 API client 实现来测试使用它的代码，否则重构细节会驱动测试，且可能漏掉 URL、header、JSON 和状态码问题。
+MSW 在 `fetch` / XHR 的网络边界拦截请求，应用仍运行真实序列化、客户端、缓存和错误处理，适合 component / integration 测试。handler 应按 API 契约返回成功、校验失败、超时和乱序响应，并对未处理请求报错。窄单测可以 Mock 稳定端口、composable 或 API client，以验证调用者的分支和交互；但这只能证明调用者遵守该端口，不能证明 URL、header、JSON、状态码等 HTTP 协议正确，后者必须由 MSW 或更真实的 integration / contract 测试覆盖。
 
 :::
 
@@ -192,7 +192,7 @@ Schema 常只约束结构，可能没有表达时区、货币单位、排序稳�
 
 优先用 `getByRole`、`getByLabel`、`getByText` 等面向用户的 Locator，必要时使用稳定 `data-testid`，避免易变 CSS、XPath 和 `.nth()`。Locator 会在动作时重新解析元素；`expect(locator).toBeVisible()`、`toHaveText()` 等 web-first assertions 会在超时内重试目标条件。不要用固定 sleep，也不要先读取瞬时值再普通断言。
 
-每个 test / worker 使用独立用户、租户、订单或 namespace，数据通过 API fixture 建立并清理。认证可复用 setup 生成的 storage state，但文件不得入库且不同角色、并行 worker 要隔离；测试内部对会修改的账号不能共享同一 state。保留 trace、截图、视频、console 和网络失败证据。重试只用于确认波动和收集证据，首轮失败仍应计入 flaky 治理，不能让最终通过掩盖问题。
+每个 test / worker 使用独立用户、租户、订单或 namespace，数据通过 API fixture 建立并清理。认证可复用 setup 生成的 storage state，但它可能含可冒充账号的 Cookie 与 header：优先写入 `testProject.outputDir` 或受控临时目录并自动清理；若使用持久目录必须加入 `.gitignore`。storage state 默认不得作为 CI artifact 上传，不同角色、并行 worker 也要隔离。失败诊断保留 trace、截图、console 和必要的网络摘要；trace 要保留首轮失败可配置当前有效的 `trace: 'retain-on-first-failure'`，`on-first-retry` 只记录第一次重试，无法还原最初失败。重试只用于确认波动和收集证据。
 
 :::
 
@@ -234,9 +234,9 @@ Schema 常只约束结构，可能没有表达时区、货币单位、排序稳�
 
 ::: details 参考答案
 
-axe 等自动检查能稳定发现部分规则化问题，例如缺失可访问名称、明显对比度或 ARIA 关系错误，适合在 component 与 E2E CI 运行；但它无法判断名称是否准确、焦点顺序是否符合任务、动态通知是否可理解，也不能替代键盘、缩放、屏幕阅读器等人工和辅助技术（AT）测试。关键流程应记录测试的浏览器、AT 版本、操作步骤与 owner。
+axe 等自动检查能稳定发现部分规则化问题，例如缺失可访问名称或 ARIA 关系错误，适合在 component 与 E2E CI 运行；但 jsdom 没有真实 layout、CSS 渲染和完整 Range API，`color-contrast` 等依赖布局的规则会被跳过或无有效结果。布局、对比度和真实焦点应放到 Vitest Browser Mode 或 Playwright 的真实浏览器中验证。自动化仍无法判断名称是否准确、任务是否可理解，也不能替代键盘、缩放、屏幕阅读器等人工和辅助技术（AT）测试。
 
-Statement coverage 表示执行过的语句比例，branch coverage 表示条件、switch、短路等分支是否走过；高覆盖率只说明执行，不说明断言有效。Mutation coverage 主动改变运算符、条件或返回值，观察测试能否杀死变异体，更接近测试敏感度，但成本更高且存在等价变异。门禁应按风险设置增量 statement / branch 要求，对核心规则选择 mutation，结合缺陷、评审和 E2E 证据，不能追求一个全局百分比。
+Statement coverage 表示执行过的语句比例，branch coverage 表示条件、switch、短路等分支是否走过；高覆盖率只说明执行，不说明断言有效。Mutation coverage 主动改变运算符、条件或返回值，观察测试能否杀死变异体，更接近测试敏感度，但成本更高且存在等价变异。Vitest 的 `coverage.changed` 只把覆盖率收集范围限制到 changed files，不是 diff-line coverage；若门禁要求新增或修改行覆盖率，需接入 diff-aware 工具或 CI 覆盖率服务。所有阈值都应按风险结合断言、评审和 E2E 证据。
 
 :::
 
@@ -270,7 +270,7 @@ Statement coverage 表示执行过的语句比例，branch coverage 表示条件
 
 #### 反例 / 踩坑
 
-按 70/20/10 凑数量、所有层重复 happy path、为提高覆盖率测试 getter、Mock 掉 Router 和 API client 后宣称完成集成、把所有流程塞进一个超长 E2E，或失败时只重跑到绿色，都会制造虚假信心。
+按 70/20/10 凑数量、所有层重复 happy path、为提高覆盖率测试 getter、在窄单测 Mock Router 或 API client 后宣称已经证明导航或 HTTP 集成、把所有流程塞进一个超长 E2E，或失败时只重跑到绿色，都会制造虚假信心。
 
 #### 资深回答模板
 
@@ -364,7 +364,7 @@ Flaky Test 是产品、测试或环境中未受控状态的证据，不是简单
 
 #### 工程场景
 
-为每个 worker 生成唯一租户、用户和订单前缀，通过 API fixture 建立最小数据并幂等清理；测试不依赖执行顺序和生产式共享种子库。角色分别生成短期 storage state，文件只留在 CI artifact，不提交仓库。失败保存首轮 trace、截图、console、请求响应摘要、后端 correlation ID 和数据 namespace。看板统计 flaky rate、首轮失败率和隔离时长；隔离测试需关联缺陷、owner 和到期日，关键流程不能长期 quarantine。
+为每个 worker 生成唯一租户、用户和订单前缀，通过 API fixture 建立最小数据并幂等清理；测试不依赖执行顺序和生产式共享种子库。角色分别生成短期 storage state，优先写入 `testProject.outputDir` 或受控临时目录，由运行器或 teardown 自动清理；持久目录必须加入 `.gitignore`。storage state 默认不上传 artifact；确需诊断时，应先用无敏感认证态复现，无法复现才对文件脱敏或加密，并设置最小读取权限和短保留期。失败使用 `trace: 'retain-on-first-failure'` 保存首轮 trace，同时保存截图、console、必要的请求摘要和后端 correlation ID。
 
 #### 反例 / 踩坑
 
@@ -372,7 +372,7 @@ Flaky Test 是产品、测试或环境中未受控状态的证据，不是简单
 
 #### 资深回答模板
 
-我先让 worker 拥有独立用户、租户和业务键，fixture 通过 API 幂等建数与清理。Playwright 使用语义 Locator 和 web-first assertion；首轮失败保留 trace、网络及服务端关联 ID。重试只辅助归因，flaky 仍计入门禁，并由 owner 按期限修复。
+我先让 worker 拥有独立用户、租户和业务键，fixture 通过 API 幂等建数与清理。敏感 storage state 写入自动清理且默认不上传的目录；Playwright 使用语义 Locator 和 web-first assertion，并以 `retain-on-first-failure` 保留首轮 trace。重试只辅助归因，flaky 仍计入门禁，并由 owner 按期限修复。
 
 :::
 
@@ -385,11 +385,11 @@ Flaky Test 是产品、测试或环境中未受控状态的证据，不是简单
 
 **1. storage state 能否直接在所有并行测试间共享？**
 
-只读角色且服务器状态互不影响时可以复用认证快照；若测试修改购物车、权限、密码或会话，复用同一账号会竞争。应按角色和 worker 生成独立身份或数据 namespace，限制 state 文件权限与有效期，并确保不含可长期使用的密钥。
+只读角色且服务器状态互不影响时可以复用认证快照；若测试修改购物车、权限、密码或会话，复用同一账号会竞争。应按角色和 worker 生成独立身份或数据 namespace。state 写入 `testProject.outputDir` 或受控临时目录并自动清理，持久目录加入 `.gitignore`；它默认不上传 artifact，也不得包含可长期使用的密钥。
 
 **2. 允许 retry 后 CI 应如何判定？**
 
-最终通过可避免偶发基础设施问题阻断所有发布，但首轮失败必须标记 flaky、保存两次证据并计入独立预算。超过阈值应阻断或降级相关测试组，不能只显示绿色。Retry 次数要小且固定，不能动态增加到通过。
+最终通过可以按团队策略暂不阻断本次低风险发布，但首轮失败必须标记 flaky、保存证据并计入独立预算。Playwright v1.52 起可在 CI 设置 `failOnFlakyTests: true`，命令行等价为 `--fail-on-flaky-tests`，让“失败后重试通过”仍返回失败；旧版本没有该门禁，应先升级或由 reporter / CI 解析 flaky 结果。Retry 次数要小且固定，不能动态增加到通过。
 
 **3. 什么情况下可以暂时 quarantine 测试？**
 
@@ -458,11 +458,11 @@ schema 在仓库版本化并做 breaking-change diff；前端基于稳定版本�
 
 #### 原理深挖
 
-像素差异对字体、抗锯齿和动态内容敏感，却看不到语义树；自动 a11y 能发现缺少名称或错误 ARIA，却无法判断文案质量、焦点顺序、读屏上下文和认知负担。人工测试真实性高但成本大、难以每次全量执行。因此应把稳定规则左移到组件和 CI，把关键模板做确定化视觉基线，再按风险制定浏览器、键盘、缩放、高对比度与屏幕阅读器矩阵。
+像素差异对字体、抗锯齿和动态内容敏感，却看不到语义树；自动 a11y 能发现缺少名称或错误 ARIA，却无法判断文案质量、读屏上下文和认知负担。jsdom 没有真实 layout、CSS 渲染和完整 Range API，axe 的 `color-contrast` 等规则会跳过或无法给出有效结果，模拟 DOM 中的 focus 也不能证明浏览器真实焦点行为。因此应把 DOM 语义规则左移到组件 CI，把布局、对比度和焦点放到 Vitest Browser Mode 或 Playwright，再按风险安排人工键盘、缩放、高对比度与屏幕阅读器矩阵。
 
 #### 工程场景
 
-设计系统组件在 Vitest / 浏览器组件测试中运行 axe，并验证键盘事件和焦点；Playwright 对登录、表单错误、Modal、菜单和支付流程运行 axe 与键盘旅程。视觉基线固定浏览器、视口、DPR、字体、locale、主题和数据，关闭动画，仅 mask 最小动态区域。发布前由受训人员按清单测试 200% / 400% 缩放、仅键盘、焦点恢复和主流 AT；记录浏览器、AT 版本、证据、缺陷严重度与 owner。
+设计系统组件可在 Vitest 的 jsdom 测试中运行不依赖布局的 axe 规则；布局、对比度、真实焦点和键盘行为在 Vitest Browser Mode 或 Playwright 的真实浏览器中验证。Playwright 对登录、表单错误、Modal、菜单和支付流程运行 axe 与键盘旅程。视觉基线固定浏览器、视口、DPR、字体、locale、主题和数据，关闭动画，仅 mask 最小动态区域。发布前由受训人员按清单测试 200% / 400% 缩放、仅键盘、焦点恢复和主流 AT，并记录版本、证据与 owner。
 
 #### 反例 / 踩坑
 
@@ -483,7 +483,7 @@ axe 零违规就宣布无障碍、整页 mask 动态内容、提高像素阈值�
 
 **1. 自动扫描零违规能否证明符合 WCAG？**
 
-不能。自动工具只能判断可编码的一部分成功准则，且依赖当时 DOM 状态；它无法可靠评估替代文本是否合适、阅读和焦点顺序、错误恢复、读屏播报及任务认知。报告应标明规则集、扫描范围和未覆盖项，并保留人工、键盘和 AT 验证。
+不能。自动工具只能判断可编码的一部分成功准则，且依赖执行环境；jsdom 会跳过 `color-contrast` 等依赖布局的规则，也没有真实 CSS 与焦点行为。工具无法可靠评估替代文本是否合适、阅读顺序、错误恢复、读屏播报及任务认知。报告应标明规则集、浏览器或 jsdom 环境、跳过项和扫描范围，并保留真实浏览器、人工键盘与 AT 验证。
 
 **2. 视觉基线频繁变化时怎样治理？**
 
@@ -556,11 +556,11 @@ axe 零违规就宣布无障碍、整页 mask 动态内容、提高像素阈值�
 
 #### 原理深挖
 
-门禁过松会放过缺陷，过严或不稳定会诱导绕过。Statement / branch coverage 适合发现本次变更未执行区域，却不能证明断言质量；mutation 能提供更强信号但成本高。E2E、视觉与 a11y 也各有误报和盲区。因此采用分层证据和差异化策略：安全、支付、权限等关键域要求更强门禁；低风险文案可快速通道。发布信心还依赖制品一致性、灰度、监控与回滚，而不止合并前绿色。
+门禁过松会放过缺陷，过严或不稳定会诱导绕过。Statement / branch coverage 能发现未执行区域，却不能证明断言质量；Vitest `coverage.changed` 只筛 changed files，不能冒充新增 / 修改行覆盖率，后者需要 diff-aware 工具或 CI 服务。Mutation 能提供更强信号但成本高。E2E、视觉与 a11y 也各有误报和盲区，因此安全、支付、权限等关键域应采用更强的分层证据。
 
 #### 工程场景
 
-PR 必须通过 typecheck、lint、unit / component、受影响 contract、增量 statement / branch 阈值和无未归因测试失败；核心规则定期 mutation。关键旅程跑 Playwright，首轮失败即记录 flaky，trace 等 artifact 留存。视觉差异由 owner 审批，axe 阻断明确严重度，人工 AT 按发布风险执行。合并后以同一制品灰度，检查错误率、任务成功率和契约兼容。紧急例外由业务与技术 owner 批准，记录原因、范围、补偿测试、feature flag / 回滚、到期时间和复盘任务。
+PR 必须通过 typecheck、lint、unit / component、受影响 contract、全局或 changed-file statement / branch 阈值和无未归因测试失败；新增 / 修改行覆盖率另由 diff-aware 工具计算，核心规则定期 mutation。关键旅程跑 Playwright：使用当前有效的 `trace: 'retain-on-first-failure'` 留首轮失败证据，而不是只在 `on-first-retry` 记录重试；CI 在 Playwright v1.52+ 配置 `failOnFlakyTests: true` 或传 `--fail-on-flaky-tests`。storage state 默认不上传。视觉差异由 owner 审批，真实浏览器 axe 与人工 AT 按风险执行。紧急例外由业务与技术 owner 批准并限时。
 
 #### 反例 / 踩坑
 
@@ -568,7 +568,7 @@ PR 必须通过 typecheck、lint、unit / component、受影响 contract、增�
 
 #### 资深回答模板
 
-我把门禁设计成风险证据链：快速静态与单元检查先阻断，契约和浏览器测试覆盖边界，覆盖率看增量分支，核心规则抽查 mutation；发布后同一制品灰度观测。每个失败有 owner 和 CI 证据，重试不抹掉首轮失败；例外限时、可回滚并强制复盘。
+我把门禁设计成风险证据链：快速静态与单元检查先阻断，契约和浏览器测试覆盖边界，changed-file 与 diff-line coverage 明确区分，核心规则抽查 mutation；发布后同一制品灰度观测。每个失败有 owner 和 CI 证据，Playwright 让 flaky 在 CI 显式失败，重试不抹掉首轮失败；例外限时、可回滚并强制复盘。
 
 :::
 
@@ -581,11 +581,11 @@ PR 必须通过 typecheck、lint、unit / component、受影响 contract、增�
 
 **1. 覆盖率门禁应看全局还是增量？**
 
-两者作用不同：全局阈值防止长期基线坍塌，增量 statement / branch 阈值约束本次新代码，避免历史债务阻止所有改动。关键域还应按文件或风险设置阈值并结合 mutation、断言评审；不能通过删除代码、排除文件或写无断言调用来过线。
+全局阈值防止长期基线坍塌，变更门禁约束本次代码。要精确区分：Vitest `coverage.changed` 只对 changed files 收集并应用 statement / branch 等覆盖率，不计算 Git diff 中新增 / 修改行；真正的 diff-line coverage 需使用 diff-aware 工具或 CI 覆盖率服务。关键域还应结合 mutation 和断言评审，不能靠排除文件或无断言调用过线。
 
 **2. CI 中 retry 后通过的测试能否算完全通过？**
 
-不能。它可以在策略允许时不阻断本次发布，但状态应标为 flaky，保留首轮和重试证据，计入可靠性预算并分配 owner。若相关流程高风险、flaky 超阈值或没有替代证据，应继续阻断。Retry 是诊断手段，不是成功定义。
+不能。Playwright v1.52+ 可设置 `failOnFlakyTests: true`，或在 CLI 使用 `--fail-on-flaky-tests`，使测试首次失败、重试通过时 CI 仍返回失败；旧版本需升级或由 reporter / CI 显式解析 flaky。无论是否暂时放行低风险发布，都要保留首轮证据、计入可靠性预算并分配 owner。Retry 是诊断手段，不是成功定义。
 
 **3. 紧急例外最少要记录哪些信息？**
 

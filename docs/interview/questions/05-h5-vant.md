@@ -318,7 +318,7 @@ CSS 的 `1px` 是一个 CSS 像素，在 DPR=3 时通常由约 3 个物理像素
 
 **3. 慢的是 WebView 初始化还是 H5 本身，如何归因？**
 
-需要原生与 H5 共用 traceId 和单调时间轴。原生记录点击、创建 WebView、内核 ready、开始导航；H5 记录 navigationStart、TTFB、FCP、LCP 与业务可用点，再按 App 版本、机型和网络分桶。若 navigationStart 前耗时高，优先查容器创建与预热；之后才是网络和渲染。Core Web Vitals 本身不覆盖启动前阶段，不能让 LCP 承担全部责任。
+原生与 H5 分别用本进程单调时钟记录耗时：原生记录点击、创建 WebView、内核 ready 和开始导航，H5 记录 navigationStart、TTFB、FCP、LCP 与业务可用点。双方通过导航边界事件或握手校准时间轴，再用 traceId 串联并按版本、机型和网络分桶。Core Web Vitals 不覆盖启动前阶段，不能让 LCP 承担全部责任。
 
 :::
 

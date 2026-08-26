@@ -2,22 +2,31 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 为 14 个题库中的全部追问补充标准参考答案，并建立可自动阻止漏答、错位和空答案的发布门禁。
+**Goal:** 为现有 14 个题库中的全部追问补充标准参考答案，并建立可复用于后续 15～22 模块的追问校验基础。
 
-**Architecture:** 先扩展题库校验器，使其能够按单文件增量检查追问答案；再按模块逐文件补齐内容，每个文件独立进行规格审查和技术审查；最后启用全量追问门禁，更新 CI 并部署 GitHub Pages。追问答案统一放在主问题后的单个 `::: details 追问参考答案` 折叠区中。
+**Architecture:** 先扩展题库校验器，使其能够按单文件增量检查追问答案；新增模块创建完成后，再逐文件补齐现有内容，每个文件独立进行规格审查和技术审查；最后完成 22 模块追问完整性验收。追问答案统一放在主问题后的单个 `::: details 追问参考答案` 折叠区中；CI 和部署由站点整合计划完成。
 
 **Tech Stack:** Node.js ESM、Markdown、VitePress、pnpm、GitHub Actions。
 
 ---
+
+## 执行依赖
+
+本计划分两段执行，以便新增模块从创建时就受追问校验约束：
+
+1. 先执行本计划 Task 1，建立校验器基础；
+2. 执行 `2026-08-27-senior-frontend-new-modules.md`，创建 15～22 及 Prisma 教程；
+3. 返回执行本计划 Task 2～16，补齐 01～14 的追问；
+4. 执行 `2026-08-27-senior-frontend-roadmap-integration.md`，完成 60 天路线、导航、CI 和发布。
+
+`EXPECTED_QUESTION_FILES` 和 550 精确总量由新增模块计划更新；本计划不重复修改。
 
 ## 文件与职责
 
 - `scripts/validate-question-bank.mjs`：解析追问、校验问答数量和输出追问统计。
 - `scripts/validate-question-bank.test.mjs`：覆盖追问解析、折叠区、错位、占位和代码块边界。
 - `package.json`：增加追问专项校验命令。
-- `.github/workflows/deploy-docs.yml`：在发布前执行全量追问门禁。
 - `docs/interview/questions/01-js-ts.md`～`14-frontend-architecture.md`：逐模块补充追问答案。
-- `README.md`：记录追问专项校验命令。
 
 当前追问标记共 302 处：
 
@@ -811,11 +820,9 @@ git commit -m "docs: 补充前端架构题库追问答案"
 
 ---
 
-### Task 16：启用全量门禁、终审并发布
+### Task 16：22 模块追问完整性验收
 
 **Files:**
-- Modify: `.github/workflows/deploy-docs.yml`
-- Modify: `README.md`
 - Modify: 所有终审发现问题的题库文件
 
 - [ ] **Step 1：执行全量追问门禁**
@@ -826,9 +833,9 @@ pnpm docs:validate:followups
 
 Expected：
 
-- 14 个文件全部输出追问统计。
+- 22 个文件全部输出追问统计。
 - 每个文件 `followups` 与 `answered` 相等。
-- 主问题仍为 382。
+- 主问题精确为 550。
 - failures 为 0。
 
 - [ ] **Step 2：抽检答案长度和重复度**
@@ -842,81 +849,42 @@ Expected：
 - 有工程场景或边界；
 - 相邻答案没有同质化套话。
 
-- [ ] **Step 3：更新 CI 发布门禁**
-
-在 `.github/workflows/deploy-docs.yml` 的 Build 步骤使用：
-
-```yaml
-- name: Test question bank validator
-  run: pnpm docs:validate:test
-
-- name: Build
-  run: >
-    MIN_TOTAL_QUESTIONS=380
-    MAX_TOTAL_QUESTIONS=410
-    EXPECTED_TOTAL_QUESTIONS=382
-    pnpm docs:check:followups
-```
-
-- [ ] **Step 4：更新 README**
-
-增加：
-
-```bash
-pnpm docs:validate:followups
-pnpm docs:check:followups
-```
-
-说明两个命令分别用于追问完整性检查和发布前全量检查。
-
-- [ ] **Step 5：执行最终验证**
+- [ ] **Step 3：执行阶段验证**
 
 ```bash
 pnpm docs:validate:test
-MIN_TOTAL_QUESTIONS=380 MAX_TOTAL_QUESTIONS=410 EXPECTED_TOTAL_QUESTIONS=382 pnpm docs:check:followups
+MIN_TOTAL_QUESTIONS=540 MAX_TOTAL_QUESTIONS=560 EXPECTED_TOTAL_QUESTIONS=550 pnpm docs:check:followups
 git diff --check master...HEAD
 ```
 
 Expected：全部 exit 0，无死链、空答案、占位文案或格式错误。
 
-- [ ] **Step 6：全分支独立审查**
+- [ ] **Step 4：执行阶段独立审查**
 
 审查 `master...HEAD`，重点检查：
 
-- 302 处追问标记是否全部有答案折叠区；
+- 01～22 的全部追问标记是否都有答案折叠区；
 - 追问链问题和答案是否逐项对应；
-- 14 个模块的技术口径是否一致；
+- 22 个模块的技术口径是否一致；
 - 页面体积和搜索索引是否仍可接受；
-- CI 是否真正阻止漏答。
+- 校验器能否被后续 15～22 模块按文件复用。
 
-修复所有 Critical 和 Important 后重新执行 Step 5。
+修复所有 Critical 和 Important 后重新执行 Step 3。
 
-- [ ] **Step 7：提交终审修正**
+- [ ] **Step 5：提交阶段审查修正**
 
 若有修正：
 
 ```bash
-git add .github/workflows/deploy-docs.yml README.md docs/interview/questions scripts package.json
-git commit -m "docs: 完成题库追问答案全量验收"
+git add docs/interview/questions scripts package.json
+git commit -m "docs: 完成现有题库追问答案验收"
 ```
 
 若没有修正，不创建空提交。
 
-- [ ] **Step 8：合并、推送和线上抽查**
+- [ ] **Step 6：记录阶段统计**
 
-```bash
-git merge --ff-only feature/followup-answers
-git push origin master
-```
+在实施回报中列出 22 个文件的追问问题数和已回答数，并明确以下内容留给站点整合计划：
 
-等待 GitHub Pages 工作流成功后，抽查：
-
-- 首页；
-- Vue3；
-- 微前端；
-- NestJS；
-- 前端架构；
-- 手写题。
-
-确认折叠区可展开、追问和答案顺序正确。
-
+- 新增 60 天路线和八大能力域导航；
+- 更新 GitHub Actions 并部署 GitHub Pages。

@@ -4,12 +4,14 @@
 import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
-const QUESTION_DIR = path.resolve('docs/interview/questions')
-const MIN_TOTAL = Number(process.env.MIN_TOTAL_QUESTIONS ?? 201)
-const MAX_TOTAL = Number(process.env.MAX_TOTAL_QUESTIONS ?? 410)
+export const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+)
 
-const DEEP_SECTIONS = [
+export const DEEP_SECTIONS = [
   '基础结论',
   '原理深挖',
   '工程场景',
@@ -28,96 +30,278 @@ const PLACEHOLDER_PATTERNS = [
   /待补充/,
 ]
 
-const QUESTION_HEADING = /^### ([QD]\d+)\.\s+.+$/gm
+const DETAILS_MARKER = '::: details 参考答案'
 
-function extractAnswerContent(block) {
-  const marker = '::: details 参考答案'
-  const start = block.indexOf(marker)
-  if (start === -1) return null
-
-  const afterMarker = block.indexOf('\n', start)
-  if (afterMarker === -1) return ''
-
-  const rest = block.slice(afterMarker + 1)
-  const closeIndex = rest.indexOf('\n:::')
-  if (closeIndex === -1) return rest.trim()
-
-  return rest.slice(0, closeIndex).trim()
+/**
+ * @param {string | undefined} raw
+ * @param {string} name
+ * @returns {number}
+ */
+export function parseLimit(raw, name) {
+  const text = String(raw ?? '').trim()
+  if (!/^\d+$/.test(text)) {
+    throw new Error(`${name} 必须是有限非负整数，当前值：${JSON.stringify(raw)}`)
+  }
+  const value = Number(text)
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`${name} 必须是有限非负整数，当前值：${JSON.stringify(raw)}`)
+  }
+  return value
 }
 
-function isEmptyAnswer(text) {
-  if (!text) return true
-  const stripped = text.replace(/[#>*`\-\s]/g, '').trim()
-  return stripped.length === 0
+/**
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{ min: number, max: number }}
+ */
+export function parseQuestionLimits(env = process.env) {
+  const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '201', 'MIN_TOTAL_QUESTIONS')
+  const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '410', 'MAX_TOTAL_QUESTIONS')
+  if (min > max) {
+    throw new Error(
+      `MIN_TOTAL_QUESTIONS (${min}) 不能大于 MAX_TOTAL_QUESTIONS (${max})`,
+    )
+  }
+  return { min, max }
 }
 
-function findPlaceholders(text) {
-  return PLACEHOLDER_PATTERNS.filter((pattern) => pattern.test(text))
-}
+/**
+ * @param {string} content
+ * @returns {{ id: string, index: number, line: number }[]}
+ */
+export function findQuestionHeadings(content) {
+  const results = []
+  const lines = content.split('\n')
+  let offset = 0
+  let inFence = false
+  let fenceChar = ''
+  let fenceLen = 0
 
-const files = (await readdir(QUESTION_DIR))
-  .filter((file) => /^\d{2}-.+\.md$/.test(file))
-  .sort()
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]
+    const fenceMatch = line.match(/^(`{3,}|~{3,})(.*)$/)
 
-const failures = []
-let total = 0
-
-for (const file of files) {
-  const content = await readFile(path.join(QUESTION_DIR, file), 'utf8')
-  const matches = [...content.matchAll(QUESTION_HEADING)]
-  let normal = 0
-  let deep = 0
-  const seenIds = new Map()
-
-  for (let index = 0; index < matches.length; index += 1) {
-    const match = matches[index]
-    const start = match.index
-    const end = matches[index + 1]?.index ?? content.length
-    const block = content.slice(start, end)
-    const id = match[1]
-
-    if (seenIds.has(id)) {
-      failures.push(`${file} ${id} 编号重复（首次出现于第 ${seenIds.get(id)} 题）`)
-    } else {
-      seenIds.set(id, index + 1)
-    }
-
-    if (!block.includes('::: details 参考答案')) {
-      failures.push(`${file} ${id} 缺少参考答案`)
-    } else {
-      const answer = extractAnswerContent(block)
-      if (isEmptyAnswer(answer)) {
-        failures.push(`${file} ${id} 参考答案为空`)
+    if (fenceMatch) {
+      const marker = fenceMatch[1]
+      const char = marker[0]
+      const len = marker.length
+      if (!inFence) {
+        inFence = true
+        fenceChar = char
+        fenceLen = len
+      } else if (char === fenceChar && len >= fenceLen) {
+        inFence = false
+      }
+    } else if (!inFence) {
+      const headingMatch = line.match(/^### ([QD]\d+)\.\s+(.+)$/)
+      if (headingMatch) {
+        results.push({ id: headingMatch[1], index: offset, line: i + 1 })
       }
     }
 
-    for (const pattern of findPlaceholders(block)) {
-      failures.push(`${file} ${id} 含占位文案（${pattern}）`)
-    }
+    offset += line.length + 1
+  }
 
-    if (id.startsWith('D')) {
-      deep += 1
-      for (const section of DEEP_SECTIONS) {
-        if (!block.includes(section)) {
-          failures.push(`${file} ${id} 缺少「${section}」`)
-        }
-      }
-    } else {
-      normal += 1
+  return results
+}
+
+/**
+ * @param {string} block
+ * @returns {{
+ *   found: boolean,
+ *   closed?: boolean,
+ *   content?: string,
+ * }}
+ */
+export function extractAnswerDetails(block) {
+  const lines = block.split('\n')
+  let startLine = -1
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].trim() === DETAILS_MARKER) {
+      startLine = i
+      break
     }
   }
 
-  total += normal + deep
-  console.log(`${file}: Q=${normal} D=${deep} total=${normal + deep}`)
+  if (startLine === -1) {
+    return { found: false }
+  }
+
+  const contentLines = []
+  let depth = 1
+
+  for (let i = startLine + 1; i < lines.length; i += 1) {
+    const line = lines[i]
+    const trimmed = line.trim()
+
+    if (trimmed.startsWith(':::')) {
+      const info = trimmed.slice(3).trim()
+      if (info.length === 0) {
+        depth -= 1
+        if (depth === 0) {
+          return {
+            found: true,
+            closed: true,
+            content: contentLines.join('\n').trim(),
+          }
+        }
+        continue
+      }
+      depth += 1
+    }
+
+    contentLines.push(line)
+  }
+
+  return {
+    found: true,
+    closed: false,
+    content: contentLines.join('\n').trim(),
+  }
 }
 
-if (total < MIN_TOTAL || total > MAX_TOTAL) {
-  failures.push(`总题量 ${total} 不在 ${MIN_TOTAL}–${MAX_TOTAL} 范围`)
+/**
+ * @param {string} section
+ * @returns {RegExp}
+ */
+export function buildDeepSectionPattern(section) {
+  const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(
+    `(^####\\s+${escaped}\\s*$)|(\\*\\*${escaped}[:：]?\\*\\*)`,
+    'm',
+  )
 }
 
-console.log(`题库总量：${total}`)
+/**
+ * @param {string} block
+ * @param {string} section
+ * @returns {boolean}
+ */
+export function hasDeepSection(block, section) {
+  return buildDeepSectionPattern(section).test(block)
+}
 
-if (failures.length > 0) {
-  console.error(failures.map((failure) => `- ${failure}`).join('\n'))
-  process.exitCode = 1
+/**
+ * @param {string | null | undefined} text
+ * @returns {boolean}
+ */
+export function isEmptyAnswer(text) {
+  if (!text) return true
+  const stripped = text.replace(/[#>*`\-|\s]/g, '').trim()
+  return stripped.length === 0
+}
+
+/**
+ * @param {string} text
+ * @returns {RegExp[]}
+ */
+export function findPlaceholders(text) {
+  return PLACEHOLDER_PATTERNS.filter((pattern) => pattern.test(text))
+}
+
+/**
+ * @param {{
+ *   repoRoot?: string,
+ *   min?: number,
+ *   max?: number,
+ * }} [options]
+ * @returns {Promise<{ failures: string[], total: number, fileStats: string[] }>}
+ */
+export async function validateQuestionBank(options = {}) {
+  const repoRoot = options.repoRoot ?? REPO_ROOT
+  const min = options.min ?? parseQuestionLimits().min
+  const max = options.max ?? parseQuestionLimits().max
+  const questionDir = path.join(repoRoot, 'docs/interview/questions')
+
+  const files = (await readdir(questionDir))
+    .filter((file) => /^\d{2}-.+\.md$/.test(file))
+    .sort()
+
+  const failures = []
+  const fileStats = []
+  let total = 0
+
+  for (const file of files) {
+    const content = await readFile(path.join(questionDir, file), 'utf8')
+    const matches = findQuestionHeadings(content)
+    let normal = 0
+    let deep = 0
+    const seenIds = new Map()
+
+    for (let index = 0; index < matches.length; index += 1) {
+      const match = matches[index]
+      const start = match.index
+      const end = matches[index + 1]?.index ?? content.length
+      const block = content.slice(start, end)
+      const id = match.id
+
+      if (seenIds.has(id)) {
+        failures.push(
+          `${file} ${id} 编号重复（首次出现于第 ${seenIds.get(id)} 题）`,
+        )
+      } else {
+        seenIds.set(id, index + 1)
+      }
+
+      const details = extractAnswerDetails(block)
+      if (!details.found) {
+        failures.push(`${file} ${id} 缺少参考答案`)
+      } else if (!details.closed) {
+        failures.push(`${file} ${id} 参考答案容器未闭合`)
+      } else if (isEmptyAnswer(details.content)) {
+        failures.push(`${file} ${id} 参考答案为空`)
+      }
+
+      for (const pattern of findPlaceholders(block)) {
+        failures.push(`${file} ${id} 含占位文案（${pattern}）`)
+      }
+
+      if (id.startsWith('D')) {
+        deep += 1
+        for (const section of DEEP_SECTIONS) {
+          if (!hasDeepSection(block, section)) {
+            failures.push(`${file} ${id} 缺少「${section}」`)
+          }
+        }
+      } else {
+        normal += 1
+      }
+    }
+
+    total += normal + deep
+    fileStats.push(`${file}: Q=${normal} D=${deep} total=${normal + deep}`)
+  }
+
+  if (total < min || total > max) {
+    failures.push(`总题量 ${total} 不在 ${min}–${max} 范围`)
+  }
+
+  return { failures, total, fileStats }
+}
+
+async function main() {
+  const { min, max } = parseQuestionLimits()
+  const { failures, total, fileStats } = await validateQuestionBank({ min, max })
+
+  for (const line of fileStats) {
+    console.log(line)
+  }
+  console.log(`题库总量：${total}`)
+
+  if (failures.length > 0) {
+    console.error(failures.map((failure) => `- ${failure}`).join('\n'))
+    process.exitCode = 1
+  }
+}
+
+const entryPath = process.argv[1]
+  ? path.resolve(process.argv[1])
+  : null
+const isMain = entryPath === fileURLToPath(import.meta.url)
+
+if (isMain) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
 }

@@ -492,117 +492,127 @@ state.count++ // 再打印
 
 ---
 
-### Q10. 数组扁平化 `flatten`
+## 深度题
 
-**考察点：** 递归 / 迭代、`depth`、与 `Array.prototype.flat` 对齐
+> D 题先口述思路、复杂度、边界与测试，再写关键实现；不追求在白板复刻生产级长代码。
+
+### D1. 手写定高虚拟列表的核心计算与渲染窗口
+
+**考察点：** 可视区间、缓冲区、占位高度、滚动定位
 
 ::: details 参考答案
-```js
-function flatten(arr, depth = 1) {
-  if (depth < 1) return arr.slice()
-  const out = []
-  for (const item of arr) {
-    if (Array.isArray(item) && depth > 0) {
-      out.push(...flatten(item, depth - 1))
-    } else {
-      out.push(item)
-    }
-  }
-  return out
-}
+#### 基础结论
+容器只渲染可视区附近的元素，外层用总高度撑开滚动条，内层列表用 `transform` 移到起始项位置。面试写窗口计算即可，不必实现完整组件。
 
-// 栈迭代版（防爆栈，常考）
-function flattenIter(arr, depth = Infinity) {
-  const stack = arr.map((v) => [v, depth])
-  const out = []
-  while (stack.length) {
-    const [cur, d] = stack.pop()
-    if (Array.isArray(cur) && d > 0) {
-      for (const v of cur) stack.push([v, d - 1])
-    } else {
-      out.push(cur)
-    }
-  }
-  return out.reverse()
-}
+#### 原理深挖
+定高 `itemHeight` 时：
 
-console.log(flatten([1, [2, [3, [4]]], 5], 2)) // [1, 2, [3, [4]], 5]
-console.log([1, [2, [3]]].flat(Infinity))
+```ts
+function getRange(
+  scrollTop: number,
+  viewportHeight: number,
+  itemHeight: number,
+  count: number,
+  overscan = 3,
+) {
+  const visibleStart = Math.floor(scrollTop / itemHeight)
+  const start = Math.max(0, visibleStart - overscan)
+  const end = Math.min(
+    count,
+    Math.ceil((scrollTop + viewportHeight) / itemHeight) + overscan,
+  )
+  return { start, end, offset: start * itemHeight, total: count * itemHeight }
+}
 ```
 
-**讲解：** 默认 `depth = 1` 对齐原生 `flat`。`reduce + concat` 也能写但大数组有中间数组成本。稀疏数组、空位行为面试提一句「与规范一致与否看面试官要求」即可。
+计算是 O(1)，实际渲染 O(k)，`k` 为窗口元素数；空间 O(k)。overscan 用少量额外 DOM 换快速滚动稳定性。
+
+#### 工程场景
+模板渲染 `items.slice(start, end)`，key 使用稳定业务 id；滚动事件用 `requestAnimationFrame` 合并；数据追加后保持锚点。动态高度需要高度缓存、前缀和与二分查找，面试只说明扩展方向。
+
+#### 反例 / 踩坑
+用 index 作 key 导致滚动复用错位；总高度漏算造成滚动条跳变；每次 scroll 同步测量全部节点引发布局抖动；筛选后未夹紧 start。
+
+#### 资深回答模板
+「定高版把 scrollTop 映射为 `[start, end)`，总高负责滚动尺度，offset 负责视觉位置。核心计算 O(1)，渲染 O(k)；动态高度再引入测量缓存和二分定位。」
+
+#### 追问链
+1. scrollTop 在两项边界上时为什么用 floor？
+2. 如何测试空列表、最后一屏和极速滚动？
+3. 动态高度变化后如何维持视觉锚点？
 :::
 
 **追问：**
-1. `flatMap` 和 `map + flat(1)` 关系？
-2. 如何扁平「类数组」？
-3. 无限深度用递归的风险？
+1. 如何实现 `scrollToIndex`？
+2. 为什么 overscan 不能无限大？
+3. 可访问性上还要保留哪些列表语义？
 
-**踩坑：** 用 `toString` / `join` 伪扁平丢失类型；或 `concat` 不判断 depth。
+**踩坑：** 只写 `slice`，没有总高度与 offset，结果仍无法形成正确滚动空间。
 
 ---
 
-### Q11. 手写 `call` / `apply` / `bind`
+### D2. 手写树结构权限过滤，并保留命中节点的祖先链
 
-**考察点：** 显式绑定 `this`、参数传递、bound 函数的原型与 `new`
+**考察点：** 后序遍历、不可变转换、父子权限语义、复杂度
 
 ::: details 参考答案
-```js
-Function.prototype.myCall = function (thisArg, ...args) {
-  if (typeof this !== 'function') throw new TypeError('not a function')
-  const ctx =
-    thisArg === null || thisArg === undefined
-      ? (typeof globalThis !== 'undefined' ? globalThis : window)
-      : Object(thisArg)
-  const key = Symbol('fn')
-  ctx[key] = this
-  const result = ctx[key](...args)
-  delete ctx[key]
-  return result
+#### 基础结论
+对每个节点先递归过滤 children；节点自身有权限，或过滤后仍有可见子节点，就保留。返回新树，避免修改菜单真源。
+
+#### 原理深挖
+```ts
+type TreeNode = {
+  id: string
+  permission?: string
+  children?: TreeNode[]
 }
 
-Function.prototype.myApply = function (thisArg, args) {
-  return this.myCall(thisArg, ...(args || []))
+function filterTree(
+  nodes: TreeNode[],
+  allowed: ReadonlySet<string>,
+): TreeNode[] {
+  return nodes.flatMap((node) => {
+    const children = filterTree(node.children ?? [], allowed)
+    const selfVisible = !node.permission || allowed.has(node.permission)
+    return selfVisible || children.length
+      ? [{ ...node, children }]
+      : []
+  })
 }
-
-Function.prototype.myBind = function (thisArg, ...preset) {
-  const fn = this
-  const bound = function (...args) {
-    // new bound() 时 this 指向新实例，忽略绑定的 thisArg
-    const isNew = new.target !== undefined
-    return fn.myApply(isNew ? this : thisArg, preset.concat(args))
-  }
-  if (fn.prototype) bound.prototype = Object.create(fn.prototype)
-  return bound
-}
-
-// 自测
-function greet(a, b) {
-  return `${this.name}-${a}-${b}`
-}
-console.log(greet.myCall({ name: 'A' }, 1, 2))
-console.log(greet.myApply({ name: 'B' }, [3, 4]))
-const g = greet.myBind({ name: 'C' }, 5)
-console.log(g(6))
 ```
 
-**讲解：** 核心是「把函数变成对象方法再调用」。`bind` 要处理：预设参数柯里化、`new` 场景优先实例。严格模式与原始值 `this` 的包装细节可口述。现代代码更常用箭头函数 / 显式传参，但手写仍考透彻度。
+每个节点访问一次，时间 O(n)；输出与递归栈空间 O(n)，树极深时可改显式栈。`flatMap` 表达 0 或 1 个输出节点。
+
+#### 工程场景
+先明确语义：目录节点可因子节点命中而保留，叶子必须有权限；禁用与隐藏不是一回事。服务端仍是授权权威，前端过滤只改善菜单体验。
+
+#### 反例 / 踩坑
+只过滤叶子导致空父菜单残留；原地 splice 跳项；把「有父权限」错误地推导为所有子权限；存在环或重复引用时递归失控。
+
+#### 资深回答模板
+「我用后序遍历先得到可见子树，再决定是否保留父节点。复杂度 O(n)，返回新树；权限继承、目录保留与服务端权威要在写代码前约定。」
+
+#### 追问链
+1. 如何同时返回半选与全选状态？
+2. 十万节点且频繁切角色如何缓存？
+3. 输入不是树而是 `id/pid` 扁平表时先做什么？
 :::
 
 **追问：**
-1. `bind` 之后还能再 `bind` 改 `this` 吗？
-2. 为什么要用 `Symbol` 当临时 key？
-3. 箭头函数的 `call/apply/bind` 为何改不了 `this`？
+1. 如何保留原始节点顺序？
+2. 权限集合更新后怎样增量计算？
+3. 如何测试孤儿节点、空权限和深链？
 
-**踩坑：** `bind` 忘记 `new` 场景；或 `apply` 第二参 `null` 未当 `[]` 处理。
+**踩坑：** 把菜单显隐当服务端授权，抓包后仍能调用未授权接口。
 
 ---
 
-### Q12. （可选加分）LRU Cache
+### D3. 手写 LRU，并扩展为请求去重与结果缓存
 
 **考察点：** `Map` 插入顺序、`get` 提升为最新、容量淘汰
 
 ::: details 参考答案
+#### 基础结论
 **思路：** `Map` 保插入序；访问时删了再设，挪到最后；超出容量删最老（`Map.keys().next()`）。
 
 ```js
@@ -639,7 +649,44 @@ cache.put(3, 3) // 淘汰 2
 console.log(cache.get(2)) // -1
 ```
 
-**讲解：** O(1) 平均依赖 `Map`。白板也可讲「哈希 + 双向链表」。前端场景：请求结果缓存、图片 / 组件缓存淘汰。注意：并发异步下「飞行中的请求」要另做 dedupe，不单靠 LRU。
+#### 原理深挖
+LRU 的 `get` / `put` 平均 O(1)，空间 O(capacity)。已完成结果与飞行中 Promise 是两层：LRU 管结果容量，`inflight` Map 让同 key 并发调用共享一次请求；失败后必须删除 inflight，通常不缓存失败。
+
+#### 工程场景
+```ts
+function createRequestCache<T>(capacity = 100) {
+  const cache = new LRUCache(capacity)
+  const inflight = new Map<string, Promise<T>>()
+
+  return (key: string, loader: () => Promise<T>) => {
+    const hit = cache.get(key)
+    if (hit !== -1) return Promise.resolve(hit as T)
+    if (inflight.has(key)) return inflight.get(key)!
+
+    const task = loader()
+      .then((value) => {
+        cache.put(key, value)
+        return value
+      })
+      .finally(() => inflight.delete(key))
+    inflight.set(key, task)
+    return task
+  }
+}
+```
+
+真实实现不要用 `-1` 作为通用 miss 哨兵，可提供 `has` 或唯一 Symbol；再按业务增加 TTL、主动失效和调用方取消策略。
+
+#### 反例 / 踩坑
+把 Promise 永久放进 LRU，失败后所有请求一直复用 rejected Promise；任一调用方 abort 就取消共享请求；缓存 key 漏掉用户、租户或查询条件导致串数据。
+
+#### 资深回答模板
+「LRU 解决已完成结果的容量淘汰，inflight Map 解决同 key 并发去重。二者生命周期不同：失败清飞行态，写操作主动失效结果缓存，key 必须覆盖权限与参数。」
+
+#### 追问链
+1. 多个调用方如何实现引用计数取消？
+2. TTL 与 LRU 同时存在时先判断什么？
+3. stale-while-revalidate 如何避免并发刷新？
 :::
 
 **追问：**
@@ -648,6 +695,125 @@ console.log(cache.get(2)) // -1
 3. `WeakMap` 能做 LRU 吗？为什么不能按 key 枚举淘汰？
 
 **踩坑：** `get` 不更新顺序，LRU 退化成普通 Map；容量 ≤ 0 未校验。
+
+---
+
+### D4. 手写 TypeScript 类型工具：`DeepReadonly`、`Awaited` 与互斥对象
+
+**考察点：** 条件类型、`infer`、递归映射、联合类型分发
+
+::: details 参考答案
+#### 基础结论
+先说输入输出和边界，再写最小类型。类型题追求可读与可解释，不为覆盖所有内置对象写一屏体操。
+
+#### 原理深挖
+```ts
+type DeepReadonly<T> =
+  T extends (...args: any[]) => any
+    ? T
+    : T extends readonly (infer U)[]
+      ? ReadonlyArray<DeepReadonly<U>>
+      : T extends object
+        ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+        : T
+
+type MyAwaited<T> =
+  T extends null | undefined
+    ? T
+    : T extends PromiseLike<infer U>
+      ? MyAwaited<U>
+      : T
+
+type Without<T, U> = { [K in Exclude<keyof T, keyof U>]?: never }
+type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
+```
+
+映射类型遍历 key；条件类型遇裸类型参数会对联合分发；`infer` 从结构中提取类型。递归深度与编译性能都是边界。
+
+#### 工程场景
+`DeepReadonly` 用于配置快照，`MyAwaited` 提取异步结果，`XOR` 表达组件 props「二选一」。使用 `tsc --noEmit` 加 `@ts-expect-error` 写正反编译用例。
+
+#### 反例 / 踩坑
+把函数也映射成只读对象而丢失调用签名；只识别原生 `Promise` 不识别 thenable；XOR 只写 `T | U`，导致同时传两组字段仍可能通过。
+
+#### 资深回答模板
+「我先用条件类型分出函数、数组、对象和原始值，再递归映射；用 infer 解包 PromiseLike。类型工具必须有应通过和应报错两组编译测试，并控制递归复杂度。」
+
+#### 追问链
+1. 如何阻止条件类型对联合分发？
+2. tuple 在当前 `DeepReadonly` 中会丢失什么信息？
+3. `any`、`unknown`、`never` 分别会怎样传播？
+:::
+
+**追问：**
+1. 如何实现 `Mutable<T>`？
+2. 为什么类型测试不能只看 IDE hover？
+3. 何时应直接使用 TypeScript 内置 `Awaited`？
+
+**踩坑：** 类型写得很炫但错误输入也能通过，且没人能解释分发条件。
+
+---
+
+### D5. 设计支持取消、重试退避和结果保序的并发请求池
+
+**考察点：** 调度器、AbortSignal、指数退避、抖动、失败策略
+
+::: details 参考答案
+#### 基础结论
+面试先定义契约：任务接收 `AbortSignal`；最多 `limit` 个运行；结果按输入顺序；仅重试可重试错误；外部取消后不再启动新任务，并让在途任务尽快退出。
+
+#### 原理深挖
+核心状态是 `nextIndex`、`active`、结果数组和共享取消信号。每个 worker 循环领取索引，天然限制并发并保序。第 n 次等待可用 `min(cap, base * 2 ** n)` 再加随机抖动，避免客户端同步重试形成惊群。
+
+```ts
+const sleep = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms)
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer)
+      reject(signal.reason)
+    }, { once: true })
+  })
+
+async function withRetry<T>(
+  run: () => Promise<T>,
+  signal: AbortSignal,
+  retries = 3,
+) {
+  for (let attempt = 0; ; attempt++) {
+    signal.throwIfAborted()
+    try {
+      return await run()
+    } catch (error) {
+      if (attempt >= retries || !isRetryable(error)) throw error
+      const cap = Math.min(5_000, 200 * 2 ** attempt)
+      await sleep(Math.random() * cap, signal)
+    }
+  }
+}
+```
+
+#### 工程场景
+再写 `limit` 个 worker，通过闭包领取唯一 index，把结果写回 `results[index]`。HTTP 只自动重试网络瞬断、429 或部分 5xx，并尊重 `Retry-After`；非幂等 POST 需要幂等键。快速失败时触发内部 controller 取消其余任务。
+
+#### 反例 / 踩坑
+所有错误都重试；固定间隔无抖动；取消只是不返回结果，底层 fetch 仍运行；`Promise.race` 某任务 reject 后调度器意外停止；用 push 导致结果乱序。
+
+#### 资深回答模板
+「我把并发、重试和取消拆成三层：worker 控槽位，withRetry 只处理可重试错误，AbortSignal 贯穿等待与请求。结果按索引回填，并明确快速失败还是 all-settled。」
+
+#### 追问链
+1. `AbortSignal.any()` 可怎样组合用户取消与超时？
+2. 429 的 `Retry-After` 为什么优先于本地退避？
+3. 如何测试最大并发从未超过 limit？
+:::
+
+**追问：**
+1. 动态追加任务时 worker 如何等待？
+2. 如何暴露进度而不破坏调度器封装？
+3. 部分成功结果的数据结构怎么设计？
+
+**踩坑：** 把重试写在池外导致每次重试重新占队列顺序，或取消后定时器仍悬挂。
 
 ---
 
@@ -660,6 +826,7 @@ console.log(cache.get(2)) // -1
 | Q4–Q5 | 15 分钟 | 保序 / 槽位 |
 | Q6–Q8 | 15 分钟 | API 完整性 |
 | Q9 | 20 分钟 | track/trigger 口述 |
-| Q10–Q12 | 15 分钟 | 与原生 API 对齐 |
+| D1–D2 | 20 分钟 | 窗口 / 树遍历 |
+| D3–D5 | 20 分钟 | 缓存 / 类型 / 调度 |
 
 写完每题用 30 秒口述：**时间复杂度、一个边界、一个和业务的联系**。

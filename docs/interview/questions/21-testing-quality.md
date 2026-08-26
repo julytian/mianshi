@@ -592,4 +592,3 @@ PR 必须通过 typecheck、lint、unit / component、受影响 contract、增�
 至少记录被绕过的门禁、业务紧迫性、影响范围、风险接受人与技术 owner、现有 CI 证据、补偿测试或人工检查、feature flag / 回滚方案、监控指标、到期时间和复盘任务。例外到期自动失效，后续变更不能默认继承。
 
 :::
-

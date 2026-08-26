@@ -44,7 +44,7 @@ Vitest 的 `vi.fn()` 适合记录协作者调用，`vi.spyOn()` 适合观察对�
 
 ::: details 追问参考答案
 
-`vi.clearAllMocks()` 对所有 mock 调用 `mockClear()`：清调用、结果等历史，但保留实现。`vi.resetAllMocks()` 调用 `mockReset()`，同时清历史和 once 队列；当前 Vitest 中，`vi.fn()` 回到返回 `undefined` 的空实现，`vi.fn(initialImpl)` 回到该初始实现，`vi.spyOn` 仍是 spy，但回到被观察的原实现。`vi.restoreAllMocks()` 只恢复 `vi.spyOn` 等可 restore 对象的原 descriptor，不影响 automock，也不会像单个 `mockRestore()` 那样替所有 mock 通用清历史或重置实现。应按目标版本官方文档选择，不能照抄旧 Jest 口径或机械地三者全调。
+`vi.clearAllMocks()` 对所有 mock 调用 `mockClear()`：清调用、结果等历史，但保留实现。`vi.resetAllMocks()` 调用 `mockReset()`，同时清历史和 once 队列；当前 Vitest 中，`vi.fn()` 回到返回 `undefined` 的空实现，`vi.fn(initialImpl)` 回到该初始实现，`vi.spyOn` 仍是 spy，但回到被观察的原实现。`vi.restoreAllMocks()` 只恢复由 `vi.spyOn()` 创建的 spy 的原 descriptor，不影响 automock，也不会像单个 `mockRestore()` 那样替所有 mock 通用清历史或重置实现。应按目标版本官方文档选择，不能照抄旧 Jest 口径或机械地三者全调。
 
 :::
 

@@ -58,6 +58,7 @@ const PLACEHOLDER_PATTERNS = [
 const DETAILS_MARKER = '::: details 参考答案'
 const FOLLOWUP_MARKER_PATTERN = /^\*\*追问(链)?[：:]\*\*(.*)$/
 const FOLLOWUP_DETAILS_MARKER = '::: details 追问参考答案'
+const FOLLOWUP_HEADING_PATTERN = /^#### (追问|追问链)$/
 const MIN_FOLLOWUP_ANSWER_LENGTH = 40
 
 function createFenceState() {
@@ -254,61 +255,128 @@ export function extractFollowupAnswerDetails(block) {
  * }}
  */
 export function findFollowupSection(block) {
+  return findFollowupSections(block)[0] ?? {
+    found: false,
+    kind: null,
+    questions: [],
+    markerLine: -1,
+  }
+}
+
+/**
+ * @param {string} block
+ * @returns {{
+ *   found: true,
+ *   kind: 'single' | 'chain',
+ *   questions: { number: number, text: string }[],
+ *   markerLine: number,
+ *   startIndex: number,
+ * }[]}
+ */
+export function findFollowupSections(block) {
   const lines = block.split('\n')
+  const lineOffsets = []
+  let offset = 0
+  for (const line of lines) {
+    lineOffsets.push(offset)
+    offset += line.length + 1
+  }
+
+  const markers = []
   const fenceState = createFenceState()
+  const skippedAnswerContainers = []
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]
+    const line = lines[index].replace(/\r$/, '')
     if (consumeFenceLine(fenceState, line)) continue
 
-    const markerMatch = line.match(FOLLOWUP_MARKER_PATTERN)
-    if (!markerMatch) continue
-
-    const isChain = Boolean(markerMatch[1])
-    const questions = []
-    if (!isChain) {
-      let text = markerMatch[2].trim()
-      if (!text) {
-        for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-          const candidate = lines[cursor].trim()
-          if (!candidate) continue
-          if (candidate.startsWith(':::')) break
-          text = candidate
-          break
-        }
+    const container = parseContainerLine(line)
+    if (skippedAnswerContainers.length > 0) {
+      if (container?.info) {
+        skippedAnswerContainers.push(container.length)
+      } else if (
+        container &&
+        container.length >=
+          skippedAnswerContainers[skippedAnswerContainers.length - 1]
+      ) {
+        skippedAnswerContainers.pop()
       }
-      if (text) questions.push({ number: 1, text })
-    } else if (markerMatch[2].trim()) {
-      markerMatch[2]
-        .split('→')
-        .map((text) => text.trim())
-        .filter(Boolean)
-        .forEach((text, questionIndex) => {
-          questions.push({ number: questionIndex + 1, text })
-        })
-    } else {
-      for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-        const candidate = lines[cursor].trim()
-        if (!candidate) continue
-        if (candidate === FOLLOWUP_DETAILS_MARKER) break
-        const questionMatch = candidate.match(/^(\d+)\.\s+(.+)$/)
-        if (!questionMatch) break
-        questions.push({
+      continue
+    }
+    if (container?.info === 'details 追问参考答案') {
+      skippedAnswerContainers.push(container.length)
+      continue
+    }
+
+    const headingMatch = line.match(FOLLOWUP_HEADING_PATTERN)
+    const boldMatch = line.match(FOLLOWUP_MARKER_PATTERN)
+    if (!headingMatch && !boldMatch) continue
+
+    markers.push({
+      found: true,
+      kind:
+        (headingMatch?.[1] ?? (boldMatch?.[1] ? '追问链' : '追问')) ===
+        '追问链'
+          ? 'chain'
+          : 'single',
+      inlineText: boldMatch?.[2].trim() ?? '',
+      questions: [],
+      markerLine: index + 1,
+      lineIndex: index,
+      startIndex: lineOffsets[index],
+    })
+  }
+
+  for (let markerIndex = 0; markerIndex < markers.length; markerIndex += 1) {
+    const marker = markers[markerIndex]
+    const nextMarkerLine = markers[markerIndex + 1]?.lineIndex ?? lines.length
+    const numberedQuestions = []
+    let firstBodyText = ''
+    const questionFenceState = createFenceState()
+
+    for (
+      let cursor = marker.lineIndex + 1;
+      cursor < nextMarkerLine;
+      cursor += 1
+    ) {
+      const rawCandidate = lines[cursor].replace(/\r$/, '')
+      if (consumeFenceLine(questionFenceState, rawCandidate)) continue
+      const candidate = rawCandidate.trim()
+      if (!candidate) continue
+      if (parseContainerLine(rawCandidate)) break
+
+      const questionMatch = candidate.match(/^(\d+)\.\s+(.+)$/)
+      if (questionMatch) {
+        numberedQuestions.push({
           number: Number(questionMatch[1]),
           text: questionMatch[2].trim(),
         })
+        continue
       }
+      if (numberedQuestions.length > 0) break
+      firstBodyText = candidate
+      break
     }
 
-    return {
-      found: true,
-      kind: isChain ? 'chain' : 'single',
-      questions,
-      markerLine: index + 1,
+    if (numberedQuestions.length > 0) {
+      marker.questions = numberedQuestions
+    } else if (marker.inlineText) {
+      const inlineQuestions = marker.kind === 'chain'
+        ? marker.inlineText
+        .split('→')
+        .map((text) => text.trim())
+        .filter(Boolean)
+        : [marker.inlineText]
+      marker.questions = inlineQuestions.map((text, questionIndex) => ({
+        number: questionIndex + 1,
+        text,
+      }))
+    } else if (firstBodyText) {
+      marker.questions = [{ number: 1, text: firstBodyText }]
     }
   }
 
-  return { found: false, kind: null, questions: [], markerLine: -1 }
+  return markers.map(({ inlineText, lineIndex, ...section }) => section)
 }
 
 /**
@@ -349,88 +417,86 @@ function findFollowupAnswerHeadings(content) {
  * }}
  */
 export function validateFollowupSection(block) {
-  const section = findFollowupSection(block)
-  if (!section.found) {
+  const sections = findFollowupSections(block)
+  if (sections.length === 0) {
     return { failures: [], questionCount: 0, answerCount: 0 }
   }
 
   const failures = []
-  if (section.questions.length === 0) {
-    failures.push('追问标记后没有有效问题')
-  }
+  let questionCount = 0
+  let answerCount = 0
 
-  const details = extractFollowupAnswerDetails(block)
-  if (!details.found) {
-    failures.push('缺少追问参考答案')
-    return {
-      failures,
-      questionCount: section.questions.length,
-      answerCount: 0,
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex]
+    questionCount += section.questions.length
+    if (section.questions.length === 0) {
+      failures.push('追问标记后没有有效问题')
     }
-  }
-  if (!details.closed) {
-    failures.push('追问参考答案容器未闭合')
-    return {
-      failures,
-      questionCount: section.questions.length,
-      answerCount: 0,
+
+    const end = sections[sectionIndex + 1]?.startIndex ?? block.length
+    const sectionBlock = block.slice(section.startIndex, end)
+    const details = extractFollowupAnswerDetails(sectionBlock)
+    if (!details.found) {
+      failures.push('缺少追问参考答案')
+      continue
     }
-  }
+    if (!details.closed) {
+      failures.push('追问参考答案容器未闭合')
+      continue
+    }
 
-  const content = details.content ?? ''
-  if (findPlaceholders(content).length > 0) {
-    failures.push('追问参考答案含占位文案')
-  }
+    const content = details.content ?? ''
+    if (findPlaceholders(content).length > 0) {
+      failures.push('追问参考答案含占位文案')
+    }
 
-  const answers = []
-  if (section.kind === 'single') {
-    answers.push({
-      number: 1,
-      text: section.questions[0]?.text ?? '',
-      content,
-    })
-  } else {
-    const headings = findFollowupAnswerHeadings(content)
-    for (let index = 0; index < headings.length; index += 1) {
-      const start = headings[index].index + headings[index].length
-      const end = headings[index + 1]?.index ?? content.length
+    const answers = []
+    if (section.kind === 'single' && section.questions.length <= 1) {
       answers.push({
-        number: headings[index].number,
-        text: headings[index].text,
-        content: content.slice(start, end).trim(),
+        number: 1,
+        text: section.questions[0]?.text ?? '',
+        content,
       })
+    } else {
+      const headings = findFollowupAnswerHeadings(content)
+      for (let index = 0; index < headings.length; index += 1) {
+        const start = headings[index].index + headings[index].length
+        const answerEnd = headings[index + 1]?.index ?? content.length
+        answers.push({
+          number: headings[index].number,
+          text: headings[index].text,
+          content: content.slice(start, answerEnd).trim(),
+        })
+      }
     }
-  }
 
-  if (answers.length !== section.questions.length) {
-    failures.push(
-      `追问数量 ${section.questions.length} 与答案数量 ${answers.length} 不一致`,
-    )
-  }
-
-  const comparableCount = Math.min(answers.length, section.questions.length)
-  for (let index = 0; index < comparableCount; index += 1) {
-    const question = section.questions[index]
-    const answer = answers[index]
-    if (question.number !== answer.number) {
-      failures.push(`第 ${index + 1} 个追问编号与答案编号不一致`)
-    }
-    if (question.text !== answer.text) {
-      failures.push(`第 ${index + 1} 个追问文本与答案标题不一致`)
-    }
-    const effectiveLength = answer.content.replace(/[#>*`\-|\s]/g, '').length
-    if (effectiveLength < MIN_FOLLOWUP_ANSWER_LENGTH) {
+    answerCount += answers.length
+    if (answers.length !== section.questions.length) {
       failures.push(
-        `第 ${index + 1} 个追问答案少于 ${MIN_FOLLOWUP_ANSWER_LENGTH} 个有效字符`,
+        `追问数量 ${section.questions.length} 与答案数量 ${answers.length} 不一致`,
       )
     }
+
+    const comparableCount = Math.min(answers.length, section.questions.length)
+    for (let index = 0; index < comparableCount; index += 1) {
+      const question = section.questions[index]
+      const answer = answers[index]
+      if (question.number !== answer.number) {
+        failures.push(`第 ${index + 1} 个追问编号与答案编号不一致`)
+      }
+      if (question.text !== answer.text) {
+        failures.push(`第 ${index + 1} 个追问文本与答案标题不一致`)
+      }
+      const effectiveLength = answer.content.replace(/[#>*`\-|\s]/g, '').length
+      if (effectiveLength < MIN_FOLLOWUP_ANSWER_LENGTH) {
+        failures.push(
+          `第 ${index + 1} 个追问答案少于 ${MIN_FOLLOWUP_ANSWER_LENGTH} 个有效字符`,
+        )
+      }
+    }
   }
 
-  return {
-    failures,
-    questionCount: section.questions.length,
-    answerCount: answers.length,
-  }
+  return { failures, questionCount, answerCount }
 }
 
 /**
@@ -607,14 +673,32 @@ export async function validateQuestionBank(options = {}) {
 
       let generalPlaceholderSource = block
       if (requireFollowups && selectedFollowupFiles.has(file)) {
-        const followupDetails = extractFollowupAnswerDetails(block)
-        if (
-          followupDetails.startIndex !== undefined &&
-          followupDetails.endIndex !== undefined
+        const sections = findFollowupSections(block)
+        const answerRanges = []
+        for (
+          let sectionIndex = 0;
+          sectionIndex < sections.length;
+          sectionIndex += 1
         ) {
+          const section = sections[sectionIndex]
+          const end = sections[sectionIndex + 1]?.startIndex ?? block.length
+          const details = extractFollowupAnswerDetails(
+            block.slice(section.startIndex, end),
+          )
+          if (
+            details.startIndex !== undefined &&
+            details.endIndex !== undefined
+          ) {
+            answerRanges.push({
+              start: section.startIndex + details.startIndex,
+              end: section.startIndex + details.endIndex,
+            })
+          }
+        }
+        for (const range of answerRanges.reverse()) {
           generalPlaceholderSource =
-            block.slice(0, followupDetails.startIndex) +
-            block.slice(followupDetails.endIndex)
+            generalPlaceholderSource.slice(0, range.start) +
+            generalPlaceholderSource.slice(range.end)
         }
       }
       for (const pattern of findPlaceholders(generalPlaceholderSource)) {

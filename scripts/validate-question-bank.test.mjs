@@ -7,6 +7,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as validator from './validate-question-bank.mjs'
 import {
   EXPECTED_QUESTION_FILES,
   REPO_ROOT,
@@ -417,6 +418,130 @@ function testFencedFakeAnswerCannotSatisfyMissingAnswer() {
   )
 }
 
+function testHeadingFollowupChainWithoutAnswersCountsEveryQuestion() {
+  const block = `### D1. 示例
+
+::: details 参考答案
+主答案
+
+#### 追问链
+1. 第一个追问？
+2. 第二个追问？
+3. 第三个追问？
+:::
+`
+  const result = validateFollowupSection(block)
+  assert.equal(typeof validator.findFollowupSections, 'function')
+  assert.equal(validator.findFollowupSections(block).length, 1)
+  assert.equal(findFollowupSection(block).questions.length, 3)
+  assert.equal(result.questionCount, 3)
+  assert.equal(result.answerCount, 0)
+  assert.match(result.failures.join('\n'), /缺少追问参考答案/)
+}
+
+function testBoldFollowupWithNumberedQuestionsAndAnswers() {
+  const block = `### D1. 示例
+
+**追问：**
+1. 第一个追问？
+2. 第二个追问？
+3. 第三个追问？
+
+::: details 追问参考答案
+**1. 第一个追问？**
+第一个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+**2. 第二个追问？**
+第二个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+**3. 第三个追问？**
+第三个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+:::
+`
+  const result = validateFollowupSection(block)
+  assert.equal(result.questionCount, 3)
+  assert.equal(result.answerCount, 3)
+  assert.deepEqual(result.failures, [])
+
+  const missingThirdAnswer = block.replace(
+    /\n\*\*3\. 第三个追问？\*\*[\s\S]*?(?=\n:::)/,
+    '',
+  )
+  const missingResult = validateFollowupSection(missingThirdAnswer)
+  assert.equal(missingResult.questionCount, 3)
+  assert.equal(missingResult.answerCount, 2)
+  assert.match(
+    missingResult.failures.join('\n'),
+    /追问数量 3 与答案数量 2 不一致/,
+  )
+}
+
+function testMultipleFollowupSectionsPairWithOwnAnswerDetails() {
+  const block = `### D1. 示例
+
+::: details 参考答案
+主答案
+
+#### 追问链
+1. 标题链第一问？
+2. 标题链第二问？
+
+::: details 追问参考答案
+**1. 标题链第一问？**
+标题链第一问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+**2. 标题链第二问？**
+标题链第二问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+:::
+:::
+
+**追问链：**
+1. 粗体链第一问？
+2. 粗体链第二问？
+
+::: details 追问参考答案
+**1. 粗体链第一问？**
+粗体链第一问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+**2. 粗体链第二问？**
+粗体链第二问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。
+:::
+`
+  const sections = validator.findFollowupSections(block)
+  const result = validateFollowupSection(block)
+  assert.equal(sections.length, 2)
+  assert.equal(findFollowupSection(block).markerLine, sections[0].markerLine)
+  assert.equal(result.questionCount, 4)
+  assert.equal(result.answerCount, 4)
+  assert.deepEqual(result.failures, [])
+}
+
+function testFollowupScannerRejectsFalseMarkers() {
+  const block = `### D1. 示例
+
+\`\`\`md
+#### 追问链
+1. 围栏里的伪追问？
+\`\`\`
+
+#### 追问参考答案
+1. 答案标题不能成为追问？
+
+#### 追问链答案
+1. 相似标题不能成为追问？
+
+::: details 追问参考答案
+#### 追问
+1. 答案容器里的伪追问？
+:::
+
+#### 追问
+1. 唯一真实追问？
+`
+  const sections = validator.findFollowupSections(block)
+  const result = validateFollowupSection(block)
+  assert.equal(sections.length, 1)
+  assert.equal(sections[0].questions[0]?.text, '唯一真实追问？')
+  assert.equal(result.questionCount, 1)
+  assert.equal(result.answerCount, 0)
+}
+
 function testParseFollowupArgs() {
   assert.deepEqual(parseFollowupArgs([]), {
     requireFollowups: false,
@@ -531,10 +656,13 @@ async function testFollowupPlaceholderDiagnosticIsNotDuplicated() {
     )
     await writeFile(
       path.join(questionDir, '01-js-ts.md'),
-      singleFollowup.replace(
-        '单个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。',
-        'TODO：稍后补充完整答案。',
-      ),
+      `${singleFollowup}
+**追问：** 第二个追问如何回答？
+
+::: details 追问参考答案
+TODO：稍后补充完整答案。
+:::
+`,
     )
 
     const result = await validateQuestionBank({
@@ -723,6 +851,10 @@ testFollowupParsingSkipsCodeFence()
 testMarkdownStateMachineBoundaries()
 testFencedFakeAnswerCannotSatisfyMissingAnswer()
 testFencedFakeAnswerHeadingDoesNotIncreaseCount()
+testHeadingFollowupChainWithoutAnswersCountsEveryQuestion()
+testBoldFollowupWithNumberedQuestionsAndAnswers()
+testMultipleFollowupSectionsPairWithOwnAnswerDetails()
+testFollowupScannerRejectsFalseMarkers()
 testParseFollowupArgs()
 testHasDeepSection()
 testInvalidEnvExitsOne()
@@ -734,4 +866,4 @@ await testFollowupPlaceholderDiagnosticIsNotDuplicated()
 testFollowupDetailsExposeExactRangeWithContentCollision()
 await testApiRejectsEmptyFollowupFiles()
 
-console.log('validate-question-bank 边界自测通过（21 组）')
+console.log('validate-question-bank 边界自测通过（25 组）')

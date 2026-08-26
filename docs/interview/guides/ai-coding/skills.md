@@ -17,7 +17,7 @@ Skill 用于教 Agent 完成一类可复用任务。每个 Skill 是一个包含
 
 ## frontmatter 字段
 
-- `name`：必填，小写字母、数字和连字符；应与父目录名一致；
+- `name`：必填，最长 64 个字符，只能使用小写字母、数字和连字符；应与父目录名一致；
 - `description`：必填，明确「做什么」和「何时使用」；
 - `paths`：可选，用 glob 限定相关文件，可写逗号分隔字符串或列表；
 - `disable-model-invocation`：可选，设为 `true` 后只在显式 `/skill-name` 调用时加载。

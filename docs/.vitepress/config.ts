@@ -66,17 +66,17 @@ export default defineConfig({
             { text: 'Java 全栈偏前', link: '/interview/questions/07-java-fullstack' },
             { text: 'NestJS', link: '/interview/questions/13-nestjs' },
             { text: 'AI / vibe coding', link: '/interview/questions/09-ai-vibe-coding' },
-          ],
-        },
-        {
-          text: 'AI 编程实践',
-          collapsed: true,
-          items: [
-            { text: 'Cursor 工作流', link: '/interview/guides/ai-coding/cursor-workflow' },
-            { text: 'Rules 实践', link: '/interview/guides/ai-coding/rules' },
-            { text: 'Skills 实践', link: '/interview/guides/ai-coding/skills' },
-            { text: 'Hooks 与 MCP', link: '/interview/guides/ai-coding/hooks-mcp' },
-            { text: 'Vue 项目示例', link: '/interview/guides/ai-coding/vue-project-example' },
+            {
+              text: 'AI 编程实践',
+              collapsed: true,
+              items: [
+                { text: 'Cursor 工作流', link: '/interview/guides/ai-coding/cursor-workflow' },
+                { text: '前端 Rules', link: '/interview/guides/ai-coding/rules' },
+                { text: '前端 Skills', link: '/interview/guides/ai-coding/skills' },
+                { text: 'Hooks 与 MCP', link: '/interview/guides/ai-coding/hooks-mcp' },
+                { text: 'Vue 项目示例', link: '/interview/guides/ai-coding/vue-project-example' },
+              ],
+            },
           ],
         },
         {

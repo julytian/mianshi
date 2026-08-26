@@ -59,6 +59,18 @@
 
 保存为 `.cursor/hooks/security-gate.mjs`。它只展示可复制的最小策略，字段兼容逻辑集中在取值处；上线前必须用 Hooks 输出检查实际事件输入。
 
+`beforeMCPExecution` 的输入使用顶层官方字段 `mcp_server_name`、`tool_name` 和 `tool_input`。例如：
+
+```json
+{
+  "mcp_server_name": "deployment",
+  "tool_name": "create_release",
+  "tool_input": {
+    "environment": "production"
+  }
+}
+```
+
 ```js
 #!/usr/bin/env node
 
@@ -71,8 +83,8 @@ try {
 }
 
 const command = String(input.command ?? input.tool_input?.command ?? '')
-const server = String(input.server_name ?? input.tool_input?.server_name ?? '')
-const tool = String(input.tool_name ?? input.tool_input?.tool_name ?? '')
+const server = String(input.mcp_server_name ?? '')
+const tool = String(input.tool_name ?? '')
 const target = `${server}:${tool}`
 
 const deniedShell = [
@@ -153,6 +165,7 @@ process.stdin.on('end', () => {
 {
   "mcpServers": {
     "project-api-docs": {
+      "type": "stdio",
       "command": "node",
       "args": ["tools/api-docs-mcp/dist/index.js"],
       "env": {
@@ -187,7 +200,7 @@ process.stdin.on('end', () => {
 }
 ```
 
-`stdio` 服务由 Cursor 启动本地进程；远程 URL 由对应服务决定是 Streamable HTTP 还是 SSE。不要虚构 `transport` 字段来强行标记协议。环境变量插值、OAuth 和具体可用字段应以当前 [MCP 配置说明](https://cursor.com/docs/mcp) 为准。
+`stdio` 服务使用 `type: "stdio"` 明确标识，并由 Cursor 启动本地进程；远程 URL 由对应服务决定是 Streamable HTTP 还是 SSE。不要虚构 `transport` 等非官方字段。环境变量插值、OAuth 和具体可用字段应以当前 [MCP 配置说明](https://cursor.com/docs/mcp) 为准。
 
 ## 五类前端场景
 

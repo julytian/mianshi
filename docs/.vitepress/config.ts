@@ -86,6 +86,16 @@ export default defineConfig({
           ],
         },
         {
+          text: '求职材料',
+          items: [
+            { text: '资深前端简历指南', link: '/interview/resume/senior-frontend-guide' },
+            { text: '资深前端简历模板', link: '/interview/resume/senior-frontend-template' },
+            { text: '资深前端简历示例', link: '/interview/resume/senior-frontend-example' },
+            { text: '项目经历改写清单', link: '/interview/resume/project-rewrite-checklist' },
+            { text: 'ATS 简历检查清单', link: '/interview/resume/ats-checklist' },
+          ],
+        },
+        {
           text: '故事与模拟',
           items: [
             { text: '故事模板', link: '/interview/stories/template' },

@@ -42,6 +42,7 @@ export const EXPECTED_QUESTION_FILES = [
   '19-hybrid-app.md',
   '20-performance-ux.md',
   '21-testing-quality.md',
+  '22-project-behavioral.md',
 ]
 
 const PLACEHOLDER_PATTERNS = [

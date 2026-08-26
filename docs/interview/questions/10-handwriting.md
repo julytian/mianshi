@@ -301,7 +301,7 @@ promiseAll([]).then((r) => console.log('empty', r)) // []
 
 **1. 已有一个失败后，其它 Promise 还在跑，怎么取消？**
 
-策略：Promise 不可强制取消，应让任务共享 `AbortSignal`；首个失败时调用内部 `AbortController.abort`，任务把信号传给 fetch 或定时器。复杂度：广播 O(1)，监听器处理总计 O(n)，空间 O(n)。边界：忽略 signal 的任务仍会运行，只能丢弃晚到结果。测试：让一项快速失败，断言在途项收到 abort、待执行项未启动，且原始错误不被 AbortError 覆盖。
+策略：`Promise.all` 接收的 Promise 通常创建时已启动，只能提前 reject，不能停止其余项。取消必须由底层任务支持 `AbortSignal`，并在调用前注入、向 fetch 或定时器透传；若要阻止未启动任务，应改收任务工厂并交给并发池领取。复杂度：all 的登记时间、结果空间 O(n)。边界：忽略 signal 的任务仍会完成。测试：验证普通 Promise 在失败后继续运行，并验证工厂池不再领取新任务。
 
 **2. 手写 `allSettled` 和 `all` 差在哪几行？**
 
@@ -831,7 +831,7 @@ console.log(user.name, user instanceof User) // Ada true
 
 **1. `bind` 之后还能再 `bind` 改 `this` 吗？**
 
-策略：原生 bound function 已固定 `[[BoundThis]]`，二次 bind 不能改 this，只追加预置参数；new 会忽略绑定 this，并传递 `new.target`。复杂度：参数拼接时间、空间 O(m)。边界：箭头函数不可构造；规范 bound 函数没有普通 prototype 自有属性，教学版手动设置并不等价。测试：验证二次绑定、参数顺序、new、`instanceof` 和 new.target。
+策略：原生 bound 固定 this。直接 new 时，若 newTarget 就是 Bound，规范将其替换为目标函数；`Reflect.construct(Bound, args, Other)` 则转发 Other。复杂度：参数拼接时间、空间 O(m)。边界：教学 `myBind` 难模拟该替换及 prototype 内部语义。测试：覆盖二次 bind、直接 new、Other newTarget 和 `instanceof`。
 
 **2. 为什么要用 `Symbol` 当临时 key？**
 

@@ -231,7 +231,7 @@ qiankun 默认使用基于 `Proxy` 的沙箱隔离子应用对全局 `window` �
 
 Garfish 可通过 `run` 注册应用并由 Router Plugin 根据 `activeWhen` 自动加载，也可用 `loadApp` 手动创建应用实例。实例提供 `mount`、`show`、`unmount`、`hide` 等能力，并通过 `activeApps` 管理活动应用。
 
-官方生命周期可概括为加载、渲染、销毁。开启缓存后，路由再次命中通常通过 `show` 恢复；`show` 会再次调用 provider 的 `render`，但不会创建新的执行上下文，因此业务仍要控制重复副作用。离开时，`hide` 会执行 `provider.destroy`、移除渲染容器并将应用从活动列表移除，但保留执行上下文，后续可用 `show` 恢复；`unmount` 在执行 `provider.destroy` 和移除容器之外，还会销毁执行上下文、清理沙箱收集的编译副作用，并把 `mounted`、`display` 置为 `false`。手动模式不受 `activeWhen` 控制，销毁责任完全落在调用方。
+官方生命周期可概括为加载、渲染、销毁。开启缓存后，路由再次命中通常通过 `show` 恢复；`show` 会再次调用 provider 的 `render`，但不会创建新的执行上下文，因此业务仍要控制重复副作用。离开时，`hide` 会执行 `provider.destroy`、移除渲染容器并将应用从活动列表移除，但保留执行上下文，后续可用 `show` 恢复；`unmount` 在执行 `provider.destroy` 和移除容器之外，还会销毁执行上下文、清理沙箱收集的运行时副作用，并把 `mounted`、`display` 置为 `false`。手动模式不受 `activeWhen` 控制，销毁责任完全落在调用方。
 
 **追问：**
 1. `hide` 与 `unmount` 如何在恢复速度和资源回收之间取舍？

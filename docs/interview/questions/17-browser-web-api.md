@@ -178,7 +178,7 @@ BFCache 会把离开的完整文档及 JavaScript 堆冻结，在后退或前进
 
 ---
 
-## 三、并发、通信与离线
+## 二、并发、通信与离线
 
 ### Q8. Web Worker 如何通信，结构化克隆与 Transferable 有什么区别？
 
@@ -252,7 +252,7 @@ BroadcastChannel 让同源且位于兼容存储分区的窗口、标签页、ifr
 
 ---
 
-## 四、组件与可安装体验
+## 三、组件与可安装体验
 
 ### Q11. Web Components 和 Shadow DOM 的封装边界是什么？
 
@@ -302,7 +302,7 @@ Service Worker 常用于离线与可控缓存，但 Web App Manifest 规范本�
 
 ---
 
-## 五、深层场景题
+## 四、深层场景题
 
 ### D1. 如何解释从 URL 到页面可交互的完整链路？
 

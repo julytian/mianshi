@@ -212,10 +212,10 @@ Schema 表单适合：**字段多、常改、多端/多租户差异大**的中�
 
 ### Q9. 主题与布局（暗色、紧凑、多布局）你会怎么做才可维护？
 
-**考察点：** Design Token、CSS 变量、ConfigProvider、布局切换
+**考察点：** CSS-in-JS、Design Token、ConfigProvider、布局切换
 
 ::: details 参考答案
-Ant Design Vue 4 / 现代方案优先 **Design Token + CSS 变量**：通过 `ConfigProvider` 注入算法（默认 / 暗色 / 紧凑），业务少写死十六进制。自研皮肤：在 token 之上再挂一层品牌变量，组件库与业务都读变量。
+Ant Design Vue 4 移除 Less 主题链路，采用 **CSS-in-JS + Design Token** 支持动态主题，通过 `ConfigProvider` 的 `theme` 配置 Token 与算法（默认 / 暗色 / 紧凑），业务少写死十六进制。业务可以在 Token 之上维护 `--app-*` CSS 自定义属性，服务图表、地图或自研组件，但它们是业务语义变量，**不是 Ant Design Vue 4 的主题机制**，需要显式从 Token 映射和同步。
 
 布局：侧栏、顶栏、混合、内容全屏——用 layout 组件 + 路由 `meta.layout` 切换，别复制四套壳。宽度折叠、固定 Header、内容区滚动容器要统一，否则表格 sticky、弹层定位会到处打架。
 
@@ -524,13 +524,15 @@ Q9 已回答 Token、暗色与布局的基础方案，Q14 已回答列渲染器�
 全局 Token 解决品牌色、圆角、字号等基础语义，组件级 Token 处理局部差异，业务层再定义 `--app-color-risk` 等领域语义。包装组件若重新命名每个属性，会形成第二套 API；多根节点还可能导致 `$attrs`、`aria-*` 和事件没有落到真实交互元素。
 
 #### 工程场景
-我会分三层：直接使用 AntDV；薄封装如 `AppButton` 只加入权限、埋点或业务默认值；复合组件拥有独立领域契约。命令式反馈按版本处理：Ant Design Vue 4.x 在 `<a-config-provider>` 内配对 `<a-app>`，并在 `<a-app>` 的后代组件中调用 Vue API `App.useApp()`，取出 `message`、`modal`、`notification` 实例，才能消费当前主题等上下文；不能在 Provider 外调用，也不要写成 React 的 `App.useApp` 用法。3.x 没有 4.x `App` 上下文化方案，官方文档主要是全局静态方法，应承认上下文限制或使用该版本明确提供的组件/挂载方案，不能虚构跨版本统一 API。
+我会分三层：直接使用 AntDV；薄封装如 `AppButton` 只加入权限、埋点或业务默认值；复合组件拥有独立领域契约。Ant Design Vue 4.x 有两条官方上下文路径：
+1. **局部 hooks**：分别调用 `message.useMessage()`、`Modal.useModal()`、`notification.useNotification()`，取得 API 与 `contextHolder`，并把 holder 渲染在需要继承的上下文内；适合局部作用域；
+2. **应用级 App**：在应用上层渲染 `<a-app>`，其后代组件内调用 `App.useApp()` 取得 `message`、`modal`、`notification`，减少手工 holder；应用级场景优先此方案。`App.useApp()` 必须在 `<a-app>` 后代调用。若还要消费主题 Token，应让 `<a-config-provider>` 包住并与 `<a-app>` 配对；`ConfigProvider` 负责 Token 等配置，不替代 `<a-app>` 的上下文实例。
 
 #### 反例 / 踩坑
-全局覆盖 `.ant-*` 内部类、堆 `!important` 或复制全部组件 props，会在升级时集中爆炸。直接调用导入的全局 `message`、`Modal`、`notification` 静态方法，其挂载节点不在当前 `ConfigProvider` 上下文中，可能拿不到动态主题、locale 等配置；照抄 React 的 `message.useMessage`、`contextHolder` 也不是 Vue 4.x 的首选 API。
+全局覆盖 `.ant-*` 内部类、堆 `!important` 或复制全部组件 props，会在升级时集中爆炸。直接调用导入的全局 `message`、`Modal`、`notification` 静态方法，其动态创建的 Vue 实例不在当前上下文中，可能拿不到主题、locale、Pinia 等配置。使用 hooks 却忘记渲染 `contextHolder`，或在 `<a-app>` 外调用 `App.useApp()`，同样无法得到预期上下文。
 
 #### 资深回答模板
-「60–90 秒主回答：Q9 的 Token 之外，我重点治理上下文与升级。4.x 用 `ConfigProvider` 包 `<a-app>`，后代通过 `App.useApp()` 取 message、modal、notification；3.x 不硬套这套 API，按官方能力承认限制。封装分直接用、薄约定、领域复合三档，属性插槽透传，升级靠契约和视觉回归。」
+「60–90 秒主回答：AntDV 4 的主题机制是 CSS-in-JS、Design Token 和 ConfigProvider，`--app-*` 只是业务变量。命令式反馈有两路：局部用三个 `use*` hooks 并渲染 holder；应用级优先 `<a-app>`，后代再用 `App.useApp()`。ConfigProvider 负责 Token，App 负责上下文化实例；封装仍按薄约定与领域组件分层。」
 
 #### 追问链
 1. `Modal`、Message 等命令式能力如何接入主题上下文？

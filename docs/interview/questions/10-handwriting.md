@@ -933,11 +933,27 @@ assert.throws(() => getRange(0, 100, 20, -1), RangeError)
 
 #### 资深回答模板
 「定高版把 scrollTop 映射为 `[start, end)`，总高负责滚动尺度，offset 负责视觉位置。核心计算 O(1)，渲染 O(k)；动态高度再引入测量缓存和二分定位。」
+:::
 
 #### 追问链
 1. scrollTop 在两项边界上时为什么用 floor？
 2. 如何测试空列表、最后一屏和极速滚动？
 3. 动态高度变化后如何维持视觉锚点？
+
+::: details 追问参考答案
+
+**1. scrollTop 在两项边界上时为什么用 floor？**
+
+本实现用 `Math.floor(safeScrollTop / itemHeight)` 得到占据视口顶部那一行。刚好落在第 n 项顶边时，该项 top 对齐视口，start 必须是 n；若用 `round` 或 `ceil`，边界上会提前切到下一项，首行被跳过。`end` 才用 `ceil` 包住视口底部。现有断言里负 scrollTop 先夹到 0 再 floor，避免把边界误差变成负索引。
+
+**2. 如何测试空列表、最后一屏和极速滚动？**
+
+空列表应对 `count=0` 得到 `{start:0,end:0,offset:0,total:0}`。最后一屏用过大 scrollTop，start/end 都夹到 count，如 10 项时窗口为空区间且 offset 等于总高。数据骤减后旧 scrollTop 仍须得到合法窗口。极速滚动测 rAF 合并后窗口始终落在 `[0,count]`、overscan 不越界、key 不错位；非法高度继续抛 `RangeError`。
+
+**3. 动态高度变化后如何维持视觉锚点？**
+
+变化前记下锚点 index 和该项内偏移；重新测量并更新前缀和后，把 `scrollTop` 设回「锚点项新前缀 + 偏移」，而不是只改 `total`。视口上方高度变了却不回写，滚动条会跳。未测项用估计值，测完再校正一次。测试固定某行在视口中的位置，改上方高度后断言该行视觉位置不变。
+
 :::
 
 **追问链：**
@@ -1010,11 +1026,27 @@ function filterTree(
 
 #### 资深回答模板
 「我用后序遍历先得到可见子树，再决定是否保留父节点。复杂度 O(n)，返回新树；权限继承、目录保留与服务端权威要在写代码前约定。」
+:::
 
 #### 追问链
 1. 如何同时返回半选与全选状态？
 2. 十万节点且频繁切角色如何缓存？
 3. 输入不是树而是 `id/pid` 扁平表时先做什么？
+
+::: details 追问参考答案
+
+**1. 如何同时返回半选与全选状态？**
+
+`filterTree` 只决定可见性，不能直接当勾选态。另做后序：叶子按权限是否命中标选中；目录看可见子节点，全中为全选、部分为半选、全无或无子为未选。目录自身 `permission` 只影响能不能出现，不自动推导子权限。返回新节点上的 `checked: 'on'|'off'|'indeterminate'`，并保持输入不可变。用交错权限的树对拍每层状态。
+
+**2. 十万节点且频繁切角色如何缓存？**
+
+树结构不变时，用角色或权限集合摘要做缓存键，命中则直接复用过滤结果。权限变更频繁时，为 `permission` 建反向索引，只重算命中节点及其祖先，并缓存可见子计数；影响面过大再回退全量 O(n)。缓存必须按角色隔离，避免串权。用同一棵大树切换两个角色，对比缓存结果与全量 `filterTree`。
+
+**3. 输入不是树而是 `id/pid` 扁平表时先做什么？**
+
+先建 `id → 节点` 的 Map，再按 `pid` 挂 `children`，得到森林后再交给现有的后序 `filterTree`。这一步要先处理重复 id、自环、父子环、未知 pid 和孤儿：约定丢弃、提升为根或直接报错，不要静默丢祖先。深度过大改显式栈。表驱动覆盖这些异常后，再断言过滤后的祖先链和兄弟顺序。
+
 :::
 
 **追问链：**
@@ -1117,11 +1149,27 @@ function createRequestCache<T>(capacity = 100) {
 
 #### 资深回答模板
 「LRU 解决已完成结果的容量淘汰，inflight Map 解决同 key 并发去重。二者生命周期不同：失败清飞行态，写操作主动失效结果缓存，key 必须覆盖权限与参数。」
+:::
 
 #### 追问链
 1. 多个调用方如何实现引用计数取消？
 2. TTL 与 LRU 同时存在时先判断什么？
 3. stale-while-revalidate 如何避免并发刷新？
+
+::: details 追问参考答案
+
+**1. 多个调用方如何实现引用计数取消？**
+
+`inflight` 条目保存底层 Promise 和引用计数。新调用方加一并挂接自己的 signal；某方 abort 只减一，计数到 0 才 abort 真正请求。这避免现有反例里「一方取消连坐」。失败仍在 `finally` 里删 inflight，成功再 `put` 进 LRU。测试三个调用方、中途取消两个，断言底层 loader 只跑一次且未被提前 abort。
+
+**2. TTL 与 LRU 同时存在时先判断什么？**
+
+`get` 先看键是否存在，再看是否过期：过期立即删除且不提升，视为 miss；未过期才按 LRU 挪到最近。`put` 写入 `expiresAt` 后再做容量淘汰，避免用过期项占着容量却当热点。时钟优先单调时间。注入假时钟，覆盖到期刚好等于 now、续期、淘汰与同时过期，确认过期项不会被当成一次 LRU 命中。
+
+**3. stale-while-revalidate 如何避免并发刷新？**
+
+过期但仍可用时立即返回旧值，刷新走与 inflight 同一条 singleflight：已有刷新则复用该 Promise，禁止并行打同一 key。刷新成功再 `put`；失败保留旧值并记录错误，不要把 rejected Promise 写进 LRU。结合现有去重 Map，把「过期刷新」和「首次加载」共用一把锁。用计数器断言窗口内 loader 只触发一次。
+
 :::
 
 **追问链：**
@@ -1189,11 +1237,27 @@ type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
 
 #### 资深回答模板
 「我先用条件类型分出函数、数组、对象和原始值，再递归映射；用 infer 解包 PromiseLike。类型工具必须有应通过和应报错两组编译测试，并控制递归复杂度。」
+:::
 
 #### 追问链
 1. 如何阻止条件类型对联合分发？
 2. tuple 在当前 `DeepReadonly` 中会丢失什么信息？
 3. `any`、`unknown`、`never` 分别会怎样传播？
+
+::: details 追问参考答案
+
+**1. 如何阻止条件类型对联合分发？**
+
+不要让被检查的 `T` 保持裸参数，改成 `[T] extends [readonly (infer U)[]]` 或 `[T] extends [object]`。这样 `A | B` 作为整体进入分支，而不会变成两个结果的联合。`IsUnion` 则要故意分发一次，再和整个 `U` 比较。给当前 `DeepReadonly` 加一组 `A | B` 输入的类型测试，确认包裹前后分别得到联合与整体对象。
+
+**2. tuple 在当前 `DeepReadonly` 中会丢失什么信息？**
+
+第二支 `T extends readonly (infer U)[]` 会把元组收成元素联合的只读数组，长度、按位类型和可选尾部都丢掉，`[string, number]` 变成 `ReadonlyArray<string | number>`。函数分支能保住调用签名，元组没有专支。要保元组应先匹配 `[any, ...any[]]` 再映射每一项，并用 `Equal` 断言长度与元素类型。
+
+**3. `any`、`unknown`、`never` 分别会怎样传播？**
+
+`any extends 函数` 走双分支，结果常是函数、数组、对象形态的联合，还可能递归膨胀，不能当 `any` 恒等。`unknown` 不是函数、不是数组，也不可赋给 `object`，会落到最后的 `: T`，仍是 `unknown`。裸 `never` 按空联合分布，整段往往直接变成 `never`。这三组必须写进 `tsc --noEmit` 正反例，不能只看 hover。
+
 :::
 
 **追问链：**
@@ -1618,11 +1682,27 @@ console.log('requestPool tests passed (13 groups)')
 
 #### 资深回答模板
 「我先声明 fail-fast：首个永久失败写入共享 fatal，停止领取并 abort 在途任务；外部 signal 联动内部 controller。结果按索引回填，忽略 signal 的任务不能强杀，只能丢弃晚到结果。all-settled 要另写契约。」
+:::
 
 #### 追问链
 1. `AbortSignal.any()` 可怎样组合用户取消与超时？
 2. 429 的 `Retry-After` 为什么优先于本地退避？
 3. 如何测试最大并发从未超过 limit？
+
+::: details 追问参考答案
+
+**1. `AbortSignal.any()` 可怎样组合用户取消与超时？**
+
+把用户信号与 `AbortSignal.timeout(ms)` 交给 `AbortSignal.any`，再传入 `requestPool` 的 `signal`。任一源触发时，现有 `onExternalAbort` 会 `fail` 并 `internal.abort`，worker 停领、`sleep` 摘定时器。不支持 `any` 时用两个 listener 转到同一 controller。测试分别点取消和超时，断言不再领取且退避定时器被清掉。
+
+**2. 429 的 `Retry-After` 为什么优先于本地退避？**
+
+429 表示服务端配额窗口，`Retry-After` 是权威等待时间；本地指数退避可能过早重打或比窗口更久。`shouldRetry` 认出 429 后，等待应取服务端秒数（或与本地 ceiling 的较大值），且仍走现有 `sleep(delay, signal)` 以便取消。非幂等请求即使有头也不要盲目重放。用假响应带 `Retry-After: 1` 断言实际等待不低于该值。
+
+**3. 如何测试最大并发从未超过 limit？**
+
+沿用实现里的 `onState(+1/-1)`：任务开始加一、`finally` 减一，全程记录 `maxActive`，断言 `maxActive <= limit`。必须包含重试：同一 worker 持有槽位做 `withRetry`，重试不得再开一个 worker。再覆盖 `limit=1`、fail-fast 后不再领取、外部 abort。假时钟下并发计数仍不得超过 limit，防止定时器把重叠放大。
+
 :::
 
 **追问链：**

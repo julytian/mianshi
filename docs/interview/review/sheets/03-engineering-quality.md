@@ -1,8 +1,8 @@
 # 工程与质量速记
 
-> **真源：** [03 工程化](/interview/questions/03-engineering)、[20 性能体验](/interview/questions/20-performance-ux)、[21 测试质量](/interview/questions/21-testing-quality)，以及 [AI 编程指南](/interview/guides/ai-coding/cursor-workflow) 为唯一真源；冲突时以题库为准。
+> **真源：** [03 工程化](/interview/questions/03-engineering)、[20 性能体验](/interview/questions/20-performance-ux)、[21 测试质量](/interview/questions/21-testing-quality)、[09 AI 编程](/interview/questions/09-ai-vibe-coding) 为唯一真源；冲突时以题库为准。
 >
-> **用法：** 面试前遮住口述稿先自讲，再对结论卡与追问速答。证据坑位请填入你自己的项目指标，勿背他人数字。
+> **用法：** 面试前遮住口述稿先自讲，再对结论卡与追问速答。证据坑位请填入你自己的项目指标，勿背他人数字。[AI 编程指南](/interview/guides/ai-coding/cursor-workflow) 仅作补充操作材料，不另开第二套标准答案。
 
 ## 一句话定位
 
@@ -70,12 +70,12 @@
     **边界：** `npm audit` 告警要区分可达利用路径，不是分数焦虑。  
     **证据坑位：** 〔填〕一次依赖 CVE 处置：影响面、升级或缓解、回归范围。
 
-16. **结论：** Docker 前端多阶段：构建用 Node，运行只留 Nginx / 最小运行时；非 root、只读、健康检查。  
-    **边界：** 能走对象存储 + CDN 的静态站不必强行进集群占 Deployment。  
-    **证据坑位：** 〔填〕镜像体积、非 root 用户与健康检查探针配置。
+16. **结论：** 镜像、探针、K8s 滚动与 CDN 回滚的细则见 [运维与部署速记](/interview/review/sheets/07-devops)；本域只守「不可变制品 + 可解释门禁」接口。  
+    **边界：** 静态站优先对象存储 + CDN，勿在本域重复背完整 Deployment 话术。  
+    **证据坑位：** 〔填〕本仓制品晋级到运维发布面的衔接点说明。
 
 17. **结论：** CI 用任务图、并行、affected 缩短反馈；远程缓存要输入完备与防投毒边界。  
-    **边界：** 「这台机器才能编过」必须容器化构建消除。  
+    **边界：** 「这台机器才能编过」必须容器化构建消除；容器与 agent 细节详见运维速记。  
     **证据坑位：** 〔填〕MR 到绿灯的中位时长与瓶颈任务。
 
 18. **结论：** 质量门禁要可解释：测什么、阈值、owner、例外期限与补偿控制；紧急放行必须限时可审计。  
@@ -105,8 +105,8 @@
 7. **AI 生成代码你上线前查什么？**  
    先核对接线是否真存在：路由、权限码、环境变量、依赖版本与类型是否通过。再查越权、注入、密钥与日志脱敏；用测试与契约证明关键路径，而不是只看「能演示」。提示词要给边界与验收标准；发现幻觉 API 立即停用并补回归。团队用统一 Rules，但不把模型指令当安全控制面。
 
-8. **静态站还要不要上 Kubernetes？**  
-   若只需托管哈希静态资源，对象存储加 CDN 通常更合适，HTML 短缓存、资源长缓存即可。Kubernetes 适合要统一 ingress、SSR / Node 运行时、或平台只收镜像的场景。上了集群也要用多阶段镜像、非 root、只读与健康检查；不要把 `vite dev` 装进生产镜像冒充运行时。
+8. **静态站部署选型你怎么一句收口？**  
+   只需哈希静态资源时，对象存储加 CDN 通常优于强行进集群占 Deployment；SSR / 平台只收镜像时再上 Kubernetes。本域先讲清 HTML 短缓存、资源长缓存与可切入口；多阶段镜像、非 root、探针与滚动细则指向 [运维速记](/interview/review/sheets/07-devops)，避免两册各背一套完整发布话术。
 
 ## 反例 / 红线
 
@@ -124,9 +124,12 @@
 | 环境变量 / 体积 / 分割 / 缓存 / 发布 | [03-engineering](/interview/questions/03-engineering) Q3、Q4、Q5、Q15、Q23；D4、D5、D8 |
 | CWV / 首屏 / INP / 第三方 | [20-performance-ux](/interview/questions/20-performance-ux) Q1、Q2、Q8；D2、D3、D7 |
 | 测试分层 / 竞态 / 契约 / 门禁 | [21-testing-quality](/interview/questions/21-testing-quality) Q1、Q3、Q9；D1、D2、D7 |
-| AI 工作流与规范 | [09-ai-vibe-coding](/interview/questions/09-ai-vibe-coding)；[AI 指南](/interview/guides/ai-coding/cursor-workflow) |
+| AI 工作流与规范 | [09-ai-vibe-coding](/interview/questions/09-ai-vibe-coding) Q1、Q4、Q5；D3、D4 |
+| 镜像 / K8s / 回滚（交叉） | 详见 [07-devops 速记](/interview/review/sheets/07-devops)；题库 [26-devops](/interview/questions/26-devops) |
 
 专题深挖：[性能、测试与质量门禁](/interview/review/topics/08-perf-testing)。
+
+补充材料：[AI 编程工作流](/interview/guides/ai-coding/cursor-workflow)（操作细节，冲突以题库为准）。
 
 ## 5 分钟口述稿
 

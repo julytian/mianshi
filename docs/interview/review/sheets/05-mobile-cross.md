@@ -1,6 +1,6 @@
 # 移动端与跨平台速记
 
-> **真源：** [06 uni-app / 小程序](/interview/questions/06-uniapp-miniprogram)、[19 Hybrid App](/interview/questions/19-hybrid-app) 为唯一真源；冲突时以题库为准。
+> **真源：** [06 uni-app / 小程序](/interview/questions/06-uniapp-miniprogram)、[19 Hybrid App](/interview/questions/19-hybrid-app) 为唯一真源；冲突时以题库为准。H5 业务适配见 [04 后台与业务](/interview/review/sheets/04-admin-business)；**Bridge / 返回栈细节以本册为准**。
 >
 > **用法：** 面试前遮住口述稿先自讲，再对结论卡与追问速答。证据坑位请填入你自己的项目指标，勿背他人数字。
 
@@ -114,7 +114,7 @@
 | 主题 | 题库入口 |
 | --- | --- |
 | 双线程 / 分包 / 登录隐私 / uni 多端 | [06-uniapp-miniprogram](/interview/questions/06-uniapp-miniprogram) Q1、Q3、Q4、Q9；D1、D2、D4 |
-| Hybrid / Bridge / 返回栈 / 热更新 | [19-hybrid-app](/interview/questions/19-hybrid-app) Q1、Q3、Q6、Q13；D1、D2、D8 |
+| Hybrid / Bridge / 返回栈 / 热更新 | [19-hybrid-app](/interview/questions/19-hybrid-app) Q1、Q3、Q6、Q13；D1、D2、D8；H5 侧见 [05-h5-vant](/interview/questions/05-h5-vant) Q9、D4、D5 |
 
 专题深挖：[Hybrid / 小程序 / H5](/interview/review/topics/11-hybrid-miniapp-h5)。
 

@@ -49,7 +49,7 @@ pnpm docs:preview
 
 1. **第一次使用：** [总览](docs/interview/00-overview.md) → 对照矩阵自测 → [60 天完整主线](docs/interview/plans/60-day.md)
 2. **14 天内面试：** [14 天冲刺版](docs/interview/plans/14-day.md)（更紧用 [7 天](docs/interview/plans/7-day.md)）
-3. **专项补弱：** 按下表八大能力域进入对应题库
+3. **专项补弱：** 按下方八大能力域分组进入对应题库
 4. **面试前 24 小时：** [故事模板](docs/interview/stories/template.md) · [项目答辩与行为面试](docs/interview/questions/22-project-behavioral.md) · [模拟脚本](docs/interview/mocks/scripts.md) · [反问清单](docs/interview/mocks/reverse-questions.md)
 5. **全栈补强：** [NestJS](docs/interview/questions/13-nestjs.md) → [数据库与 Prisma](docs/interview/questions/15-database-prisma.md) → [NestJS + Prisma 教程](docs/interview/guides/backend/nestjs-prisma.md)
 

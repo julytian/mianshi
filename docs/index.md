@@ -13,7 +13,7 @@ hero:
       text: 60 天路线
       link: /interview/plans/60-day
     - theme: alt
-      text: 14 天冲刺
+      text: 14 天冲刺版
       link: /interview/plans/14-day
 
 features:

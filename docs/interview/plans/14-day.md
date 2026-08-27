@@ -1,4 +1,4 @@
-# 14 天主线
+# 14 天冲刺版
 
 > **适合准备时间：** 约 2 周、目标岗位 A / B / C 都要能接的常规冲刺。若有 6～8 周，请改走 [60 天完整复习路线](/interview/plans/60-day)，不要把 60 天每天压进 14 天。
 
@@ -12,7 +12,8 @@
 - Vue3 核心与主项目故事（D17–D21、D58）
 - 多端按 JD 选一条加重：AntDV、Vant 或小程序（D33–D42 三选一加深）
 - 工程化 + 一条性能证据（D25–D30）
-- NestJS / Java 对比与 2 场模拟（D50–D51、对应本页 D12–D13）
+- NestJS / Java 对比：本页在 **D9** 完成（从 60 天 D50–D51 裁剪，不要和本页模拟日绑在一起）
+- 2 场模拟：本页在 **D12–D13**（与 60 天 D50–D51 无关）
 - 架构只按 JD 三选一：微前端 / NestJS / 前端架构（D53–D55 选一）
 
 ### 新增题库的最小覆盖
@@ -28,7 +29,7 @@
 | [测试与质量保障](/interview/questions/21-testing-quality) | Q1、Q9、D7 | 并入 D7 质量门禁 |
 | [项目答辩与行为面试](/interview/questions/22-project-behavioral) | Q1、Q2、D1、D2 | 并入 D3 故事、D14 终检 |
 | [数据库与 Prisma](/interview/questions/15-database-prisma) | Q15、Q17、D6 | 仅全栈岗，并入 D9 |
-| [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1 | 仅 JD 要求时，并入 D5 / D6 |
+| [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1 | 仅 JD 要求时并入 D5 / D6；只抽 Hybrid 边界题，不与当天 H5 题混答 |
 
 ---
 

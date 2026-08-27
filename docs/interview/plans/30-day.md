@@ -1,8 +1,8 @@
-# 30 天加练版
+# 30 天强化版
 
-> **适合准备时间：** 约 4 周、需要手写肌肉记忆和多场模拟时使用。完整主线仍是 [60 天完整复习路线](/interview/plans/60-day)；本页在 [14 天主线](/interview/plans/14-day) 上加练，**不要**把 60 天九个阶段按周硬折进 30 天。
+> **适合准备时间：** 约 4 周、需要手写肌肉记忆和多场模拟时使用。完整主线仍是 [60 天完整复习路线](/interview/plans/60-day)；本页在 [14 天冲刺版](/interview/plans/14-day) 上加练，**不要**把 60 天九个阶段按周硬折进 30 天。
 
-在 [14 天主线](/interview/plans/14-day) 骨架上拉长节奏：全月安排 **7 次必做手写、2 次独立系统设计、4 场周模拟 + 1 场额外综合架构模拟**，可选叠加 **Spring Boot CRUD + Vue 口述闭环**。手写集中在前两周打底，D16 再巩固一次；D27 按状态在半场彩排与轻量复盘中二选一。
+在 [14 天冲刺版](/interview/plans/14-day) 骨架上拉长节奏：全月安排 **7 次必做手写、2 次独立系统设计、4 场周模拟 + 1 场额外综合架构模拟**，可选叠加 **Spring Boot CRUD + Vue 口述闭环**。手写集中在前两周打底，D16 再巩固一次；D27 按状态在半场彩排与轻量复盘中二选一。
 
 先读 [总览与侧重点矩阵](/interview/00-overview)。执行原则：**14 天内容不加水稀释，用加练日做深度与肌肉记忆**；忙时优先保住主故事、Vue3、工程化与当周模拟。
 
@@ -31,7 +31,7 @@ HTML / CSS / 浏览器 / 安全 / Hybrid / Prisma 不单独开第二个月，用
 | [测试与质量保障](/interview/questions/21-testing-quality) | Q1、Q9、D1、D7 | 并入 D10 门禁、D25 架构场前 |
 | [项目答辩与行为面试](/interview/questions/22-project-behavioral) | Q1–Q5、D1–D3 | 并入 D5 故事、D24 简历、D29 反问 |
 | [数据库与 Prisma](/interview/questions/15-database-prisma) | Q5、Q11、Q15、D6 | 全栈岗并入 D19 / D20 Nest 段；非全栈只扫标题 |
-| [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1、D9 | JD 有 App 容器时并入 D8 uni-app 日 |
+| [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1、D9 | JD 有 App 容器时并入 D8；只抽 Hybrid 边界题，不与当天小程序题混答 |
 
 ---
 
@@ -603,7 +603,7 @@ MR → 生产流水线口述。
 #### 题库链接
 
 - [总览](/interview/00-overview)
-- [14 天主线](/interview/plans/14-day)（对照是否有漏网主题）
+- [14 天冲刺版](/interview/plans/14-day)（对照是否有漏网主题）
 
 #### 口述任务
 

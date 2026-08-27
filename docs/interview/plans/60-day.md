@@ -491,13 +491,13 @@
 
 #### 学习目标
 
-- 用 [单人自测版](/interview/mocks/scripts) 跑一场 45～60 分钟：浏览器 + 网络 + 安全 + 1 道手写
+- 用 [脚本七 · Web 基础与安全（60 分钟）](/interview/mocks/scripts#脚本七-web-基础与安全-60-分钟) 跑一场；无搭档时改 [单人自测版](/interview/mocks/scripts#单人自测版-无搭档时)，抽题仍覆盖浏览器 + 网络 + 安全 + 1 道手写
 - 用 [评分表](/interview/mocks/scorecard) 记九维里今天实际考到的维度
 - 本周第二次手写在正式计时下完成
 
 #### 题库与材料
 
-- [模拟脚本 · 单人自测版](/interview/mocks/scripts)
+- [模拟脚本 · 脚本七](/interview/mocks/scripts#脚本七-web-基础与安全-60-分钟)
 - [评分表](/interview/mocks/scorecard)
 - 抽题池：[浏览器](/interview/questions/17-browser-web-api) D1/D2 任一口述、[网络与安全](/interview/questions/18-network-security) D1 或 D3、[手写](/interview/questions/10-handwriting) Q1 或 Q2（防抖 / 节流，20 分钟）
 
@@ -731,7 +731,7 @@
 
 #### 题库与材料
 
-- [模拟脚本](/interview/mocks/scripts)：用「单人自测版」或「脚本一」前半，问题替换为 Vue 抽题
+- [模拟脚本](/interview/mocks/scripts#单人自测版-无搭档时)：用「单人自测版」或「[脚本一](/interview/mocks/scripts#脚本一-业务型中小厂-可抽查-java-联调)」前半，问题替换为 Vue 抽题
 - [评分表](/interview/mocks/scorecard)
 - 抽题：[Vue3](/interview/questions/02-vue3) Q1、Q21、D11、D14 四选三口述；[故事模板](/interview/stories/template) 主项目 5 分钟版
 
@@ -969,7 +969,7 @@
 #### 题库与材料
 
 - 回看当日方案会引用的题：[工程化](/interview/questions/03-engineering) D3/D4、[测试](/interview/questions/21-testing-quality) D7、[性能](/interview/questions/20-performance-ux) D1/D7
-- [评分表](/interview/mocks/scorecard) · [模拟脚本 · 单人自测版](/interview/mocks/scripts)（用「讲方案」代替通关脚本）
+- [评分表](/interview/mocks/scorecard) · [脚本九 · 性能、测试与质量](/interview/mocks/scripts#脚本九-性能-测试与质量-60-分钟)（或 [单人自测版](/interview/mocks/scripts#单人自测版-无搭档时) 用「讲方案」代替通关脚本）
 
 #### 必做输出
 
@@ -1175,7 +1175,7 @@
 
 - [故事模板](/interview/stories/template) · [故事示例](/interview/stories/examples)
 - 案例证据回链：[Ant Design Vue](/interview/questions/04-admin-antdv) D2/D4 或 [Vant H5](/interview/questions/05-h5-vant) D3
-- [模拟脚本](/interview/mocks/scripts) 脚本一的业务追问段 · [评分表](/interview/mocks/scorecard)
+- [模拟脚本 · 脚本一](/interview/mocks/scripts#脚本一-业务型中小厂-可抽查-java-联调) 的业务追问段 · [评分表](/interview/mocks/scorecard)
 
 #### 必做输出
 
@@ -1377,7 +1377,7 @@
 
 - [Hybrid App](/interview/questions/19-hybrid-app) **D9** · [uni-app / 小程序](/interview/questions/06-uniapp-miniprogram) D3
 - [前端系统设计](/interview/questions/11-frontend-system-design) Q6（跨端治理题干）
-- [模拟脚本](/interview/mocks/scripts) · [评分表](/interview/mocks/scorecard)
+- [模拟脚本 · 脚本八](/interview/mocks/scripts#脚本八-hybrid-app-与跨端-60-分钟) · [评分表](/interview/mocks/scorecard)
 
 #### 必做输出
 
@@ -1467,7 +1467,7 @@
 #### 题库与材料
 
 - [数据库与 Prisma](/interview/questions/15-database-prisma)：Q15–Q17；D 题选 **D6 或 D7**，扫 **D8**
-- [NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)：§1 环境与依赖、§ 中 Schema / 迁移相关节（按目录读你当天能消化的两节）
+- [NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)：§1 环境与依赖、§3 Schema（User / Role / Order）、§4 生成 Client 和迁移（按目录读你当天能消化的两节）
 - Nest 里的 ORM 选型对照：[NestJS](/interview/questions/13-nestjs) D8 标题
 
 #### 必做输出
@@ -1558,7 +1558,7 @@
 - [NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)（按目录把「从模型到接口」走通口头步骤）
 - [NestJS](/interview/questions/13-nestjs) Q6、Q7、D16
 - [数据库与 Prisma](/interview/questions/15-database-prisma) Q17、D7
-- [模拟脚本 · 脚本五](/interview/mocks/scripts) · [评分表](/interview/mocks/scorecard)
+- [模拟脚本 · 脚本五](/interview/mocks/scripts#脚本五-全栈偏前-nestjs-60-分钟) · [评分表](/interview/mocks/scorecard)
 
 #### 必做输出
 
@@ -1700,14 +1700,14 @@
 #### 学习目标
 
 - 完成一场 **端到端系统设计**：从约束到模块、发布、观测、故障、演进
-- 时长 60 分钟画 + 讲，或直接走 [脚本六](/interview/mocks/scripts) 中系统设计段并补全前后
+- 时长 60 分钟画 + 讲，或直接走 [脚本六](/interview/mocks/scripts#脚本六-高级前端架构-75-分钟) 中系统设计段并补全前后
 - 九维里架构约束、故障、演进必须打分
 
 #### 题库与材料
 
 - [前端系统设计](/interview/questions/11-frontend-system-design) D6（BFF）或 D5（跨端工程）或 Q2（监控）三选一作为题面
 - [前端架构](/interview/questions/14-frontend-architecture) D10
-- [模拟脚本 · 脚本六](/interview/mocks/scripts) · [评分表](/interview/mocks/scorecard)
+- [模拟脚本 · 脚本六](/interview/mocks/scripts#脚本六-高级前端架构-75-分钟) · [评分表](/interview/mocks/scorecard)
 
 #### 必做输出
 
@@ -1794,13 +1794,13 @@
 
 #### 学习目标
 
-- 按 [脚本六 · 高级前端架构（75 分钟）](/interview/mocks/scripts) 完整走场；目标岗偏业务则可改脚本一 + 加 15 分钟设计，但必须凑满 75 分钟结构
+- 按 [脚本十一 · 综合终场（75 分钟）](/interview/mocks/scripts#脚本十一-综合终场-75-分钟) 完整走场，并做九维评分；目标岗偏业务时用该脚本的 Senior 映射，不要改走脚本六
 - 用 [评分表](/interview/mocks/scorecard) 做 **九维评分**；未考察维度从分母移除
 - 只做上场急救，不再开新模块
 
 #### 题库与材料
 
-- [模拟脚本](/interview/mocks/scripts)（脚本六为主）
+- [模拟脚本 · 脚本十一](/interview/mocks/scripts#脚本十一-综合终场-75-分钟)
 - [评分表](/interview/mocks/scorecard)
 - [反问清单](/interview/mocks/reverse-questions)
 - 弱项回炉仅限 D16 / D24 / D32 / D57 留下的题号

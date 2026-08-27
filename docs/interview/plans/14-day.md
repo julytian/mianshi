@@ -1,8 +1,34 @@
 # 14 天主线
 
+> **适合准备时间：** 约 2 周、目标岗位 A / B / C 都要能接的常规冲刺。若有 6～8 周，请改走 [60 天完整复习路线](/interview/plans/60-day)，不要把 60 天每天压进 14 天。
+
 默认冲刺节奏。先读 [总览与侧重点矩阵](/interview/00-overview)，按公司类型标出加重模块，再按日执行。每天建议：**读题 → 遮答案口述 → 对标踩坑 → 完成口述任务 → 勾选 Checklist**。
 
 适用：有约 2 周备战窗口、目标 A/B/C 都要能接的资深前端。
+
+### 从 60 天裁剪时保留的核心
+
+- Web 底座只保留 JS / TS 事件循环与类型约束（60 天 D1–D4）；HTML / CSS / A11y 只做下方最小覆盖
+- Vue3 核心与主项目故事（D17–D21、D58）
+- 多端按 JD 选一条加重：AntDV、Vant 或小程序（D33–D42 三选一加深）
+- 工程化 + 一条性能证据（D25–D30）
+- NestJS / Java 对比与 2 场模拟（D50–D51、对应本页 D12–D13）
+- 架构只按 JD 三选一：微前端 / NestJS / 前端架构（D53–D55 选一）
+
+### 新增题库的最小覆盖
+
+14 天不新开完整阶段，用「加 20 分钟抽题」挂到已有日：
+
+| 题库 | 最小抽题 | 挂到哪一天 |
+| ---- | -------- | ---------- |
+| [HTML / CSS / A11y](/interview/questions/16-html-css-a11y) | Q1、Q6、Q11、D8 | D1 收尾或 D5 移动端对照 |
+| [浏览器与 Web API](/interview/questions/17-browser-web-api) | Q1、Q2、D2 | D1 事件循环加深 |
+| [网络与 Web 安全](/interview/questions/18-network-security) | Q6、Q8、Q11、D3 | D7 缓存、D8 安全一问 |
+| [性能与用户体验](/interview/questions/20-performance-ux) | Q1、Q11、D3 | 并入 D8，替代空泛的「感觉型优化」 |
+| [测试与质量保障](/interview/questions/21-testing-quality) | Q1、Q9、D7 | 并入 D7 质量门禁 |
+| [项目答辩与行为面试](/interview/questions/22-project-behavioral) | Q1、Q2、D1、D2 | 并入 D3 故事、D14 终检 |
+| [数据库与 Prisma](/interview/questions/15-database-prisma) | Q15、Q17、D6 | 仅全栈岗，并入 D9 |
+| [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1 | 仅 JD 要求时，并入 D5 / D6 |
 
 ---
 

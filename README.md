@@ -6,15 +6,15 @@
 
 与站点首页、[总览](docs/interview/00-overview.md) 使用同一组数字：
 
-- 8 个能力域
-- 22 个题库
-- 339 道 Q
-- 211 道 D
-- 550 道主问题
+- 9 个能力域
+- 26 个题库
+- 388 道 Q
+- 242 道 D
+- 630 道主问题
 - 所有主问题和追问均有答案
 - 7 / 14 / 30 / 60 天四条路线
 
-550 题是题库容量，按岗位权重抽题，不是必须全部背诵的清单。默认完整路线是 60 天。
+630 题是题库容量，按岗位权重抽题，不是必须全部背诵的清单。默认完整路线是 60 天。
 
 ## 在线站点
 
@@ -31,10 +31,10 @@ pnpm install
 pnpm docs:dev
 pnpm docs:validate:test
 pnpm docs:validate:followups
-MIN_TOTAL_QUESTIONS=540 MAX_TOTAL_QUESTIONS=560 EXPECTED_TOTAL_QUESTIONS=550 pnpm docs:check:followups
+MIN_TOTAL_QUESTIONS=620 MAX_TOTAL_QUESTIONS=640 EXPECTED_TOTAL_QUESTIONS=630 pnpm docs:check:followups
 ```
 
-本地预览默认 [http://localhost:5173/mianshi/](http://localhost:5173/mianshi/)。`docs:check:followups` 会先校验 22 个题库与追问答案，再执行构建。
+本地预览默认 [http://localhost:5173/mianshi/](http://localhost:5173/mianshi/)。`docs:check:followups` 会先校验 26 个题库与追问答案，再执行构建。
 
 只构建、不跑校验时：
 
@@ -49,17 +49,18 @@ pnpm docs:preview
 
 1. **第一次使用：** [总览](docs/interview/00-overview.md) → 对照矩阵自测 → [60 天完整主线](docs/interview/plans/60-day.md)
 2. **14 天内面试：** [14 天冲刺版](docs/interview/plans/14-day.md)（更紧用 [7 天](docs/interview/plans/7-day.md)）
-3. **专项补弱：** 按下方八大能力域分组进入对应题库
+3. **专项补弱：** 按下方九大能力域分组进入对应题库
 4. **面试前 24 小时：** [故事模板](docs/interview/stories/template.md) · [项目答辩与行为面试](docs/interview/questions/22-project-behavioral.md) · [模拟脚本](docs/interview/mocks/scripts.md) · [反问清单](docs/interview/mocks/reverse-questions.md)
 5. **全栈补强：** [NestJS](docs/interview/questions/13-nestjs.md) → [数据库与 Prisma](docs/interview/questions/15-database-prisma.md) → [NestJS + Prisma 教程](docs/interview/guides/backend/nestjs-prisma.md)
+6. **上线补强：** [Jenkins 教程](docs/interview/guides/devops/jenkins.md) → [Docker 教程](docs/interview/guides/devops/docker.md) → [Kubernetes 教程](docs/interview/guides/devops/k8s.md)
 
 加练用 [30 天强化版](docs/interview/plans/30-day.md)。
 
 > 源码阅读用 `docs/...` 相对路径；站点路由带 `/mianshi/` 前缀。
 
-## 22 个题库
+## 26 个题库
 
-当前共 550 道主问题（339 道 Q + 211 道 D）。Q 题用于高频覆盖，D 题用于原理、故障治理和架构演进追问。
+当前共 630 道主问题（388 道 Q + 242 道 D）。Q 题用于高频覆盖，D 题用于原理、故障治理和架构演进追问。
 
 ### Web 与计算机基础
 
@@ -69,9 +70,12 @@ pnpm docs:preview
 4. [网络与 Web 安全](docs/interview/questions/18-network-security.md) — [线上](https://julytian.github.io/mianshi/interview/questions/18-network-security)（14Q / 9D / 23）
 5. [手写题](docs/interview/questions/10-handwriting.md) — [线上](https://julytian.github.io/mianshi/interview/questions/10-handwriting)（11Q / 5D / 16）
 
-### 框架与状态管理
+### 框架与数据
 
 6. [Vue3](docs/interview/questions/02-vue3.md) — [线上](https://julytian.github.io/mianshi/interview/questions/02-vue3)（31Q / 14D / 45）
+7. [Nuxt](docs/interview/questions/23-nuxt.md) — [线上](https://julytian.github.io/mianshi/interview/questions/23-nuxt)（12Q / 8D / 20）
+8. [Vite](docs/interview/questions/24-vite.md) — [线上](https://julytian.github.io/mianshi/interview/questions/24-vite)（12Q / 8D / 20）
+9. [Webpack](docs/interview/questions/25-webpack.md) — [线上](https://julytian.github.io/mianshi/interview/questions/25-webpack)（11Q / 7D / 18）
 
 ### 工程与质量
 
@@ -94,6 +98,10 @@ pnpm docs:preview
 14. [前端架构](docs/interview/questions/14-frontend-architecture.md) — [线上](https://julytian.github.io/mianshi/interview/questions/14-frontend-architecture)（15Q / 15D / 30）
 15. [前端系统设计](docs/interview/questions/11-frontend-system-design.md) — [线上](https://julytian.github.io/mianshi/interview/questions/11-frontend-system-design)（7Q / 6D / 13）
 16. [微前端](docs/interview/questions/12-microfrontend.md) — [线上](https://julytian.github.io/mianshi/interview/questions/12-microfrontend)（19Q / 15D / 34）
+
+### 运维与部署
+
+17. [Jenkins / Docker / k8s](docs/interview/questions/26-devops.md) — [线上](https://julytian.github.io/mianshi/interview/questions/26-devops)（14Q / 8D / 22）
 
 ### 全栈、数据与 AI
 
@@ -121,6 +129,12 @@ AI 实践 5 篇：
 
 - [NestJS + Prisma 教程](docs/interview/guides/backend/nestjs-prisma.md) — [线上](https://julytian.github.io/mianshi/interview/guides/backend/nestjs-prisma)
 
+运维部署教程：
+
+- [Jenkins 前端交付](docs/interview/guides/devops/jenkins.md) — [线上](https://julytian.github.io/mianshi/interview/guides/devops/jenkins)
+- [Docker 前端镜像](docs/interview/guides/devops/docker.md) — [线上](https://julytian.github.io/mianshi/interview/guides/devops/docker)
+- [Kubernetes 前端上线](docs/interview/guides/devops/k8s.md) — [线上](https://julytian.github.io/mianshi/interview/guides/devops/k8s)
+
 简历 5 篇：
 
 - [资深前端简历指南](docs/interview/resume/senior-frontend-guide.md) — [线上](https://julytian.github.io/mianshi/interview/resume/senior-frontend-guide)
@@ -145,9 +159,10 @@ docs/
   interview/
     00-overview.md         # 总览、能力域矩阵、Java 边界
     plans/                 # 7 / 14 / 30 / 60 天路线
-    questions/             # 22 个分域题库（Q / D 分层）
+    questions/             # 26 个分域题库（Q / D 分层）
     guides/ai-coding/      # 5 篇 Cursor / AI 实践
     guides/backend/        # NestJS + Prisma 教程
+    guides/devops/         # Jenkins / Docker / k8s 教程
     resume/                # 5 篇简历与 ATS 指南
     stories/               # STAR 模板与示例
     mocks/                 # 模拟脚本、评分表、反问清单

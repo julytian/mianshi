@@ -43,6 +43,10 @@ export const EXPECTED_QUESTION_FILES = [
   '20-performance-ux.md',
   '21-testing-quality.md',
   '22-project-behavioral.md',
+  '23-nuxt.md',
+  '24-vite.md',
+  '25-webpack.md',
+  '26-devops.md',
 ]
 
 const PLACEHOLDER_PATTERNS = [
@@ -126,8 +130,8 @@ export function parseLimit(raw, name) {
  * @returns {{ min: number, max: number, expected: number | null }}
  */
 export function parseQuestionLimits(env = process.env) {
-  const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '540', 'MIN_TOTAL_QUESTIONS')
-  const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '560', 'MAX_TOTAL_QUESTIONS')
+  const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '620', 'MIN_TOTAL_QUESTIONS')
+  const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '640', 'MAX_TOTAL_QUESTIONS')
   const expected = env.EXPECTED_TOTAL_QUESTIONS === undefined
     ? null
     : parseLimit(env.EXPECTED_TOTAL_QUESTIONS, 'EXPECTED_TOTAL_QUESTIONS')

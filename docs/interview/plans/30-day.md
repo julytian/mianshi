@@ -32,6 +32,10 @@ HTML / CSS / 浏览器 / 安全 / Hybrid / Prisma 不单独开第二个月，用
 | [项目答辩与行为面试](/interview/questions/22-project-behavioral) | Q1–Q5、D1–D3 | 并入 D5 故事、D24 简历、D29 反问 |
 | [数据库与 Prisma](/interview/questions/15-database-prisma) | Q5、Q11、Q15、D6 | 全栈岗并入 D19 / D20 Nest 段；非全栈只扫标题 |
 | [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1、D9 | JD 有 App 容器时并入 D8；只抽 Hybrid 边界题，不与当天小程序题混答 |
+| [Nuxt](/interview/questions/23-nuxt) | Q1、Q4、D1、D4 | SSR / SEO 岗并入 Vue 周 |
+| [Vite](/interview/questions/24-vite) | Q1、Q12、D5 | 并入 D10 / D11 工程化 |
+| [Webpack](/interview/questions/25-webpack) | Q10、D7 | 遗留栈或微前端岗并入 D25 |
+| [Jenkins / Docker / k8s](/interview/questions/26-devops) | Q2、Q6、D3 | 并入 D10；教程只读会用到的一篇 |
 
 ---
 

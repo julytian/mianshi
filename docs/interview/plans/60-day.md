@@ -2,7 +2,9 @@
 
 面向通用资深前端（Vue3 / 多端 / 全栈偏前）的默认完整路线。7 / 14 / 30 天是压缩方案，见 [7 天压缩版](/interview/plans/7-day)、[14 天冲刺版](/interview/plans/14-day)、[30 天强化版](/interview/plans/30-day)。先读 [总览与侧重点矩阵](/interview/00-overview)，按 JD 标出加重模块后再抽题。
 
-**60 天不是 550 题顺序通刷。** 每天按岗位权重抽题：Q 题遮答案口述，D 题必须绑到你自己的项目证据。每日完成标准是「可口述 + 有输出 + 记录卡点」，不是把页面读完。
+**60 天不是 630 题顺序通刷。** 每天按岗位权重抽题：Q 题遮答案口述，D 题必须绑到你自己的项目证据。每日完成标准是「可口述 + 有输出 + 记录卡点」，不是把页面读完。
+
+加练模块（不另开天数，按 JD 挂到邻近日）：[Nuxt](/interview/questions/23-nuxt) 并入 Vue SSR 日；[Vite](/interview/questions/24-vite) / [Webpack](/interview/questions/25-webpack) 并入 Vite 构建日；[Jenkins / Docker / k8s](/interview/questions/26-devops) 与 [部署教程](/interview/guides/devops/jenkins) 并入 CI / 发布日。
 
 ---
 
@@ -22,6 +24,7 @@
 - 模拟：[模拟脚本](/interview/mocks/scripts) · [评分表](/interview/mocks/scorecard) · [反问清单](/interview/mocks/reverse-questions)
 - 故事与简历：[故事模板](/interview/stories/template) · [故事示例](/interview/stories/examples) · [资深前端简历指南](/interview/resume/senior-frontend-guide)
 - 全栈闭环：[NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)
+- 上线：[Jenkins 教程](/interview/guides/devops/jenkins) · [Docker 教程](/interview/guides/devops/docker) · [Kubernetes 教程](/interview/guides/devops/k8s)
 - AI 工作流：[Cursor 工作流](/interview/guides/ai-coding/cursor-workflow) · [前端 Rules](/interview/guides/ai-coding/rules)
 
 ---

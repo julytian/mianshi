@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: '前端面试作战手册',
-  description: '资深前端备战：8 域 22 库 550 题，含 60 天路线与追问答案',
+  description: '资深前端备战：9 域 26 库 630 题，含 Nuxt / Vite / Webpack 与 Jenkins / Docker / k8s',
   lang: 'zh-CN',
   // GitHub Pages 项目站：https://julytian.github.io/mianshi/
   base: '/mianshi/',
@@ -46,9 +46,12 @@ export default defineConfig({
           ],
         },
         {
-          text: '框架与状态管理',
+          text: '框架与数据',
           items: [
             { text: 'Vue3', link: '/interview/questions/02-vue3' },
+            { text: 'Nuxt', link: '/interview/questions/23-nuxt' },
+            { text: 'Vite', link: '/interview/questions/24-vite' },
+            { text: 'Webpack', link: '/interview/questions/25-webpack' },
           ],
         },
         {
@@ -90,6 +93,15 @@ export default defineConfig({
             { text: '前端架构', link: '/interview/questions/14-frontend-architecture' },
             { text: '前端系统设计', link: '/interview/questions/11-frontend-system-design' },
             { text: '微前端', link: '/interview/questions/12-microfrontend' },
+          ],
+        },
+        {
+          text: '运维与部署',
+          items: [
+            { text: 'Jenkins / Docker / k8s', link: '/interview/questions/26-devops' },
+            { text: 'Jenkins 教程', link: '/interview/guides/devops/jenkins' },
+            { text: 'Docker 教程', link: '/interview/guides/devops/docker' },
+            { text: 'Kubernetes 教程', link: '/interview/guides/devops/k8s' },
           ],
         },
         {

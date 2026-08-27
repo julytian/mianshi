@@ -44,7 +44,7 @@ jobs:
         run: pnpm docs:validate:test
 
       - name: Build
-        run: MIN_TOTAL_QUESTIONS=540 MAX_TOTAL_QUESTIONS=560 EXPECTED_TOTAL_QUESTIONS=550 pnpm docs:check:followups
+        run: MIN_TOTAL_QUESTIONS=620 MAX_TOTAL_QUESTIONS=640 EXPECTED_TOTAL_QUESTIONS=630 pnpm docs:check:followups
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

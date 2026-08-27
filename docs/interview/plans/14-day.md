@@ -30,6 +30,10 @@
 | [项目答辩与行为面试](/interview/questions/22-project-behavioral) | Q1、Q2、D1、D2 | 并入 D3 故事、D14 终检 |
 | [数据库与 Prisma](/interview/questions/15-database-prisma) | Q15、Q17、D6 | 仅全栈岗，并入 D9 |
 | [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1 | 仅 JD 要求时并入 D5 / D6；只抽 Hybrid 边界题，不与当天 H5 题混答 |
+| [Nuxt](/interview/questions/23-nuxt) | Q1、Q4、D1 | 仅 SSR / SEO 岗，并入 D2 Vue |
+| [Vite](/interview/questions/24-vite) | Q1、Q12、D5 | 并入 D7 工程化，替代空泛的「打包很快」 |
+| [Webpack](/interview/questions/25-webpack) | Q10、D7 | 仅遗留栈或微前端岗，并入 D10 |
+| [Jenkins / Docker / k8s](/interview/questions/26-devops) | Q2、Q6、D3 | 并入 D7；教程只读对应一篇 |
 
 ---
 

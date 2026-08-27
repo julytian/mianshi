@@ -10,15 +10,15 @@
 
 本站统一使用以下数字（与首页、仓库 README 一致）：
 
-- 8 个能力域
-- 22 个题库
-- 339 道 Q
-- 211 道 D
-- 550 道主问题
+- 9 个能力域
+- 26 个题库
+- 388 道 Q
+- 242 道 D
+- 630 道主问题
 - 所有主问题和追问均有答案
 - 7 / 14 / 30 / 60 天四条路线
 
-**不要把 550 题当成必须全部背诵的清单。** 先对照下方矩阵标出加重与可弱化，再按岗位权重抽题。默认完整路线是 [60 天](/interview/plans/60-day)，不是从第 1 题顺序刷到最后。
+**不要把 630 题当成必须全部背诵的清单。** 先对照下方矩阵标出加重与可弱化，再按岗位权重抽题。默认完整路线是 [60 天](/interview/plans/60-day)，不是从第 1 题顺序刷到最后。
 
 ---
 
@@ -37,18 +37,19 @@
 
 ---
 
-## 八大能力域与岗位权重
+## 九大能力域与岗位权重
 
 分组与侧栏导航一致。权重表示默认投入：高 = 该岗必做，中 = 按 JD / 经历加练，低 = 被问到讲边界即可。
 
 | 能力域 | 对应题库 | Senior | Staff | Tech Lead | 前端偏全栈 | 复习优先级 | 建议项目证据 |
 | ------ | -------- | ------ | ----- | --------- | ---------- | ---------- | ------------ |
 | Web 与计算机基础 | [01 JS / TS](/interview/questions/01-js-ts) · [16 HTML / CSS / 可访问性](/interview/questions/16-html-css-a11y) · [17 浏览器与 Web API](/interview/questions/17-browser-web-api) · [18 网络与 Web 安全](/interview/questions/18-network-security) · [10 手写题](/interview/questions/10-handwriting) | 高 | 高 | 中 | 高 | P0 | 一次卡顿 / 泄漏 / 安全或缓存事故；手写工具函数真正进过仓库 |
-| 框架与状态管理 | [02 Vue3](/interview/questions/02-vue3) | 高 | 高 | 高 | 高 | P0 | 复杂表单或大列表、响应式性能、状态治理、SSR / 水合之一 |
+| 框架与数据 | [02 Vue3](/interview/questions/02-vue3) · [23 Nuxt](/interview/questions/23-nuxt) · [24 Vite](/interview/questions/24-vite) · [25 Webpack](/interview/questions/25-webpack) | 高 | 高 | 高 | 高 | P0 | 复杂表单或大列表、响应式性能、SSR / 水合、一次构建器选型 |
 | 工程与质量 | [03 工程化](/interview/questions/03-engineering) · [20 性能与用户体验](/interview/questions/20-performance-ux) · [21 测试与质量保障](/interview/questions/21-testing-quality) · [AI 指南](/interview/guides/ai-coding/cursor-workflow) | 高 | 高 | 高 | 中 | P0 | CI 门禁、性能预算或 Core Web Vitals、一次发布回滚；AI 协作有可复用 Rules / Skills |
 | 后台与业务前端 | [04 Ant Design Vue](/interview/questions/04-admin-antdv) · [05 Vant H5](/interview/questions/05-h5-vant) | 中 | 中 | 中 | 中 | P1 | 权限 / 表格 / 表单平台，或弱网 H5 转化与状态恢复 |
 | 移动端与跨平台 | [06 uni-app / 小程序](/interview/questions/06-uniapp-miniprogram) · [19 Hybrid App](/interview/questions/19-hybrid-app) | 中 | 低 | 中 | 低 | P1 | 包体积或启动耗时、Bridge 故障、多端发布与回滚；无相关经历可弱化 |
 | 架构与系统设计 | [14 前端架构](/interview/questions/14-frontend-architecture) · [11 前端系统设计](/interview/questions/11-frontend-system-design) · [12 微前端](/interview/questions/12-microfrontend) | 中 | 高 | 高 | 中 | P0 | 模块边界或微前端接入、一次故障演练、演进取舍（为什么不选另一方案） |
+| 运维与部署 | [26 Jenkins / Docker / k8s](/interview/questions/26-devops) · [教程](/interview/guides/devops/jenkins) | 中 | 中 | 高 | 中 | P1 | 一条真实流水线、镜像分层或一次回滚；无集群经历可只讲静态站 + CDN |
 | 全栈、数据与 AI | [07 Java 全栈偏前](/interview/questions/07-java-fullstack) · [13 NestJS](/interview/questions/13-nestjs) · [15 数据库与 Prisma](/interview/questions/15-database-prisma) · [09 AI / vibe coding](/interview/questions/09-ai-vibe-coding) · [Prisma 教程](/interview/guides/backend/nestjs-prisma) | 低 | 中 | 低 | 高 | P1 | 自己设计过的接口与表、一次联调 / 事务排障；偏全栈岗升为 P0 |
 | 领导力与求职 | [08 架构 / Lead](/interview/questions/08-architecture-lead) · [22 项目答辩与行为面试](/interview/questions/22-project-behavioral) · [简历](/interview/resume/senior-frontend-guide) · [模拟](/interview/mocks/scripts) | 中 | 中 | 高 | 中 | P0 | 3 / 5 / 10 分钟项目口述、一次带人或质量门禁、模拟评分表上的卡点 |
 
@@ -58,13 +59,13 @@ P0 默认先做，P1 按 JD 和自己的项目经历升级或降级。面试前 
 
 第一次使用不要直接开刷 60 天：
 
-1. 对照 JD，给上表八域各标一个「高 / 中 / 低」。
+1. 对照 JD，给上表九域各标一个「高 / 中 / 低」。
 2. 每个标成「高」的域，遮答案口述 2 道 Q；卡住的题号记下来。
 3. 再进 [60 天完整主线](/interview/plans/60-day)，按卡点抽 D，而不是按文件顺序通刷。
 
 ---
 
-## 22 个题库题量
+## 26 个题库题量
 
 | 能力域 | 编号 | 题库 | Q | D | 合计 |
 | ------ | ---- | ---- | -: | -: | ---: |
@@ -73,7 +74,10 @@ P0 默认先做，P1 按 JD 和自己的项目经历升级或降级。面试前 
 | | 17 | [浏览器与 Web API](/interview/questions/17-browser-web-api) | 12 | 8 | 20 |
 | | 18 | [网络与 Web 安全](/interview/questions/18-network-security) | 14 | 9 | 23 |
 | | 10 | [手写题](/interview/questions/10-handwriting) | 11 | 5 | 16 |
-| 框架与状态管理 | 02 | [Vue3](/interview/questions/02-vue3) | 31 | 14 | 45 |
+| 框架与数据 | 02 | [Vue3](/interview/questions/02-vue3) | 31 | 14 | 45 |
+| | 23 | [Nuxt](/interview/questions/23-nuxt) | 12 | 8 | 20 |
+| | 24 | [Vite](/interview/questions/24-vite) | 12 | 8 | 20 |
+| | 25 | [Webpack](/interview/questions/25-webpack) | 11 | 7 | 18 |
 | 工程与质量 | 03 | [工程化](/interview/questions/03-engineering) | 20 | 14 | 34 |
 | | 20 | [性能与用户体验](/interview/questions/20-performance-ux) | 12 | 8 | 20 |
 | | 21 | [测试与质量保障](/interview/questions/21-testing-quality) | 11 | 7 | 18 |
@@ -84,15 +88,16 @@ P0 默认先做，P1 按 JD 和自己的项目经历升级或降级。面试前 
 | 架构与系统设计 | 14 | [前端架构](/interview/questions/14-frontend-architecture) | 15 | 15 | 30 |
 | | 11 | [前端系统设计](/interview/questions/11-frontend-system-design) | 7 | 6 | 13 |
 | | 12 | [微前端](/interview/questions/12-microfrontend) | 19 | 15 | 34 |
+| 运维与部署 | 26 | [Jenkins / Docker / k8s](/interview/questions/26-devops) | 14 | 8 | 22 |
 | 全栈、数据与 AI | 07 | [Java 全栈偏前](/interview/questions/07-java-fullstack) | 14 | 8 | 22 |
 | | 13 | [NestJS](/interview/questions/13-nestjs) | 20 | 16 | 36 |
 | | 15 | [数据库与 Prisma](/interview/questions/15-database-prisma) | 17 | 10 | 27 |
 | | 09 | [AI / vibe coding](/interview/questions/09-ai-vibe-coding) | 13 | 8 | 21 |
 | 领导力与求职 | 08 | [架构 / Lead](/interview/questions/08-architecture-lead) | 17 | 9 | 26 |
 | | 22 | [项目答辩与行为面试](/interview/questions/22-project-behavioral) | 10 | 8 | 18 |
-| **合计** | | **22 个题库** | **339** | **211** | **550** |
+| **合计** | | **26 个题库** | **388** | **242** | **630** |
 
-工程与质量域另有 [AI 编程实践](/interview/guides/ai-coding/cursor-workflow) 五篇指南；全栈域另有 [NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)；领导力域另有简历套件与模拟材料。指南不计入 550 道主问题。
+工程与质量域另有 [AI 编程实践](/interview/guides/ai-coding/cursor-workflow) 五篇指南；运维域另有 [Jenkins](/interview/guides/devops/jenkins) / [Docker](/interview/guides/devops/docker) / [Kubernetes](/interview/guides/devops/k8s) 教程；全栈域另有 [NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)；领导力域另有简历套件与模拟材料。指南不计入 630 道主问题。
 
 ---
 

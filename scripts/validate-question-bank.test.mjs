@@ -78,8 +78,8 @@ function testParseLimit() {
 
 function testParseQuestionLimitsDefaults() {
   assert.deepEqual(parseQuestionLimits({}), {
-    min: 540,
-    max: 560,
+    min: 620,
+    max: 640,
     expected: null,
   })
 }
@@ -986,25 +986,25 @@ async function testExactQuestionTotal() {
   )
 }
 
-async function testExact550PassesAndOffByOneFails() {
+async function testExact630PassesAndOffByOneFails() {
   const defaults = parseQuestionLimits({})
-  assert.deepEqual(defaults, { min: 540, max: 560, expected: null })
+  assert.deepEqual(defaults, { min: 620, max: 640, expected: null })
 
   const baseline = await validateQuestionBank({
     min: defaults.min,
     max: defaults.max,
   })
-  assert.equal(baseline.total, 550)
+  assert.equal(baseline.total, 630)
   assert.equal(baseline.failures.length, 0, baseline.failures.join('\n'))
 
   const matching = await validateQuestionBank({
     min: defaults.min,
     max: defaults.max,
-    expected: 550,
+    expected: 630,
   })
   assert.equal(matching.failures.length, 0, matching.failures.join('\n'))
 
-  for (const expected of [549, 551]) {
+  for (const expected of [629, 631]) {
     const mismatching = await validateQuestionBank({
       min: defaults.min,
       max: defaults.max,
@@ -1012,7 +1012,7 @@ async function testExact550PassesAndOffByOneFails() {
     })
     assert.match(
       mismatching.failures.join('\n'),
-      new RegExp(`总题量 550 不等于精确要求 ${expected}`),
+      new RegExp(`总题量 630 不等于精确要求 ${expected}`),
     )
   }
 }
@@ -1041,7 +1041,7 @@ await testRejectsWrongQuestionFileSet()
 await testRejectsMissingAnyExpectedQuestionFile()
 await testQuestionFileSetIgnoresOrder()
 await testExactQuestionTotal()
-await testExact550PassesAndOffByOneFails()
+await testExact630PassesAndOffByOneFails()
 await testFollowupFileSelection()
 await testFollowupPlaceholderDiagnosticIsNotDuplicated()
 testFollowupDetailsExposeExactRangeWithContentCollision()

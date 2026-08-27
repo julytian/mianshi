@@ -66,6 +66,14 @@ DOM 可访问、首次内容绘制、`DOMContentLoaded`、`load`、业务可交�
 
 Long Tasks：主线程持续超过约 50 ms 的任务线索，归因粗。LoAF：duration 超过 50 ms 的长动画帧，能把脚本、样式、布局放进帧上下文；可能没有渲染阶段（`renderStart` 可为 0），不能把 0 当真实渲染起点。二者都不等于 INP。优化：减总工作量 → 分片让出 → 或 Worker；动画在 rAF 中批量读写，避免布局抖动。`setTimeout(0)` 有最小延迟，不等于立即。
 
+
+**机制补充：** 普通 task 结束后做 microtask checkpoint，**不直接渲染**。rendering opportunity 由用户代理判断后排入 update-the-rendering；只有选中该任务才跑 rAF 与样式/布局/绘制。计时器、事件、消息、rendering task 分属不同 task source，不能假设全局 FIFO。微任务递归追加可饿死渲染——把长循环改成一串 `Promise.then` **没有**让出主线程。
+
+**失败形态：** 用 `setTimeout(0)` 当下一帧；用微任务切片「优化」卡顿却更卡；只看 FPS 不看 Long Task / Event Timing。
+
+**验收：** Performance 同时看 Main、Long Task、Event Timing 与渲染轨道；先分清解析/计算/布局/绘制哪段贵，再决定切片、降优先级或 Worker。
+
+
 ### 3. Core Web Vitals 与测量分工
 
 当前 CWV：LCP、INP、CLS。题库口径：LCP 良好 ≤ 2.5 s；INP 良好 ≤ 200 ms；CLS 良好 ≤ 0.1。需改进与差的边界分别为 LCP > 4 s、INP > 500 ms、CLS > 0.25。判定看真实访问样本按移动 / 桌面分别算 **p75**，三项都良好才算过；不是平均值，也不是一次 Lighthouse。CWV 之外，错误率、业务可用时间、动画流畅度与任务完成率仍需独立 SLI。
@@ -82,11 +90,19 @@ Lab 可控复现；RUM 看真实设备 / 网络 / 长会话。两者不能互相
 
 `dns-prefetch` 只解析域名；`preconnect` 还建连——只给极少数确定跨源，过多浪费 socket / CPU / 电。`preload` 是当前导航必需资源的强提示，`as` / 类型 / 跨源要正确，否则可能重复下载或抢占更关键资源。响应式图片 preload 必须让 `imagesrcset` / `imagesizes` 与 `<img>` 的 `srcset` / `sizes` 匹配，使浏览器走同一候选逻辑；禁止固定 `href` 误预载另一候选。后续页可能用的资源更适合谨慎 `prefetch`，浏览器可忽略。`fetchpriority` 只表达相对优先级，常用于提高已在 HTML 中发现的 LCP 图或降低非关键图，不替代发现顺序与懒加载策略，也不能全标 high。RUM 记录 TTFB、FCP、LCP 候选低基数标签、发现 / 请求时刻、关键 Chunk 与页面版本；按设备与网络分层设预算，灰度看 p75 / p95、错误与业务任务，超阈值回滚。常见坑：首屏 LCP 图懒加载、只压图忽略 TTFB、骨架当业务首屏、仅跑高配桌面 Lighthouse。
 
+
+首屏故事固定拆层：TTFB → 发现 → 下载 → 主线程 → 渲染 → 业务数据。LCP 图不要懒加载；preload 的 `imagesrcset`/`imagesizes` 必须与 `<img>` 一致。字体只 preload 首屏能匹配的子集。第三方脚本 `async` 仍可能占主线程——要有清单、owner 与 kill switch。
+
+INP 三段：输入延迟、处理、呈现；LoAF/Long Task 是线索。无合格交互的访问没有 INP 样本，不能填 0。细节阈值与 Lab/RUM 门禁见性能专题，本题强调浏览器侧机制与误测方式。
+
+
 ### 5. 事件、Observer、BFCache 与 Worker
 
 事件分为捕获、目标和冒泡；传播路径在分发开始时确定，并受 Shadow DOM 重定向影响。`event.target` 是 retargeting 后暴露的目标，`currentTarget` 是当前监听器所在节点；`composedPath()` 可查看允许暴露的路径。并非所有事件都冒泡，也不能把点击经验套给所有事件。`preventDefault()` 取消可取消事件的默认行为，不停止传播；`stopPropagation()` 停传播，`stopImmediatePropagation()` 还阻止同目标后续监听器。`passive: true` 承诺不取消默认，其中 `preventDefault()` 无效并可能警告。确需取消滚动应显式 `{ passive: false }`，并优先评估 CSS `touch-action`；不能依赖各浏览器对 touch / wheel 的被动默认值一致。`once` 自动移除，`signal` 可统一清理。事件委托利用冒泡在稳定祖先处理动态子项，用 `closest()` 与容器边界确认合法目标，并考虑键盘、非冒泡与 Shadow。用真实输入验证，不要只调 `.click()`。
 
 `MutationObserver` 观察 DOM 变化，通知偏微任务时机，适合整合第三方 DOM，不适合替代应用状态。`ResizeObserver` 在渲染更新相关阶段通知；回调里继续改变被观察尺寸可能形成 loop，浏览器会限制。`IntersectionObserver` 默认只异步报告几何交叉，适合懒加载与曝光候选，不提供逐像素同步保证，也不证明未被遮挡。实验性 `trackVisibility` / `isVisible` 属 Limited Availability，不能当精确曝光或安全依据。曝光统计还需叠可见时长、页面可见性与业务去重。回调应轻量，卸载 `disconnect` / `unobserve`。无能力时提供回退，正确性不能依赖「某毫秒必触发」。
+
+**Observer 失败形态：** ResizeObserver 回调里改尺寸触发 loop；IntersectionObserver 当「像素级可见且未遮挡」；忘记 disconnect 造成泄漏；用实验性 visibility 当安全或计费依据。
 
 页面生命周期：`visibilitychange` 进入 hidden 是暂停动画、停轮询与提交轻量遥测的重要信号；`pagehide` 适合处理被替换或进入 BFCache，比 `unload` 更可靠。移动端进程可能被直接终止，离开事件不是必达。`beforeunload` 只在确有未保存数据时动态注册。少量遥测可用 `sendBeacon()` 或 keepalive，但不能当事务保证。正确做法是持续幂等保存草稿。
 
@@ -101,6 +117,20 @@ Worker：独立全局环境，无 DOM / `window`，适合 CPU 密集的解析、
 长期会话（客服台等）应独立做耐久脚本：循环路由 / 表格 / 弹窗 / 上传，记录版本、设备、JS heap、DOM、Worker、任务与崩溃，看 GC 后斜率。实验室用 Heap Snapshot 的 dominator / retaining path、Allocation instrumentation 与 Detached DOM 定位所有者。修复明确 owner 与 dispose：`AbortSignal`、停 watcher / Observer / timer、撤销对象 URL、缓存 LRU。发布前耐久测试，灰度观察内存趋势、页面失效与任务耗时。反模式：看到上涨就每分钟强制刷新；只在 `beforeUnmount` 清 DOM 不取消全局监听；用 WeakMap 代替所有缓存却不检查 value 仍被强引用；拿一次快照总量宣称修复。线上内存 API 支持与精度有限，只做分层趋势与异常采样。证据坑位：〔填〕长会话脚本时长与修复后斜率。
 
 把渲染专题与性能题库串起来的最后一句：「先证明路径与调度，再用 CWV / 长任务 / 堆斜率验收；优化若换正确性或不可观测，就不算完成。」
+
+
+泄漏验收要可重复：进出同一路由 20 次，看 GC 后堆与 Detached DOM 是否持续涨。只比两次总量易误判。预热（KeepAlive、缓存）与泄漏的差别在于：有上限、有过期、有主动释放路径。闭包、未 disconnect 的 Observer、未 abort 的请求、全局事件，是四类高频源。
+
+**与性能专题分工：** CWV 阈值、Lab/RUM、测试门禁的展开见 [08](/interview/review/topics/08-perf-testing)；本题把浏览器阶段与 API 边界讲清，避免把 soft navigation 自建指标冒充标准 LCP。
+
+
+十年口径：渲染题要把「阶段」与「指标」分开讲——阶段决定你改哪里，指标决定你如何证明。Observer 与 Worker 都是工具，正确性从不依赖某毫秒必触发。 BFCache、内存与长任务要能各讲一个故障与验收；CWV 深水区链到性能专题，避免两题重复背阈值。
+
+
+
+关键渲染路径上的合成与图层提升能解释部分滚动流畅，但不能替代「主线程是否被长任务占满」的排查。强制同步布局（读几何又写样式交错）会造成 layout thrashing——热点路径先批读写。`content-visibility` 与虚拟列表都是减 DOM 工作量的手段，但要保留可访问性与找页内搜索的降级策略。
+
+ 证据坑位填你自己的 LCP/INP 分位数与一次强制同步布局改造前后对比（含设备档位）。
 
 ## 工程取舍与故障案例模板
 
@@ -216,3 +246,7 @@ Worker：独立全局环境，无 DOM / `window`，适合 CPU 密集的解析、
 - 「task 后一定渲染吗？」→ **不一定；要等 rendering task 被选中。**
 - 「unload 可以做清理吗？」→ **不可靠，还可能毁掉 BFCache 资格。**
 - 「无交互 INP 记 0？」→ **不能；应记缺失原因。**
+
+- 「soft nav 能直接报标准 LCP 吗？」→ **不能；可自建指标但须另命名。**
+- 「IntersectionObserver 证明未被遮挡吗？」→ **不证明。**
+

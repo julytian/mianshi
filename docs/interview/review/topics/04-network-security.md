@@ -56,6 +56,12 @@ TCP：握手建立可靠有序字节流，不懂 HTTP，不提供机密性；丢
 
 ### 2. HTTP/1.1、HTTP/2、HTTP/3 边界
 
+
+**机制：** DNS 解析失败、TCP 建连慢、TLS 握手/证书问题，表现都是「打不开」但排查层不同。证书链、时钟、SNI、中间人代理是 TLS 高频点。把「弱网」和「建连失败」分开，才能决定是换 CDN、修证书还是优化应用层。
+
+**验收：** 能按 DNS→TCP→TLS→HTTP 分层报现象；证书过期与 DNS 污染有不同取证动作。
+
+
 HTTP/1.1 默认可复用连接；浏览器通常不用 pipelining，而用有限并发，慢响应仍占连接形成应用层等待。消息边界靠 `Content-Length` / chunked 等，解析不一致有走私风险。域名分片在 h2/h3 下常适得其反。
 
 HTTP/2：二进制帧、多 stream 交错、HPACK。某一响应慢不再挡住其他 stream 的**应用层**发送；但所有 stream 仍共享一条 TCP 字节流——段丢失会传输层队头阻塞。要确认真协商了 `h2`、代理是否降级。
@@ -63,6 +69,12 @@ HTTP/2：二进制帧、多 stream 交错、HPACK。某一响应慢不再挡住�
 HTTP/3 映射到 QUIC（常在 UDP）：集成 TLS 1.3 与多路流，一流丢包通常不堵死其他流；连接迁移视实现与网络环境。不是「UDP 更快」；受阻应回退 h2/h1。0-RTT 仅用于可重放安全的请求。证据坑位：〔填〕协议协商占比与回退观察。
 
 ### 3. HTTP 缓存、CDN 与可回滚发布
+
+
+**机制：** HTTP/1.1 队头阻塞与连接数限制推动多域名与合并；HTTP/2 多路复用降队头阻塞，但大文件仍可占满带宽；HTTP/3/QUIC 改善弱网建连与丢包恢复，不自动让应用更快——请求数、缓存、主体积仍是主因。不要把「上了 HTTP/3」当性能故事结尾。
+
+**失败形态：** 用 HTTP/2 为过度分包辩护；忽略证书与中间盒对 h3 的影响。
+
 
 新鲜度：`max-age` / `s-maxage`、`Expires`、`Age` 等；过期后带 `If-None-Match` / `If-Modified-Since` 再验证，可 304。强 ETag 表示所选表示逐字节等价，不同 `Content-Encoding`（gzip / br / identity）是不同表示，须不同强 ETag，并在最终编码确定后生成或按编码分别改写；若只想表达解码后语义等价，用弱 ETag。`Last-Modified` 精度与时钟边界较弱。源站或 CDN 按请求动态选编码时，应 `Vary: Accept-Encoding`，避免共享缓存把 br 响应发给不支持的客户端；CDN 可规范化有限变体，但不能丢掉实际能力差异，也要避免源站与边缘重复压缩。`no-cache` = 用前必须再验证（仍可能存储）；`no-store` 才要求不存。含 `Authorization` 的请求默认受共享缓存限制，只有响应显式满足规范允许共享的指令时才可共享；Cookie 请求没有同等自动禁存规则，Cookie 也不会自动成为缓存键。用户私有或敏感内容优先 `private` / `no-store`；确需共享须先证明与用户无关，再设计完整缓存键与授权边界。`Vary` 扩展缓存键：漏了会串数据，维度过多又降命中。浏览器缓存、Service Worker、CDN、应用缓存是不同层，必须分别定义失效与观测。
 
@@ -79,6 +91,12 @@ Session 常把状态放服务端，浏览器持随机会话 ID；Cookie 是按 D
 CORS：同源策略限制脚本**读**跨源响应。简单请求也可发出，但读响应仍需 ACAO 等；否则先 OPTIONS 预检。带凭证须精确 Origin + `Access-Control-Allow-Credentials: true`，不能 `*`；动态回显 Origin 前要白名单，并 `Vary: Origin`。CORS **不阻止**普通表单等跨站发送，故不是 CSRF 防护；非浏览器客户端也不受 CORS 约束。
 
 ### 5. CSRF、XSS、CSP 与供应链
+
+
+**机制补充：** Cookie 的 `HttpOnly`/`Secure`/`SameSite` 与路径域决定凭证面；Token 放 localStorage 扩大 XSS 爆炸半径。CORS 是浏览器强制的读限制，不是服务器授权模型——服务端仍要鉴权。简单请求与预检、带 cookie 的 `credentials` 是高频追问。
+
+**失败形态：** 前端「隐藏按钮」当权限；CORS `*` 配 `credentials`；把 CORS 当 CSRF 防护。
+
 
 CSRF：利用浏览器自动携带 Cookie、HTTP 认证等环境凭证，让用户在攻击者页面触发目标站有副作用请求。防护应组合：会话 Cookie 选合适 `SameSite`，状态变更拒绝 GET，使用不可预测且绑定会话的 CSRF Token，校验 `Origin`，必要时以 `Referer` 作受控回退，高风险操作二次确认。`SameSite` 按 schemeful site 而非 origin；同站不同源 / 不可信子域仍可能互打；Lax 对部分顶级导航放行，None 要求 Secure，旧客户端与嵌入场景有边界。`HttpOnly` 只阻止读 Cookie，不阻止自动发送。CORS 不是 CSRF 防护。同步 Token 或双提交 Cookie 都需防 XSS、子域注入与比较错误；双提交若未签名绑定，可能受子域 Cookie 注入影响。服务端必须做最终校验，支付等接口具备幂等与重放防护。OAuth 回调与跨站支付单独建模，不放宽全局策略。
 
@@ -103,6 +121,14 @@ Access Token 短期并限 audience / scope；refresh rotation 每次刷新更换
 同一次 trace 拆 DNS、建连、TLS、排队、TTFB、下载、浏览器处理，再沿 CDN / 网关 / 源站证伪。「网络慢」不是根因。Resource Timing 阶段可能因连接复用而为 0，也受 `Timing-Allow-Origin` 限制；h2 / h3 会改变连接与排队模型。TTFB 含网络往返、边缘处理与源站计算，不能直接等同后端耗时。统一 navigation / trace id，采集协议、连接复用、缓存状态、地域、网络类型、Server-Timing 与 CWV；异常样本看瀑布、PoP、回源日志与分布式追踪；用受控冷暖缓存、多地域与不同协议对照；业务百分位验收。忌：只 ping；见 TTFB 高就怪数据库；关缓存实验结果当用户现状；代理抓包改变 h3 协商；日志打出 code / token。
 
 安全响应头：HSTS 在有效期内强制 HTTPS，可减少协议降级与 SSL stripping；`includeSubDomains` 与 preload 影响面大，启用前须确保子域长期支持 HTTPS。未 preload 且无既有 HSTS 状态时，首次 HTTP 访问仍是边界。`X-Content-Type-Options: nosniff` 要求按声明 MIME 处理，须同时返回正确 `Content-Type`，尤其避免上传内容被当脚本或 HTML。CSP `frame-ancestors` 控制谁可嵌入，是现代点击劫持防护；`X-Frame-Options` 作旧客户端回退但能力较弱。`Referrer-Policy` 限跨站泄漏，`Permissions-Policy` 限敏感能力。安全头须与资源、嵌入和 OAuth 流程一起测；扫描器「有头」≠ 策略正确；反向代理与 CDN 也可能覆盖或只给部分状态码添加。
+
+
+发布与安全收口：缓存键与 `Vary` 决定能否错发用户（个性化响应慎用公共 CDN 缓存，`Vary: Cookie` 几乎等于不可缓存）；HTML 与带 hash 的静态资源要用不同 TTL；回滚要保留旧资产窗口。CSP 是纵深防御不是银弹；供应链要锁文件、审计与最小权限 token。登录优先 BFF + HttpOnly Cookie；若 SPA 纯前端授权码流必须 PKCE，并讲清 refresh 存放与轮换。
+
+
+十年口径：网络与安全题要分层取证，并把缓存、凭证面、注入面接到同一发布回滚能力上。协议升级不是故事结尾，缓存与鉴权才是。 登录讲 BFF+Cookie 或 SPA+PKCE 二选一要说清约束；CSP 与供应链是纵深，修注入点仍是第一优先级。
+
+ 证据坑位填你自己的缓存命中率、CSP report 量与一次登录方案约束表。
 
 ## 工程取舍与故障案例模板
 
@@ -145,6 +171,22 @@ Access Token 短期并限 audience / scope；refresh rotation 每次刷新更换
 - 取舍：XSS 面仍大于 HttpOnly 会话。
 - 验证：XSS 演练与刷新并发。
 - 防护：禁 secret 进包；日志脱敏。
+
+**案例 E — 「上了 HTTP/2 仍慢，继续拆了 80 个 chunk」**
+
+- 约束：移动网冷缓存。
+- 方案：回升合并粒度；先看关键路径总字节与主线程解析；h2/h3 不取消请求税。
+- 取舍：理论缓存粒度 vs 调度成本。
+- 验证：HAR 请求数、TBT、二次访问命中。
+- 防护：分包变更要带瀑布证据。
+
+**案例 F — 「CSP 报了但 XSS 仍在」**
+
+- 约束：有 CSP 却仍拼 HTML。
+- 方案：修注入点；CSP 作纵深；序列化转义；禁随意 `unsafe-inline` 例外长期化。
+- 取舍：第三方小部件接入变烦。
+- 验证：XSS 夹具 + CSP report 归零。
+- 防护：模板默认转义；富文本白名单。
 
 ## 追问树
 
@@ -221,3 +263,7 @@ Access Token 短期并限 audience / scope；refresh rotation 每次刷新更换
 - 「CORS 防 CSRF 吗？」→ **不防。**
 - 「`no-cache` 是不缓存吗？」→ **不是；是用前再验证。**
 - 「SPA 能放 client_secret 吗？」→ **不能；公开客户端走 PKCE。**
+
+- 「CORS 能当 CSRF 防护吗？」→ **不能。**
+- 「localStorage 放 Token 的风险？」→ **XSS 下凭证面扩大。**
+

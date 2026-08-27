@@ -76,6 +76,14 @@ function testParseLimit() {
   }
 }
 
+function testParseQuestionLimitsDefaults() {
+  assert.deepEqual(parseQuestionLimits({}), {
+    min: 540,
+    max: 560,
+    expected: null,
+  })
+}
+
 function testParseQuestionLimits() {
   const limits = parseQuestionLimits({
     MIN_TOTAL_QUESTIONS: '10',
@@ -219,6 +227,64 @@ function testInlineFollowupChain() {
 `
   assert.equal(findFollowupSection(inlineChain).questions.length, 3)
   assert.equal(validateFollowupSection(inlineChain).failures.length, 0)
+}
+
+async function testRequireFollowupsRejectsAnyAnswerDefect() {
+  const cases = [
+    {
+      name: '缺答案',
+      content: followupChain.replace(/\n::: details 追问参考答案[\s\S]*$/, '\n'),
+      pattern: /缺少追问参考答案/,
+    },
+    {
+      name: '错号',
+      content: followupChain.replace('**2. 第二个追问？**', '**3. 第二个追问？**'),
+      pattern: /第 2 个追问编号与答案编号不一致/,
+    },
+    {
+      name: '错标题',
+      content: followupChain.replace(
+        '**2. 第二个追问？**',
+        '**2. 不同的追问？**',
+      ),
+      pattern: /第 2 个追问文本与答案标题不一致/,
+    },
+    {
+      name: '过短',
+      content: followupChain.replace(
+        '第一个追问的完整答案，包含明确结论、判断依据、工程示例以及实际使用时需要注意的适用边界。',
+        '过短',
+      ),
+      pattern: /第 1 个追问答案少于 40 个有效字符/,
+    },
+  ]
+
+  for (const testCase of cases) {
+    const repoRoot = await mkdtemp(
+      path.join(os.tmpdir(), `followup-defect-${testCase.name}-`),
+    )
+    const questionDir = path.join(repoRoot, 'docs/interview/questions')
+    try {
+      await mkdir(questionDir, { recursive: true })
+      await writeExpectedQuestionFiles(questionDir)
+      await writeFile(path.join(questionDir, '01-js-ts.md'), testCase.content)
+
+      const result = await validateQuestionBank({
+        repoRoot,
+        min: 0,
+        max: 999_999,
+        requireFollowups: true,
+        followupFiles: ['01-js-ts.md'],
+      })
+      assert.match(
+        result.failures.join('\n'),
+        testCase.pattern,
+        testCase.name,
+      )
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true })
+    }
+  }
 }
 
 function testFollowupFailures() {
@@ -794,6 +860,14 @@ async function testWorksFromNonRepoRoot() {
   assert.match(result.stdout, /01-js-ts\.md: Q=\d+ D=\d+ total=\d+/)
 }
 
+async function writeExpectedQuestionFiles(questionDir, contents = {}) {
+  await Promise.all(
+    EXPECTED_QUESTION_FILES.map((file) =>
+      writeFile(path.join(questionDir, file), contents[file] ?? `# ${file}\n`),
+    ),
+  )
+}
+
 async function testRejectsWrongQuestionFileSet() {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'question-bank-files-'))
   const questionDir = path.join(repoRoot, 'docs/interview/questions')
@@ -813,6 +887,78 @@ async function testRejectsWrongQuestionFileSet() {
     assert.match(message, /题库文件集合不符合预期/)
     assert.match(message, /缺失：02-vue3\.md/)
     assert.match(message, /额外：99-extra\.md/)
+
+    await writeExpectedQuestionFiles(questionDir)
+    await writeFile(path.join(questionDir, '00-fake.md'), '# 伪题库\n')
+    await writeFile(path.join(questionDir, '23-extra.md'), '# 额外题库\n')
+
+    const extraOnly = await validateQuestionBank({
+      repoRoot,
+      min: 0,
+      max: 999_999,
+    })
+    const extraMessage = extraOnly.failures.join('\n')
+    assert.match(extraMessage, /题库文件集合不符合预期/)
+    assert.match(extraMessage, /额外：00-fake\.md、23-extra\.md/)
+    assert.doesNotMatch(extraMessage, /缺失：/)
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true })
+  }
+}
+
+async function testRejectsMissingAnyExpectedQuestionFile() {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'question-bank-missing-'))
+  const questionDir = path.join(repoRoot, 'docs/interview/questions')
+
+  try {
+    await mkdir(questionDir, { recursive: true })
+    await writeExpectedQuestionFiles(questionDir)
+
+    for (const missingFile of EXPECTED_QUESTION_FILES) {
+      const target = path.join(questionDir, missingFile)
+      await rm(target)
+
+      const { failures } = await validateQuestionBank({
+        repoRoot,
+        min: 0,
+        max: 999_999,
+      })
+      const message = failures.join('\n')
+      assert.match(message, /题库文件集合不符合预期/)
+      assert.match(
+        message,
+        new RegExp(`缺失：${missingFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+      )
+      assert.doesNotMatch(message, /额外：/)
+
+      await writeFile(target, `# ${missingFile}\n`)
+    }
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true })
+  }
+}
+
+async function testQuestionFileSetIgnoresOrder() {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'question-bank-order-'))
+  const questionDir = path.join(repoRoot, 'docs/interview/questions')
+
+  try {
+    await mkdir(questionDir, { recursive: true })
+    for (const file of [...EXPECTED_QUESTION_FILES].reverse()) {
+      await writeFile(path.join(questionDir, file), `# ${file}\n`)
+    }
+
+    const { failures } = await validateQuestionBank({
+      repoRoot,
+      min: 0,
+      max: 999_999,
+    })
+    assert.equal(
+      failures.filter((failure) => failure.includes('题库文件集合不符合预期'))
+        .length,
+      0,
+      failures.join('\n'),
+    )
   } finally {
     await rm(repoRoot, { recursive: true, force: true })
   }
@@ -840,7 +986,39 @@ async function testExactQuestionTotal() {
   )
 }
 
+async function testExact550PassesAndOffByOneFails() {
+  const defaults = parseQuestionLimits({})
+  assert.deepEqual(defaults, { min: 540, max: 560, expected: null })
+
+  const baseline = await validateQuestionBank({
+    min: defaults.min,
+    max: defaults.max,
+  })
+  assert.equal(baseline.total, 550)
+  assert.equal(baseline.failures.length, 0, baseline.failures.join('\n'))
+
+  const matching = await validateQuestionBank({
+    min: defaults.min,
+    max: defaults.max,
+    expected: 550,
+  })
+  assert.equal(matching.failures.length, 0, matching.failures.join('\n'))
+
+  for (const expected of [549, 551]) {
+    const mismatching = await validateQuestionBank({
+      min: defaults.min,
+      max: defaults.max,
+      expected,
+    })
+    assert.match(
+      mismatching.failures.join('\n'),
+      new RegExp(`总题量 550 不等于精确要求 ${expected}`),
+    )
+  }
+}
+
 testParseLimit()
+testParseQuestionLimitsDefaults()
 testParseQuestionLimits()
 testFindQuestionHeadingsSkipsCodeFence()
 testExtractAnswerDetails()
@@ -860,10 +1038,14 @@ testHasDeepSection()
 testInvalidEnvExitsOne()
 await testWorksFromNonRepoRoot()
 await testRejectsWrongQuestionFileSet()
+await testRejectsMissingAnyExpectedQuestionFile()
+await testQuestionFileSetIgnoresOrder()
 await testExactQuestionTotal()
+await testExact550PassesAndOffByOneFails()
 await testFollowupFileSelection()
 await testFollowupPlaceholderDiagnosticIsNotDuplicated()
 testFollowupDetailsExposeExactRangeWithContentCollision()
 await testApiRejectsEmptyFollowupFiles()
+await testRequireFollowupsRejectsAnyAnswerDefect()
 
-console.log('validate-question-bank 边界自测通过（25 组）')
+console.log('validate-question-bank 边界自测通过（30 组）')

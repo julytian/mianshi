@@ -126,8 +126,8 @@ export function parseLimit(raw, name) {
  * @returns {{ min: number, max: number, expected: number | null }}
  */
 export function parseQuestionLimits(env = process.env) {
-  const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '201', 'MIN_TOTAL_QUESTIONS')
-  const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '410', 'MAX_TOTAL_QUESTIONS')
+  const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '540', 'MIN_TOTAL_QUESTIONS')
+  const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '560', 'MAX_TOTAL_QUESTIONS')
   const expected = env.EXPECTED_TOTAL_QUESTIONS === undefined
     ? null
     : parseLimit(env.EXPECTED_TOTAL_QUESTIONS, 'EXPECTED_TOTAL_QUESTIONS')

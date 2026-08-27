@@ -85,34 +85,34 @@
 ## 高频追问速答
 
 1. **为什么 `reactive` 解构会丢响应？**  
-   依赖追踪发生在 Proxy 属性访问上，`const { count } = state` 只把当时裸值赋给局部变量。`toRefs` 可为调用时已有的可枚举属性创建相连 ref，但不恢复普通副本，也不覆盖事后新增属性，更不能用来写回只读 props。跨 composable 更稳妥的是直接传 `ref` 或单个 `toRef`。
+   依赖追踪发生在 Proxy 属性访问上，`const { count } = state` 只把当时裸值赋给局部变量，后续读写不再经过代理。`toRefs` 可为调用时已有的可枚举属性创建相连 ref，解构后仍能追踪和写回；但它不恢复普通副本，也不覆盖事后新增属性，更不能用来写回只读 props。跨 composable 更稳妥的是直接传 `ref` 或单个 `toRef`。
 
 2. **`nextTick` 和 `setTimeout(0)` 差在哪？**  
-   `nextTick` 语义是「Vue 刷完本轮更新队列之后」，通常挂微任务；`setTimeout(0)` 是更靠后的宏任务，与渲染及其他宏任务交错，不保证刚好在 patch 后第一时间。读 `scrollHeight`、聚焦输入框优先 `nextTick` 或 `flush: 'post'`。默认 `pre` watcher 里直接读自身 DOM 常仍是旧值。
+   `nextTick` 语义是「Vue 刷完本轮更新队列之后」，通常挂微任务；`setTimeout(0)` 是更靠后的宏任务，会与浏览器渲染及其他宏任务交错，不保证刚好在 patch 后第一时间执行。读 `scrollHeight`、聚焦输入框应优先 `nextTick` 或 `flush: 'post'`。默认 `pre` watcher 里直接读所属组件 DOM 常仍是旧值，别用定时器碰运气。
 
 3. **KeepAlive 里定时器挂哪？**  
-   仅页面可见时运行的轮询应在 `onActivated` 启、`onDeactivated` 停，并防止重复激活叠加定时器。`onMounted` 对缓存实例通常只执行一次，挂在那里会在切走后继续跑。最终 `onUnmounted` 再清一次兜底；应用级长任务应交给有明确 owner 的 store / service。
+   仅页面可见时运行的轮询，应在 `onActivated` 启动、`onDeactivated` 停止，并防止重复激活叠加多个定时器。`onMounted` 对缓存实例通常只执行一次，挂在那里会在切走后继续轮询改状态。最终 `onUnmounted` 再清一次作兜底；必须后台持续的应用级任务应交给有明确 owner 的 store 或 service，而不是页面组件。
 
 4. **Suspense 接管后为什么看不到 `errorComponent`？**  
-   先声明 Suspense 仍是 experimental，且没有 `#error` 槽。默认 `suspensible: true` 时父级接管 loading，异步组件自己的 loading / error / delay / timeout 被忽略。错误靠父级 `onErrorCaptured`。需要组件自治就设 `suspensible: false`，不能同时期待两套 UI 生效。
+   先声明 `<Suspense>` 仍是 experimental，且没有自身 `#error` 槽。默认 `suspensible: true` 时，只要存在父级 Suspense，就会接管该异步组件的 loading 态，于是组件自己配置的 `loadingComponent`、`errorComponent`、`delay`、`timeout` 都会被忽略。错误展示必须靠父级 `onErrorCaptured`（或 Options 的 `errorCaptured`）收口；若要坚持组件自治 loading / error，就显式设 `suspensible: false`，绝不能同时期待两套等待与错误 UI 一起生效。
 
 5. **Nuxt 里整站 `ssr: false` 再 `generate` 算 SSG 吗？**  
-   不算。那是静态托管的 SPA 壳：正文仍等浏览器拉接口，爬虫首跳看不到内容。真正的 SSG 是构建期把具体路由渲染成带数据的 HTML（含 `_payload.json`）。没有运行中服务器也就没有 ISR / SWR；需要按需再生用 `nuxt build` + 相应 `routeRules`。
+   不算。那是静态托管的 SPA 壳：往往只剩壳 HTML，正文仍等浏览器拉接口，爬虫首跳看不到内容。真正的 SSG 是构建期把具体路由渲染成带数据的 HTML，并带上 `_payload.json`。没有运行中的服务器也就没有 ISR / SWR；需要按需再生或 `server/api` 时应走 `nuxt build`，并用 `routeRules` 给目标路径设 `prerender` 等策略。
 
 6. **Vite 8 升级后构建能过，算迁移完成吗？**  
-   不算。兼容层会把旧 `esbuild` / `rollupOptions` / 部分 `manualChunks` 改写，能构建只说明没立刻炸。完成标准是：长期配置换新入口、弃用警告清零、对象形式 `manualChunks` 删除，且 dev / 生产 / SSR / Worker / preview 用同一提交回归。
+   不算。Vite 8 默认已是 Rolldown + Oxc，但兼容层仍可能把旧的 `esbuild`、`rollupOptions` 和部分 `manualChunks` 改写过去，所以「能构建」只说明没立刻炸。真正完成迁移要看：长期配置已迁到 `optimizeDeps.rolldownOptions` / `oxc` / `build.rolldownOptions`、弃用警告清零、对象形式 `manualChunks` 已删除，并且用同一 git 提交完整回归开发态、生产构建、SSR、Worker 与 preview。
 
 7. **什么时候还必须用 Webpack（或先别迁 Vite）？**  
-   存量有大量 Webpack 专有 loader / plugin、联邦协议硬锁定、短期不能换开发模型时，可先留 Webpack 5，或在要速度且要留配置时评估 Rspack。新应用无这些约束应优先 Vite。用冷启动 / HMR / CI / 插件锁定量化决策，不为简历迁栈。
+   存量仓库若有大量 Webpack 专有 loader / plugin、联邦协议硬锁定，或短期不能换开发模型，可先留干净的 Webpack 5；若主要痛点是构建速度且要保留配置心智，再评估 Rspack。新应用没有这些约束应优先 Vite。用冷启动、HMR、CI 分钟数和插件锁定对照表决策，不为简历迁栈，也避免无回滚的大爆炸重写。
 
 8. **Rspack 和 Rolldown 怎么一句分清？**  
-   Rspack 瞄准 Webpack 兼容：尽量吃现有配置与心智，用 Rust 换构建时间。Rolldown 瞄准 Rollup 兼容，是 Vite 8 默认统一 bundler 方向，进入的是 Vite / Rolldown 插件与 `codeSplitting`，不接受一份 Webpack 配置当输入。要留 Webpack API 评 Rspack；要换开发模型评 Vite 8。
+   Rspack 瞄准 Webpack 兼容：尽量吃现有 `webpack.config`、loader 链与团队对模块图 / `splitChunks` 的心智，用 Rust 换构建时间，适合「还要 Webpack API、但受不了 JS 打包器速度」的仓库。Rolldown 瞄准 Rollup 兼容，是 Vite 8 默认统一 bundler 方向，进入的是 Vite / Rolldown 插件接口与 `output.codeSplitting`，不接受一份 Webpack 配置当输入。要留 Webpack API 就评 Rspack；要换开发模型就评 Vite 8，两条路径不要混谈。
 
 9. **为什么 setup 里不能直接 `$fetch` 首屏数据？**  
-   `$fetch` 没有 Nuxt payload 去重与转发：服务端渲染打一次，客户端水合往往再打一次，既慢又容易两侧数据不一致导致 mismatch。首屏用 `useFetch` / `useAsyncData`；事件里的交互请求才直接 `$fetch`。需要转发 Cookie 时走框架提供的请求封装，排除不安全头。
+   `$fetch` 没有 Nuxt 的 payload 去重与转发：服务端渲染会打一次，客户端水合往往再打一次，既慢又容易两侧数据不一致导致 hydration mismatch。首屏应走 `useFetch` / `useAsyncData`；点击、提交等事件里的交互请求才直接 `$fetch`。服务端内部请求要用框架封装转发 Cookie，并排除 `host` 等不安全头。
 
 10. **水合「恢复成功」为什么还要修？**  
-    恢复只代表 Vue 尝试把页面带回可运行状态，不代表首次内容、节点身份和交互无损；可能丢弃服务端 DOM、重建子树，造成闪烁、焦点丢失甚至事件绑错。生产不能只屏蔽警告，应复现 HTML / DOM / vnode 三方差异并做点击与输入回归。
+    恢复只代表 Vue 尝试把页面带回可运行状态，不代表首次内容、节点身份和交互无损；可能丢弃服务端 DOM、重建子树，造成闪烁、焦点丢失甚至事件绑错节点。生产不能只屏蔽警告，应复现 SSR HTML、浏览器规范化 DOM 与客户端首棵 vnode 的差异，并做点击与输入回归。
 
 ## 反例 / 红线
 

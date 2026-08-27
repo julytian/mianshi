@@ -79,13 +79,11 @@ if (obj.a) {
 }
 ```
 
-条件从真变假后，旧分支依赖必须清理，否则改「已经不可见」的数据仍会叫醒 effect。`JSON.stringify` 一类全量扫描会过度收集。嵌套 computed / 组件渲染用 effect 栈恢复外层 effect。
+条件从真变假后，旧分支依赖必须清理，否则改「已经不可见」的数据仍会叫醒 effect。列表渲染只访问用到的字段；`JSON.stringify` 一类全量扫描会过度收集。嵌套 computed、组件渲染与 `watchEffect` 依赖 effect 栈恢复外层 effect——公开语义如此，具体栈实现细节不承诺变量名。
 
 `trigger` 通常把任务交给调度器：组件更新与 watcher 作为不同 job 入队，同一 job 在同一轮刷新中去重，微任务阶段按既定顺序执行。因此同一 tick 连续改多个 `ref`，组件侧常只 patch 一次。这不是「所有 watcher 自动合并」的保证——不同 watcher 或 `flush: 'sync'` 不在此保证内。
 
 effect 内同步写回自身依赖可能递归；异步回调里第一次读取不会自动建依赖；把任意异步都当成同一批次会错判刷新次数。调试用 `onTrack` / `onTrigger`、Vue Devtools 与 Performance。口述结构固定为：**谁在读 → 读了什么 → 写了什么 → 谁被唤醒**，别堆源码私有变量名。
-
-条件从真变假后，旧分支依赖必须清理，否则改「已经不可见」的数据仍会叫醒 effect。列表渲染只访问用到的字段；`JSON.stringify` 一类全量扫描会过度收集。嵌套 computed、组件渲染与 `watchEffect` 依赖 effect 栈恢复外层 effect——公开语义如此，具体栈实现细节不承诺变量名。
 
 ### 3. computed 脏检查与 watch flush
 
@@ -105,11 +103,9 @@ computed 通常惰性：依赖变更先使缓存失效并通知消费者，真�
 | `post` | 所属组件 DOM patch 之后 | 测布局、聚焦、读更新后 DOM |
 | `sync` | 依赖变更立即跑 | 极少数同步失效；损失批处理，易读中间态 |
 
-`watchEffect` 只收集同步阶段读取；第一个 `await` 之后新读的 ref 不纳入该轮自动依赖。异步请求必须用清理回调取消旧请求，避免旧响应覆盖新状态。
+`watchEffect` 只收集**同步执行阶段**读取的依赖；第一个 `await` 之后新读的 ref 不纳入该轮自动依赖。需要追踪的值应在 await 前读成快照，或改用显式 `watch` 依赖列表，并用清理回调取消旧请求，避免旧响应覆盖新状态。大对象 deep watch 会递归遍历，成本高且难控——能拆依赖就拆。
 
 `nextTick(fn)` 等的是 Vue 更新队列刷完（通常挂微任务，语义以「更新之后」为准）。`setTimeout(0)` 更靠后且与其他宏任务交错。能 `nextTick` 就别用定时器碰运气；链式多次仍读不到，先怀疑还有图片加载、子组件再次改状态等独立异步。与 `requestAnimationFrame` 搭配测布局时：先 `await nextTick()` 保证 patch 完成，若还需等下一帧样式计算再 await rAF。
-
-`watchEffect` 只收集**同步执行阶段**读取的依赖；第一个 `await` 之后新读的 ref 不纳入该轮自动依赖。需要追踪的值应在 await 前读成快照，或改用显式 `watch` 依赖列表，并用清理回调取消旧请求，避免旧响应覆盖新状态。大对象 deep watch 会递归遍历，成本高且难控——能拆依赖就拆。
 
 ### 4. 编译优化与 patch：静态提升、PatchFlags、Block Tree
 

@@ -38,7 +38,7 @@
 - [框架与数据速记](/interview/review/sheets/02-framework-data)
 - [工程与质量速记](/interview/review/sheets/03-engineering-quality)
 - [领导力与求职速记](/interview/review/sheets/09-leadership)
-- 其余域按 JD 从 [速记索引](/interview/review/00-overview#9-篇速记册) 自选
+- 其余域按 JD 从 [速记索引](/interview/review/00-overview#_9-篇速记册) 自选
 
 #### 必做输出
 

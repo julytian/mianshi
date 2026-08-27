@@ -42,10 +42,26 @@ log(2) // 约 200ms 后只打印 run 2
 **讲解：** 闭包保存 `timer`；用 `apply` 保留调用时的 `this` 与参数。`immediate` 版是「先触发，冷却期内忽略」。组件卸载务必 `cancel`，避免卸了还改状态。 lodash 的 `maxWait` 是进阶点：防止一直输入永远不触发。
 :::
 
-**追问：**
+**追问链：**
 1. 防抖和节流怎么一眼选型？
 2. Vue 里写在 `setup` 里的防抖函数，卸载时要注意什么？
 3. Promise 版防抖（只保留最后一次结果）你会怎么写？
+
+::: details 追问参考答案
+
+**1. 防抖和节流怎么一眼选型？**
+
+策略：只关心停止操作后的最终结果选防抖，需要持续反馈且限制频率选节流；搜索联想常用防抖，滚动采样常用节流。复杂度：单次调用时间、额外空间均为 O(1)。边界：明确 leading、trailing 及长时间连续触发语义。测试：用假定时器覆盖连发、临界时刻、取消和最终参数。
+
+**2. Vue 里写在 `setup` 里的防抖函数，卸载时要注意什么？**
+
+策略：在 `setup` 中只创建一次防抖实例，并在 `onBeforeUnmount` 或 `onScopeDispose` 调用 `cancel`，同时释放参数、`this` 和定时器引用，避免卸载后写响应式状态。复杂度：调用与清理均为 O(1)，空间 O(1)。边界：`KeepAlive` 要区分停用和卸载。测试：挂载后触发、立即卸载并推进假时间，断言回调未执行且无残留计时器。
+
+**3. Promise 版防抖（只保留最后一次结果）你会怎么写？**
+
+策略：每次创建 Promise 并拒绝被替换的旧调用；到期后用 `Promise.resolve().then(() => fn.apply(ctx, args))`，因为 `Promise.resolve(fn())` 无法捕获调用前的同步 throw。复杂度：每次 O(1)，空间随待结算调用数增长。边界：取消、销毁也要拒绝并清引用。测试：连发只执行末次，并分别验证同步抛错、异步拒绝与正常返回。
+
+:::
 
 **踩坑：** 把 `timer` 挂在组件实例上却忘记清理；或箭头函数包一层导致 `this` 永远是错的。
 
@@ -114,10 +130,26 @@ if (noTrailing.pending()) throw new Error('unexpected retained arguments')
 **讲解：** 时间戳法保证 leading 准时；定时器补 trailing。`lastArgs` / `lastThis` 每次调用都更新，保证尾触发拿到窗口内最后一次调用，而不是创建定时器那次。`trailing=false` 且本次不执行时没有未来消费者，必须立即清引用；`pending()` 测试证明闭包不再持有参数或调用对象。面试写清 leading/trailing 语义比抄完整 lodash 更加分。
 :::
 
-**追问：**
+**追问链：**
 1. 只要 leading、不要 trailing 的场景？
 2. `requestAnimationFrame` 节流和 `setTimeout` 节流差在哪？
 3. 如何给节流函数加 `cancel`？
+
+::: details 追问参考答案
+
+**1. 只要 leading、不要 trailing 的场景？**
+
+策略：适用于按钮防连点、拖拽开始采样等只需立即响应、窗口末尾不应补做旧动作的场景，首调用执行后冷却期全部丢弃。复杂度：单次时间和额外空间均为 O(1)。边界：冷却期最后一次参数不会消费，必须立即释放 `lastArgs`、`lastThis`，并约定 wait 为 0 的行为。测试：窗口内密集调用只记录首值，跨窗再次执行，并用 `pending` 验证无引用滞留。
+
+**2. `requestAnimationFrame` 节流和 `setTimeout` 节流差在哪？**
+
+策略：视觉更新优先用 `requestAnimationFrame`，它与浏览器绘制对齐，每帧最多一次；需要明确毫秒间隔或后台仍调度则用 `setTimeout`。复杂度：每次调度 O(1)，空间 O(1)。边界：后台标签页 rAF 会暂停，刷新率也不固定，不能当精确计时器。测试：模拟多次滚动，断言单帧只提交最新参数；再验证隐藏页面及取消回调，避免把帧数误当时间。
+
+**3. 如何给节流函数加 `cancel`？**
+
+策略：`cancel` 中清除定时器，并把 `timer`、`lastArgs`、`lastThis` 和时间戳 `last` 全部复位；这样下次调用按全新窗口处理，尾触发也不会使用旧参数。复杂度：取消时间、空间均为 O(1)。边界：重复取消应幂等，取消后已进入执行栈的回调无法撤回，leading=false 时仍需重置窗口。测试：安排 trailing 后取消并推进假时间，断言不执行、引用释放，随后首次调用语义恢复。
+
+:::
 
 **踩坑：** 只用 `setInterval` 硬节流，页面后台时行为怪异；或 trailing 重复触发 leading。
 
@@ -195,10 +227,26 @@ console.log(
 `Reflect.ownKeys` 不只返回可枚举属性；配合属性描述符可避免读取 getter，也能保留 writable / enumerable / configurable。这个实现仍不克隆函数闭包、DOM、Promise、WeakMap，也未完整复制所有内置对象的内部槽。业务里优先不可变更新或 `structuredClone`。
 :::
 
-**追问：**
+**追问链：**
 1. 为什么用 `WeakMap` 而不是 `Map`？
 2. 要不要拷贝不可枚举属性 / Symbol key？
 3. Vue 的 `reactive` 对象深拷要注意什么？
+
+::: details 追问参考答案
+
+**1. 为什么用 `WeakMap` 而不是 `Map`？**
+
+策略：映射表达“对象源键到副本”，WeakMap 强调对象键和不可枚举；局部 Map 随克隆调用结束同样可回收，并非必须靠弱引用。所有副本都应先写映射再返回，Date、RegExp 也如此，才能保留重复引用。复杂度：时间、空间 O(n)。边界：原始值不能作键。测试：覆盖环，以及两个属性共享同一 Date、RegExp，断言副本仍共享且不等于源。
+
+**2. 要不要拷贝不可枚举属性 / Symbol key？**
+
+策略：若目标是保真克隆，应使用 `Reflect.ownKeys` 获取字符串、不可枚举与 Symbol 自有键，再读取属性描述符；数据描述符递归克隆 value，访问器原样保留而不触发 getter。复杂度：时间 O(n)，副本空间 O(n)，递归栈取决于深度。边界：不可配置属性可在新对象定义，但私有字段和内部槽无法通用复制。测试：构造隐藏属性、Symbol key、getter 与只读属性，逐项比较描述符。
+
+**3. Vue 的 `reactive` 对象深拷要注意什么？**
+
+策略：先明确需要普通快照还是新的响应式副本；普通快照可对 `toRaw` 后的对象克隆，新状态再按需 `reactive`，不要直接遍历 Proxy 以免触发依赖和代理陷阱。复杂度：深拷时间、空间通常 O(n)。边界：`toRaw` 只去掉当前层代理，嵌套引用、`markRaw`、ref 和循环仍需策略。测试：覆盖嵌套 reactive、ref、Symbol、环及 getter，断言原代理未被复用且修改互不影响。
+
+:::
 
 **踩坑：** 忘记循环引用直接爆栈；或对 `null` 当 object 处理（`typeof null === 'object'`）。
 
@@ -244,10 +292,26 @@ promiseAll([]).then((r) => console.log('empty', r)) // []
 **讲解：** `Promise.resolve` 统一普通值与 thenable。计数器 `done` 而不是 `i === n-1`，因为完成顺序不定。对比：`allSettled` 不短路；`race` 只要第一个；`any` 要第一个成功。
 :::
 
-**追问：**
+**追问链：**
 1. 已有一个失败后，其它 Promise 还在跑，怎么取消？
 2. 手写 `allSettled` 和 `all` 差在哪几行？
 3. 稀疏数组 / 类数组要注意什么？
+
+::: details 追问参考答案
+
+**1. 已有一个失败后，其它 Promise 还在跑，怎么取消？**
+
+策略：`Promise.all` 接收的 Promise 通常创建时已启动，只能提前 reject，不能停止其余项。取消必须由底层任务支持 `AbortSignal`，并在调用前注入、向 fetch 或定时器透传；若要阻止未启动任务，应改收任务工厂并交给并发池领取。复杂度：all 的登记时间、结果空间 O(n)。边界：忽略 signal 的任务仍会完成。测试：验证普通 Promise 在失败后继续运行，并验证工厂池不再领取新任务。
+
+**2. 手写 `allSettled` 和 `all` 差在哪几行？**
+
+策略：按索引回填不变；成功包装为 `{ status:'fulfilled', value }`，失败包装为 `{ status:'rejected', reason }`，两支都计数，全部结束才 resolve。复杂度：调度时间 O(n)，结果空间 O(n)。边界：空输入立即返回空数组，普通值先经 `Promise.resolve`，单项失败不得短路。测试：混合成功、失败、thenable 与乱序完成，核对顺序、状态和值。
+
+**3. 稀疏数组 / 类数组要注意什么？**
+
+策略：先约定原生 iterable 语义；`Array.from` 会把数组空位转成 `undefined`，纯类数组是否接受则属于扩展，不能假设任意对象可遍历。复杂度：物化输入时间、空间 O(n)。边界：迭代器中途抛错应转为 Promise 拒绝，非法 length 与超大输入也要防护。测试：覆盖稀疏数组、字符串、Set、thenable、类数组和抛错迭代器。
+
+:::
 
 **踩坑：** 用 `push` 收集结果导致乱序；空数组忘了立刻 resolve。
 
@@ -293,10 +357,26 @@ asyncPool(2, [sleep(300, 1), sleep(100, 2), sleep(100, 3), sleep(100, 4)])
 **讲解：** `Promise.race(executing)` 等「任意一个槽位空出来」。若要失败不中断整批，把内层改成 `allSettled` 或 task 内自行 catch。面试可画：队列长度、inflight、完成回调三块。
 :::
 
-**追问：**
+**追问链：**
 1. 动态追加任务（生产者-消费者）怎么改？
 2. 失败是快速失败还是继续跑完？
 3. 和浏览器 HTTP/1.1 六连接限制的关系？
+
+::: details 追问参考答案
+
+**1. 动态追加任务（生产者-消费者）怎么改？**
+
+策略：把静态数组改成可关闭队列，`add` 入队并唤醒 worker；无任务时等待，关闭且在途归零后完成，入队时分配索引以保序。复杂度：入队、出队摊还 O(1)；若保存全部结果，空间 O(n+q+limit)，只讨论调度器才是 O(q+limit)。边界：关闭后拒绝追加，取消时唤醒等待者。测试：分批追加并验证顺序、并发上限、关闭和取消。
+
+**2. 失败是快速失败还是继续跑完？**
+
+策略：先把契约做成参数；fail-fast 在首个永久失败时设置独立失败标志、停止领取并 abort 在途任务，all-settled 则持续调度并记录每项状态。复杂度：两者调度时间 O(n)，结果空间 O(n)，在途空间 O(limit)。边界：错误可能是 `null`、`0` 等假值，不能拿错误值判断是否失败；取消必须协作。测试：让首项失败、次项在途、后续待领，分别断言两种模式的启动集合和最终结构。
+
+**3. 和浏览器 HTTP/1.1 六连接限制的关系？**
+
+策略：并发池是应用层背压，连接上限是浏览器按 origin 管理的传输约束；HTTP/1.1 常见约 6 条，HTTP/2/3 可多路复用，池应按压测配置。复杂度：每项调度 O(1)，空间 O(limit+n)。边界：跨域、缓存和连接复用会改变观察结果，不能把 6 当固定规范。测试：在不同协议下抓 Network waterfall，并以服务端计数验证真实并发。
+
+:::
 
 **踩坑：** 用递归 + 全局 index 却在错误路径漏推进；或 `limit` 写成同步 for 循环里直接 `await` 变成串行。
 
@@ -356,10 +436,26 @@ bus.emit('msg', 3) // 无输出（once 与 a 都已解绑）
 **讲解：** 用 `Set` 便于 `off`；`emit` 时浅拷贝监听列表，避免边触发边取消导致漏调 / 错调。全局 bus 易造成隐式耦合与泄漏——组件级要成对 `off`，或改用框架官方事件 / 提供-注入。
 :::
 
-**追问：**
+**追问链：**
 1. `emit` 同步还是异步调度更好？
 2. 内存泄漏常见在哪？
 3. 和 Vue 的 `mitt` / 生命周期怎么配合？
+
+::: details 追问参考答案
+
+**1. `emit` 同步还是异步调度更好？**
+
+策略：默认同步可保证顺序、便于返回后状态已更新；若监听器重或需隔离调用栈，再提供显式 `emitAsync`，用微任务调度并约定串行或并行，而非暗中改变语义。复杂度：n 个监听器时间 O(n)，快照空间 O(n)。边界：同步异常是否隔离、异步拒绝如何汇总、递归 emit 的顺序都要写入契约。测试：记录监听顺序，覆盖监听中 off/on、抛错、递归触发及异步拒绝。
+
+**2. 内存泄漏常见在哪？**
+
+策略：泄漏常见于全局总线强引用组件闭包、匿名函数无法 off，以及 `once` 永未触发；`once` 应 `return this.on(type, wrap)`，让调用方在触发前也能 disposer 取消，并清理空 Set。复杂度：注册、删除平均 O(1)，空间 O(监听器数)。边界：取消和触发竞争时包装函数只能执行一次。测试：反复挂载卸载，覆盖 once 已触发、未触发先取消，并检查监听数归零。
+
+**3. 和 Vue 的 `mitt` / 生命周期怎么配合？**
+
+策略：在 effect scope 内订阅，把同一 handler 传给 `mitt.off`，并在 `onScopeDispose` 清理；可封装 composable。复杂度：订阅、解绑平均 O(1)，触发 O(n)，空间 O(n)。边界：`KeepAlive` 停用时若不应收事件，要配合 activated/deactivated；SSR 不共享全局单例。测试：挂载触发一次、卸载后不触发、多实例不串扰，并覆盖停用恢复。
+
+:::
 
 **踩坑：** `off` 传了匿名函数对不上；或 `emit` 时直接遍历原 Set 同时 `delete` 跳过元素。
 
@@ -437,10 +533,26 @@ assert.throws(() => myInstanceof({}, InvalidHook), TypeError)
 **讲解：** 原生属性查找允许子类继承父类的自定义 `@@hasInstance`，所以这里沿构造器原型链查找并调用；值为 `undefined` 表示没有钩子，回退普通原型链，只有非 `undefined` 且不可调用才抛 `TypeError`。遇到 `Function.prototype` 的内建默认实现时主动跳过，避免绕回原生 `instanceof`。跨 iframe 的数组检测应使用 `Array.isArray`。
 :::
 
-**追问：**
+**追问链：**
 1. `instanceof` 和 `typeof` 分别解决什么？
 2. 手动改 `__proto__` 后结果会怎样？
 3. 为什么检测数组更推荐 `Array.isArray`？
+
+::: details 追问参考答案
+
+**1. `instanceof` 和 `typeof` 分别解决什么？**
+
+策略：`typeof` 区分类型和 function，但 null 得到 object；`instanceof` 先尊重 `Symbol.hasInstance`，否则沿 prototype 判断对象关系。复杂度：`typeof` O(1)，默认原型链检查时间 O(h)、空间 O(1)；自定义钩子的复杂度由用户实现决定。边界：跨 realm、原型变更影响结果。测试：覆盖 primitive、null、继承、常量与线性钩子及 iframe 对象。
+
+**2. 手动改 `__proto__` 后结果会怎样？**
+
+策略：普通 `instanceof` 动态沿当前原型链查找 `Ctor.prototype`，用 `Object.setPrototypeOf` 改链后结果会变化，与最初构造器无必然关系。复杂度：检查时间 O(h)、空间 O(1)。边界：不可扩展对象可能拒绝修改，循环链会抛错，`Symbol.hasInstance` 可覆盖该逻辑。测试：构造对象后替换、恢复原型，逐次断言真假并覆盖自定义钩子。
+
+**3. 为什么检测数组更推荐 `Array.isArray`？**
+
+策略：`Array.isArray` 检查数组内部品牌，不依赖当前 realm 的 `Array.prototype`；`instanceof Array` 比较原型身份，iframe 数组会误判。复杂度：时间、空间均 O(1)。边界：伪造原型或 `Symbol.toStringTag` 不能骗过品牌检查，TypedArray 不是 Array。测试：覆盖本地与跨 iframe 数组、伪造对象、Proxy 包装数组及 TypedArray。
+
+:::
 
 **踩坑：** 对 `null` / `undefined` 调 `getPrototypeOf` 抛错；或忽略右操作数非函数。
 
@@ -479,10 +591,26 @@ const pipeAsync =
 **讲解：** Redux 中间件、koa 洋葱模型都是组合思想。同步版用 `reduce` / `reduceRight` 一行够用；空 `fns` 时返回恒等 `x => x`。业务里过度 compose 会降低可读性——组合 2～4 个纯函数最舒服。
 :::
 
-**追问：**
+**追问链：**
 1. 多参数函数怎么先 `curry` 再 compose？
 2. 和 middleware「next」模型有何不同？
 3. TypeScript 里怎么给 compose 写类型（口述即可）？
+
+::: details 追问参考答案
+
+**1. 多参数函数怎么先 `curry` 再 compose？**
+
+策略：先将多参数纯函数转为按参数数目逐步收集的 curry 函数，得到最终一元函数后再参与 compose；也可先用部分应用固定环境参数，避免组合器承担多参规则。复杂度：收集 m 个参数时间、空间 O(m)，组合 k 个函数执行 O(k)。边界：默认参数、剩余参数使 `fn.length` 不可靠，应允许显式 arity。测试：覆盖一次传完、分批传参、超额参数、空组合及中间函数抛错。
+
+**2. 和 middleware「next」模型有何不同？**
+
+策略：compose 让值单向流过纯函数；middleware 组合 `(ctx, next)`，每层可在 `await next()` 前后执行，需递归 dispatch 和双 next 防护。复杂度：k 层时间、Promise 链空间均 O(k)。边界：漏 await、调用 next 两次、同步抛错和异步拒绝要统一处理。测试：记录 before/after 顺序，验证短路、双 next 报错及错误中间件捕获。
+
+**3. TypeScript 里怎么给 compose 写类型（口述即可）？**
+
+策略：实用实现先为 2～5 个函数写 overload，约束右侧输出匹配左侧输入；通用版可用 variadic tuple 递归校验相邻函数。复杂度：运行时间、空间 O(k)，类型检查成本也随链长增长。边界：空函数返回恒等函数，多参数只允许最右端，泛型函数可能丢推断。测试：用 `tsc --noEmit` 检查应通过链和 `@ts-expect-error` 的不兼容链。
+
+:::
 
 **踩坑：** 搞反 compose / pipe 方向；或对有副作用的函数狂 compose 导致调试地狱。
 
@@ -546,10 +674,26 @@ state.count++ // 再打印
 **讲解：** 这是 Vue 3 响应式的玩具版。缺口：清理旧依赖（分支切换）、`scheduler`、`readonly`、数组索引 / `length`、`Map` 等集合、避免 `reactive` 无限套娃（要用 `reactiveMap` 缓存）。口述「能跑最小 demo + 知道和真 Vue 差在哪」即可。
 :::
 
-**追问：**
+**追问链：**
 1. 为什么用 `WeakMap`？
 2. `effect` 里又读又写同一字段会死循环吗？怎么破？
 3. `ref` 和 `reactive` 在这套模型里怎么统一？
+
+::: details 追问参考答案
+
+**1. 为什么用 `WeakMap`？**
+
+策略：依赖桶以原始 target 为键，WeakMap 不会强引用已不可达的业务对象；值用 `Map<key, Set<effect>>` 按属性触发。复杂度：track 平均 O(1)，trigger 时间 O(e)，空间 O(依赖数)。边界：WeakMap 不可枚举，原始值不能作键，调试需另设开发态索引。测试：验证多个对象同名 key 不串依赖，并用 WeakRef/GC 辅助检查对象不会被桶强留。
+
+**2. `effect` 里又读又写同一字段会死循环吗？怎么破？**
+
+策略：会；执行前标记 activeEffect，trigger 时跳过当前任务，每轮先清理旧依赖，再用 scheduler 队列去重，避免同步递归。复杂度：清理和触发时间 O(d+e)，空间 O(d)。边界：嵌套 effect 要用栈恢复当前任务，异常时必须 finally 复位。测试：覆盖自增、条件分支切换、嵌套 effect、批量写入和回调抛错，断言不死循环且旧依赖失效。
+
+**3. `ref` 和 `reactive` 在这套模型里怎么统一？**
+
+策略：把 ref 视为带 `.value` 的依赖容器，getter 调 track，setter 比较变更后 trigger；对象值交给 reactive，代理层按约定解包。复杂度：读写平均 O(1)，空间与依赖数相关。边界：浅 ref、重复代理、相同值赋值，以及数组和集合中的解包规则要分开。测试：覆盖原始值、对象值、相同值不触发、effect 联动及 reactive 属性持有 ref。
+
+:::
 
 **踩坑：** 嵌套每次 `get` 都 `new Proxy` 导致依赖对不上；或忘记 `Reflect` 弄丢 `receiver` / getter。
 
@@ -596,10 +740,26 @@ console.log([1, [2, [3]]].flat(Infinity))
 **讲解：** 默认 `depth = 1` 对齐原生 `flat`。`reduce + concat` 也能写但大数组有中间数组成本。稀疏数组、空位行为面试提一句「与规范一致与否看面试官要求」即可。
 :::
 
-**追问：**
+**追问链：**
 1. `flatMap` 和 `map + flat(1)` 关系？
 2. 如何扁平「类数组」？
 3. 无限深度用递归的风险？
+
+::: details 追问参考答案
+
+**1. `flatMap` 和 `map + flat(1)` 关系？**
+
+策略：`arr.flatMap(fn)` 接近 `arr.map(fn).flat(1)`，只展开一层；原生实现可避免完整中间数组，适合一对零或一对多转换。复杂度：时间 O(n+r)，结果空间 O(r)，拆写版另有 O(n) 中间空间。边界：回调参数、稀疏数组空位和可展开对象以规范为准。测试：覆盖返回标量、数组、空数组、稀疏输入及带 thisArg 的回调。
+
+**2. 如何扁平「类数组」？**
+
+策略：先区分 iterable 与只有 length、数字键的对象；用 `Array.from` 归一化后再 flatten，模拟原生 flat 时按索引存在性处理空位。复杂度：转换时间、空间 O(n)，扁平时间 O(m)。边界：非法或超大 length、访问器抛错及 live collection 变化要处理。测试：覆盖 arguments、NodeList、字符串、自定义 length 对象和缺失索引。
+
+**3. 无限深度用递归的风险？**
+
+策略：极深递归会超过调用栈，可改显式栈并逆序压入元素以保持输出顺序。复杂度：访问时间 O(n)，输出和显式栈空间 O(n)，递归版额外栈 O(depth)。边界：循环数组会无限展开，应拒绝或用 WeakSet 检测；超大结果还可能耗尽内存。测试：构造万层嵌套、循环引用、空数组和混合深度，核对顺序与原生结果。
+
+:::
 
 **踩坑：** 用 `toString` / `join` 伪扁平丢失类型；或 `concat` 不判断 depth。
 
@@ -662,10 +822,26 @@ console.log(user.name, user instanceof User) // Ada true
 **讲解：** `myCall` 用 `try/finally` 保证目标函数抛错时也删除临时 Symbol；但向 frozen / non-extensible 对象挂临时属性仍会失败，且严格模式 `this`、函数 `name/length` 等细节未完全模拟，因此这是教学近似。生产中可靠调用直接用 `Reflect.apply(fn, thisArg, args)`。`myBind` 的构造分支用 `Reflect.construct(fn, args, new.target)`，正确传递 `new.target` 并忽略绑定的 `thisArg`。
 :::
 
-**追问：**
+**追问链：**
 1. `bind` 之后还能再 `bind` 改 `this` 吗？
 2. 为什么要用 `Symbol` 当临时 key？
 3. 箭头函数的 `call/apply/bind` 为何改不了 `this`？
+
+::: details 追问参考答案
+
+**1. `bind` 之后还能再 `bind` 改 `this` 吗？**
+
+策略：原生 bound 固定 this。直接 new 时，若 newTarget 就是 Bound，规范将其替换为目标函数；`Reflect.construct(Bound, args, Other)` 则转发 Other。复杂度：参数拼接时间、空间 O(m)。边界：教学 `myBind` 难模拟该替换及 prototype 内部语义。测试：覆盖二次 bind、直接 new、Other newTarget 和 `instanceof`。
+
+**2. 为什么要用 `Symbol` 当临时 key？**
+
+策略：教学版 call 把函数临时挂到装箱后的上下文，Symbol 避免覆盖字符串属性，并用 try/finally 删除。复杂度：设置、调用、删除平均 O(1)，空间 O(1)。边界：它不等价于规范 `[[Call]]`；冻结对象会失败，严格模式的 null 绑定不同，primitive 会 boxing。测试：覆盖同名属性、primitive、null、冻结对象及函数抛错后的清理。
+
+**3. 箭头函数的 `call/apply/bind` 为何改不了 `this`？**
+
+策略：箭头函数没有自身 this 和 `[[Construct]]`，创建时从词法环境捕获 this；call/apply/bind 只影响参数，不能改 this，也不能 new。复杂度：调用时间、空间 O(1)，参数展开另计。边界：顶层 this 在 ESM、脚本和 CommonJS 中不同，演示结果不能机械外推。测试：在对象方法中创建箭头后分别 call、bind，断言 this 不变，再断言 new 抛 TypeError。
+
+:::
 
 **踩坑：** `bind` 忘记 `new` 场景；或 `apply` 第二参 `null` 未当 `[]` 处理。
 
@@ -757,17 +933,49 @@ assert.throws(() => getRange(0, 100, 20, -1), RangeError)
 
 #### 资深回答模板
 「定高版把 scrollTop 映射为 `[start, end)`，总高负责滚动尺度，offset 负责视觉位置。核心计算 O(1)，渲染 O(k)；动态高度再引入测量缓存和二分定位。」
+:::
 
 #### 追问链
 1. scrollTop 在两项边界上时为什么用 floor？
 2. 如何测试空列表、最后一屏和极速滚动？
 3. 动态高度变化后如何维持视觉锚点？
+
+::: details 追问参考答案
+
+**1. scrollTop 在两项边界上时为什么用 floor？**
+
+本实现用 `Math.floor(safeScrollTop / itemHeight)` 得到占据视口顶部那一行。刚好落在第 n 项顶边时，该项 top 对齐视口，start 必须是 n；若用 `round` 或 `ceil`，边界上会提前切到下一项，首行被跳过。`end` 才用 `ceil` 包住视口底部。现有断言里负 scrollTop 先夹到 0 再 floor，避免把边界误差变成负索引。
+
+**2. 如何测试空列表、最后一屏和极速滚动？**
+
+空列表应对 `count=0` 得到 `{start:0,end:0,offset:0,total:0}`。最后一屏用过大 scrollTop，start/end 都夹到 count，如 10 项时窗口为空区间且 offset 等于总高。数据骤减后旧 scrollTop 仍须得到合法窗口。极速滚动测 rAF 合并后窗口始终落在 `[0,count]`、overscan 不越界、key 不错位；非法高度继续抛 `RangeError`。
+
+**3. 动态高度变化后如何维持视觉锚点？**
+
+变化前记下锚点 index 和该项内偏移；重新测量并更新前缀和后，把 `scrollTop` 设回「锚点项新前缀 + 偏移」，而不是只改 `total`。视口上方高度变了却不回写，滚动条会跳。未测项用估计值，测完再校正一次。测试固定某行在视口中的位置，改上方高度后断言该行视觉位置不变。
+
 :::
 
-**追问：**
+**追问链：**
 1. 如何实现 `scrollToIndex`？
 2. 为什么 overscan 不能无限大？
 3. 可访问性上还要保留哪些列表语义？
+
+::: details 追问参考答案
+
+**1. 如何实现 `scrollToIndex`？**
+
+策略：定高列表以 `index * itemHeight` 求目标，再按 start、center、end 修正并夹紧到合法滚动范围。复杂度：计算时间、空间 O(1)。边界：拒绝非法高度、非整数或越界 index；数据骤减时夹紧 index 与旧 scrollTop，空列表返回 0。测试：覆盖首末项、三种对齐、视口高于总高、非法高度，以及数据从千项骤减为三项。
+
+**2. 为什么 overscan 不能无限大？**
+
+策略：overscan 在可视区两侧预渲染少量项目，减少快速滚动白屏；过大会让 DOM 和布局成本接近全量渲染。复杂度：窗口计算 O(1)，渲染时间、空间 O(k+overscan)。边界：overscan 必须是有限非负整数，动态调节也要设上限，首尾需夹紧。测试：测不同缓冲下的节点数、掉帧和白屏率，并断言窗口不越界。
+
+**3. 可访问性上还要保留哪些列表语义？**
+
+策略：容器保留 `ul/ol` 与 `li` 或等价 role，项目应暴露稳定可读名称；若仅渲染局部，可用 `aria-setsize`、`aria-posinset` 表达全集位置，并保证键盘焦点项不会被直接卸载。复杂度：每项标注 O(1)，窗口空间 O(k)。边界：读屏器对大集合支持不一，不能用 ARIA 替代真实交互与焦点管理。测试：键盘逐项导航、滚动后焦点保持，并用 VoiceOver 检查数量和位置播报。
+
+:::
 
 **踩坑：** 只写 `slice`，没有总高度与 offset，结果仍无法形成正确滚动空间。
 
@@ -818,17 +1026,49 @@ function filterTree(
 
 #### 资深回答模板
 「我用后序遍历先得到可见子树，再决定是否保留父节点。复杂度 O(n)，返回新树；权限继承、目录保留与服务端权威要在写代码前约定。」
+:::
 
 #### 追问链
 1. 如何同时返回半选与全选状态？
 2. 十万节点且频繁切角色如何缓存？
 3. 输入不是树而是 `id/pid` 扁平表时先做什么？
+
+::: details 追问参考答案
+
+**1. 如何同时返回半选与全选状态？**
+
+`filterTree` 只决定可见性，不能直接当勾选态。另做后序：叶子按权限是否命中标选中；目录看可见子节点，全中为全选、部分为半选、全无或无子为未选。目录自身 `permission` 只影响能不能出现，不自动推导子权限。返回新节点上的 `checked: 'on'|'off'|'indeterminate'`，并保持输入不可变。用交错权限的树对拍每层状态。
+
+**2. 十万节点且频繁切角色如何缓存？**
+
+树结构不变时，用角色或权限集合摘要做缓存键，命中则直接复用过滤结果。权限变更频繁时，为 `permission` 建反向索引，只重算命中节点及其祖先，并缓存可见子计数；影响面过大再回退全量 O(n)。缓存必须按角色隔离，避免串权。用同一棵大树切换两个角色，对比缓存结果与全量 `filterTree`。
+
+**3. 输入不是树而是 `id/pid` 扁平表时先做什么？**
+
+先建 `id → 节点` 的 Map，再按 `pid` 挂 `children`，得到森林后再交给现有的后序 `filterTree`。这一步要先处理重复 id、自环、父子环、未知 pid 和孤儿：约定丢弃、提升为根或直接报错，不要静默丢祖先。深度过大改显式栈。表驱动覆盖这些异常后，再断言过滤后的祖先链和兄弟顺序。
+
 :::
 
-**追问：**
+**追问链：**
 1. 如何保留原始节点顺序？
 2. 权限集合更新后怎样增量计算？
 3. 如何测试孤儿节点、空权限和深链？
+
+::: details 追问参考答案
+
+**1. 如何保留原始节点顺序？**
+
+策略：按原数组顺序遍历每层，递归过滤 children 后用 `flatMap` 返回零或一个新节点，不排序也不从集合重建，兄弟顺序自然稳定。复杂度：访问时间 O(n)，输出和递归栈空间 O(n)。边界：共享节点、重复 id 和环不是合法树，应预校验或拒绝。测试：设置交错权限，核对剩余 id 顺序和祖先链，并断言输入未被修改。
+
+**2. 权限集合更新后怎样增量计算？**
+
+策略：为所有带 permission 的节点建立反向索引，目录和叶子都不能遗漏；权限变化时重算命中节点及其祖先，并缓存可见子计数，用角色摘要隔离缓存。复杂度：受影响节点 a、树高 h 时约 O(a·h)，索引空间 O(n)。边界：批量变化先去重，影响过大改全量 O(n)。测试：分别切换目录、叶权限，并把增量结果与全量过滤做性质对比。
+
+**3. 如何测试孤儿节点、空权限和深链？**
+
+策略：扁平表先建 id Map 再按 pid 挂载；孤儿明确为丢弃、根节点或报错，空 permission 按约定表示公共，深链用显式栈。复杂度：构树与过滤时间、空间 O(n)。边界：重复 id、自环、父子环、未知 pid 和十万层链要拒绝或稳定处理。测试：表驱动覆盖异常，再用大深度和随机树验证祖先保留、顺序及输入不可变。
+
+:::
 
 **踩坑：** 把菜单显隐当服务端授权，抓包后仍能调用未授权接口。
 
@@ -909,17 +1149,49 @@ function createRequestCache<T>(capacity = 100) {
 
 #### 资深回答模板
 「LRU 解决已完成结果的容量淘汰，inflight Map 解决同 key 并发去重。二者生命周期不同：失败清飞行态，写操作主动失效结果缓存，key 必须覆盖权限与参数。」
+:::
 
 #### 追问链
 1. 多个调用方如何实现引用计数取消？
 2. TTL 与 LRU 同时存在时先判断什么？
 3. stale-while-revalidate 如何避免并发刷新？
+
+::: details 追问参考答案
+
+**1. 多个调用方如何实现引用计数取消？**
+
+`inflight` 条目保存底层 Promise 和引用计数。新调用方加一并挂接自己的 signal；某方 abort 只减一，计数到 0 才 abort 真正请求。这避免现有反例里「一方取消连坐」。失败仍在 `finally` 里删 inflight，成功再 `put` 进 LRU。测试三个调用方、中途取消两个，断言底层 loader 只跑一次且未被提前 abort。
+
+**2. TTL 与 LRU 同时存在时先判断什么？**
+
+`get` 先看键是否存在，再看是否过期：过期立即删除且不提升，视为 miss；未过期才按 LRU 挪到最近。`put` 写入 `expiresAt` 后再做容量淘汰，避免用过期项占着容量却当热点。时钟优先单调时间。注入假时钟，覆盖到期刚好等于 now、续期、淘汰与同时过期，确认过期项不会被当成一次 LRU 命中。
+
+**3. stale-while-revalidate 如何避免并发刷新？**
+
+过期但仍可用时立即返回旧值，刷新走与 inflight 同一条 singleflight：已有刷新则复用该 Promise，禁止并行打同一 key。刷新成功再 `put`；失败保留旧值并记录错误，不要把 rejected Promise 写进 LRU。结合现有去重 Map，把「过期刷新」和「首次加载」共用一把锁。用计数器断言窗口内 loader 只触发一次。
+
 :::
 
-**追问：**
+**追问链：**
 1. 为什么不用普通对象 + 数组模拟？
 2. 带 TTL 的 LRU 怎么扩展？
 3. `WeakMap` 能做 LRU 吗？为什么不能按 key 枚举淘汰？
+
+::: details 追问参考答案
+
+**1. 为什么不用普通对象 + 数组模拟？**
+
+策略：对象存值、数组存顺序会让 get 提升或淘汰执行查找与移动；Map 同时提供键值和插入顺序，删后重设即可提升。复杂度：数组方案时间 O(n)，Map 平均 O(1)，空间均 O(capacity)。边界：通用 miss 不能用 `-1`，普通对象还会字符串化对象键。测试：覆盖假值、对象键、重复 put、get 提升、容量 0 和连续淘汰。
+
+**2. 带 TTL 的 LRU 怎么扩展？**
+
+策略：条目保存 value 与 expiresAt；get 先删过期项，命中再提升，put 写入截止时间并按容量淘汰。复杂度：惰性检查平均 O(1)、空间 O(capacity)；主动到期可加最小堆，更新 O(log n)。边界：优先单调时钟，TTL≤0、时间跳变和过期项占容量需约定。测试：注入假时钟，覆盖到期前后、续期策略、容量淘汰和同时过期。
+
+**3. `WeakMap` 能做 LRU 吗？为什么不能按 key 枚举淘汰？**
+
+策略：WeakMap 只接受对象键且不可枚举，GC 时间也不可观察，无法找到最久未用的 key 或精确维护容量；它只适合对象元数据缓存。复杂度：get/set 近似 O(1)，但没有可实现的淘汰遍历。边界：额外数组记录顺序会重新强引用 key，失去弱引用意义。测试：检查 API 无 keys/size，再用 Map 版本验证容量与访问顺序；GC 只做辅助测试。
+
+:::
 
 **踩坑：** `get` 不更新顺序，LRU 退化成普通 Map；容量 ≤ 0 未校验。
 
@@ -965,17 +1237,49 @@ type XOR<T, U> = (T & Without<U, T>) | (U & Without<T, U>)
 
 #### 资深回答模板
 「我先用条件类型分出函数、数组、对象和原始值，再递归映射；用 infer 解包 PromiseLike。类型工具必须有应通过和应报错两组编译测试，并控制递归复杂度。」
+:::
 
 #### 追问链
 1. 如何阻止条件类型对联合分发？
 2. tuple 在当前 `DeepReadonly` 中会丢失什么信息？
 3. `any`、`unknown`、`never` 分别会怎样传播？
+
+::: details 追问参考答案
+
+**1. 如何阻止条件类型对联合分发？**
+
+不要让被检查的 `T` 保持裸参数，改成 `[T] extends [readonly (infer U)[]]` 或 `[T] extends [object]`。这样 `A | B` 作为整体进入分支，而不会变成两个结果的联合。`IsUnion` 则要故意分发一次，再和整个 `U` 比较。给当前 `DeepReadonly` 加一组 `A | B` 输入的类型测试，确认包裹前后分别得到联合与整体对象。
+
+**2. tuple 在当前 `DeepReadonly` 中会丢失什么信息？**
+
+第二支 `T extends readonly (infer U)[]` 会把元组收成元素联合的只读数组，长度、按位类型和可选尾部都丢掉，`[string, number]` 变成 `ReadonlyArray<string | number>`。函数分支能保住调用签名，元组没有专支。要保元组应先匹配 `[any, ...any[]]` 再映射每一项，并用 `Equal` 断言长度与元素类型。
+
+**3. `any`、`unknown`、`never` 分别会怎样传播？**
+
+`any extends 函数` 走双分支，结果常是函数、数组、对象形态的联合，还可能递归膨胀，不能当 `any` 恒等。`unknown` 不是函数、不是数组，也不可赋给 `object`，会落到最后的 `: T`，仍是 `unknown`。裸 `never` 按空联合分布，整段往往直接变成 `never`。这三组必须写进 `tsc --noEmit` 正反例，不能只看 hover。
+
 :::
 
-**追问：**
+**追问链：**
 1. 如何实现 `Mutable<T>`？
 2. 为什么类型测试不能只看 IDE hover？
 3. 何时应直接使用 TypeScript 内置 `Awaited`？
+
+::: details 追问参考答案
+
+**1. 如何实现 `Mutable<T>`？**
+
+策略：浅层版用 `type Mutable<T> = { -readonly [K in keyof T]: T[K] }`；深层版先区分函数、tuple、数组和对象再递归。复杂度：运行时为零；编译期取决类型实例化图，分发条件类型和联合组合可能显著膨胀。边界：readonly 不会解冻对象，tuple 信息需保留。测试：用正例和 `@ts-expect-error` 反例执行项目 typecheck。
+
+**2. 为什么类型测试不能只看 IDE hover？**
+
+策略：建立独立 `.test-d.ts`/`.ts` 夹具并纳入 CI。复杂度：取决类型实例化图，分发条件类型和联合组合可能显著膨胀。边界：用项目 tsconfig 覆盖 `exactOptionalPropertyTypes`。测试：以 `Expect<Equal<...>>` 验证 tuple/union/any/never 正例，以 `@ts-expect-error` 验证反例，执行 `tsc --noEmit` 或现有 typecheck 脚本。
+
+**3. 何时应直接使用 TypeScript 内置 `Awaited`？**
+
+策略：优先内置 `Awaited<T>`，它随 TypeScript 维护 PromiseLike、thenable、null/undefined 等语义；仅教学或不同契约时自定义。复杂度：运行时为零；编译期取决类型实例化图，分发条件类型和联合组合可能显著膨胀。边界：any、never 的传播和递归限制需关注。测试：与内置类型做双向 assignability 断言，覆盖联合、嵌套 Promise 和 thenable。
+
+:::
 
 **踩坑：** 类型写得很炫但错误输入也能通过，且没人能解释分发条件。
 
@@ -1378,17 +1682,49 @@ console.log('requestPool tests passed (13 groups)')
 
 #### 资深回答模板
 「我先声明 fail-fast：首个永久失败写入共享 fatal，停止领取并 abort 在途任务；外部 signal 联动内部 controller。结果按索引回填，忽略 signal 的任务不能强杀，只能丢弃晚到结果。all-settled 要另写契约。」
+:::
 
 #### 追问链
 1. `AbortSignal.any()` 可怎样组合用户取消与超时？
 2. 429 的 `Retry-After` 为什么优先于本地退避？
 3. 如何测试最大并发从未超过 limit？
+
+::: details 追问参考答案
+
+**1. `AbortSignal.any()` 可怎样组合用户取消与超时？**
+
+把用户信号与 `AbortSignal.timeout(ms)` 交给 `AbortSignal.any`，再传入 `requestPool` 的 `signal`。任一源触发时，现有 `onExternalAbort` 会 `fail` 并 `internal.abort`，worker 停领、`sleep` 摘定时器。不支持 `any` 时用两个 listener 转到同一 controller。测试分别点取消和超时，断言不再领取且退避定时器被清掉。
+
+**2. 429 的 `Retry-After` 为什么优先于本地退避？**
+
+429 表示服务端配额窗口，`Retry-After` 是权威等待时间；本地指数退避可能过早重打或比窗口更久。`shouldRetry` 认出 429 后，等待应取服务端秒数（或与本地 ceiling 的较大值），且仍走现有 `sleep(delay, signal)` 以便取消。非幂等请求即使有头也不要盲目重放。用假响应带 `Retry-After: 1` 断言实际等待不低于该值。
+
+**3. 如何测试最大并发从未超过 limit？**
+
+沿用实现里的 `onState(+1/-1)`：任务开始加一、`finally` 减一，全程记录 `maxActive`，断言 `maxActive <= limit`。必须包含重试：同一 worker 持有槽位做 `withRetry`，重试不得再开一个 worker。再覆盖 `limit=1`、fail-fast 后不再领取、外部 abort。假时钟下并发计数仍不得超过 limit，防止定时器把重叠放大。
+
 :::
 
-**追问：**
+**追问链：**
 1. 动态追加任务时 worker 如何等待？
 2. 如何暴露进度而不破坏调度器封装？
 3. 部分成功结果的数据结构怎么设计？
+
+::: details 追问参考答案
+
+**1. 动态追加任务时 worker 如何等待？**
+
+策略：使用异步阻塞队列；worker 无任务时 await 通知，`add` 唤醒，`close` 或 abort 唤醒全部，禁止空转；入队时分配索引以保序。复杂度：入队、领取摊还 O(1)；保留结果时空间 O(n+q+limit)，若只描述调度器则 O(q+limit)。边界：fail-fast 后禁止追加和领取，信号同时取消等待与在途任务。测试：覆盖分批追加、顺序、竞争、关闭与取消。
+
+**2. 如何暴露进度而不破坏调度器封装？**
+
+策略：仅在状态提交点产生不可变快照，通过 `onProgress` 或异步迭代器暴露 completed、failed、active、queued；隔离回调异常。复杂度：基础通知 O(1)，复制明细 O(n)，状态空间 O(1)。边界：重试是否计入进度、fail-fast 最终通知和高频背压需约定。测试：乱序完成和重试下断言计数单调、active 不超限，回调抛错不影响调度。
+
+**3. 部分成功结果的数据结构怎么设计？**
+
+策略：部分成功应按输入索引返回判别联合，如 fulfilled 携带 value，rejected 携带 reason，另记 attempts；整体采用 all-settled，不再声称 fail-fast。复杂度：总尝试 A 时调度 O(A)，结果空间 O(n)。边界：抛出 `null`、`undefined`、`0` 仍由 status 区分；取消分类必须统一。测试：混合成功、永久失败、重试成功和取消，核对顺序、假值异常及次数。
+
+:::
 
 **踩坑：** 把重试写在池外导致每次重试重新占队列顺序，或取消后定时器仍悬挂。
 

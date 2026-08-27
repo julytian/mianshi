@@ -1,0 +1,695 @@
+# 浏览器与 Web API 面试题库
+
+> **怎么用：** 普通题按「规范语义 → 浏览器机制 → 工程边界 → 兼容回退」口述 1～2 分钟；深层题按「结论 → 原理 → 场景 → 失败模式 → 验证」展开。Web Platform 能力以 HTML、DOM、Web API 标准和 MDN 当前说明为基线，具体可用性仍以目标浏览器矩阵、权限策略和真机验证为准。
+
+> **关键边界：** 普通 task 执行结束后，事件循环通常会执行 microtask checkpoint，但不会因此直接进入渲染。用户代理并行判断 rendering opportunity，并在需要时把「update the rendering」排入 rendering task source；事件循环选中该 task 后，才在其中执行 `requestAnimationFrame` 回调及样式、布局、绘制等更新。持续续排的微任务会阻止当前 task 完成，进而推迟已排队的 rendering task。本文区分规范语义与常见实现，不承诺每轮事件循环或每个普通 task 后都渲染。
+
+> **模块边界：** 本模块聚焦浏览器运行机制与原生 Web API；网络协议与 Web 安全由后续模块展开，加载性能与用户体验指标由性能模块展开。新 API 默认采用能力检测、渐进增强和可用基础路径，不用 UA 字符串推断能力。
+
+---
+
+## 一、浏览器基础机制
+
+### Q1. 从导航开始，浏览器如何把资源变成可交互页面？
+
+**考察点：** Navigation、HTML 解析、CSSOM、脚本、渲染流水线、可交互时机
+
+::: details 参考答案
+
+导航会经历 URL 处理、网络获取和响应提交；是否复用连接、命中 HTTP 缓存、由 Service Worker 响应或恢复 BFCache，都会改变实际路径。得到 HTML 字节后，解析器增量构建 DOM，并触发样式表、脚本、图片、字体等子资源发现。外部经典脚本默认会阻塞解析；`defer` 脚本在文档解析后、`DOMContentLoaded` 前按顺序执行，模块脚本默认具有类似 defer 的调度。静态模块依赖会先加载并进入求值，`DOMContentLoaded` 等待模块同步求值部分执行或让出；若 top-level await 暂停求值，则不等待其后的异步续体。`async` 脚本下载完成即可执行，不保证顺序。
+
+CSS 解析形成 CSSOM，浏览器结合 DOM 计算样式和布局，再生成绘制信息并合成到屏幕。不同引擎会并行或增量处理，不能把流程理解成严格串行瀑布。DOM 可访问、内容首次绘制、`DOMContentLoaded`、`load` 和业务可交互是不同里程碑；主线程被长脚本占用时，即使资源已到达，输入仍可能延迟。
+
+工程上应减少关键路径阻塞，正确设置脚本策略和资源优先级，并让 SSR / 静态 HTML 提供基础内容。验证使用 Navigation Timing、Resource Timing、Performance 面板和真实设备，但时间线只描述该次运行；跨浏览器能力先查兼容矩阵，再提供不依赖新 API 的可用回退。
+
+:::
+
+**追问：** `DOMContentLoaded` 和 `load` 分别能说明什么？
+
+::: details 追问参考答案
+
+`DOMContentLoaded` 表示文档已解析完成，defer 脚本已执行，初始模块图也已加载并完成其同步求值边界；它不等待模块因 top-level await 挂起后的异步续体，也不等待普通图片等所有子资源。因此不能泛称「所有模块都执行完」。`load` 通常还等待文档依赖资源，但也不等于页面已流畅可交互。异步续体、动态 import 或其他异步脚本若可能晚于该事件，应先检查 `document.readyState`，并为业务依赖建立自己的就绪 Promise。
+
+:::
+
+---
+
+### Q2. DOM 事件的传播、默认行为和监听器选项如何工作？
+
+**考察点：** Capture、Target、Bubble、Default Action、事件委托、监听器生命周期
+
+::: details 参考答案
+
+事件分为捕获、目标和冒泡阶段，传播路径在分发开始时确定，并受 Shadow DOM 重定向影响。`event.target` 是经过 retargeting 后暴露的目标，`currentTarget` 是当前监听器所在节点；`composedPath()` 可查看允许暴露的传播路径。并非所有事件都冒泡，也并非所有事件都能跨 Shadow 边界，不能把点击事件的经验套给所有事件。
+
+`preventDefault()` 取消的是可取消事件的默认行为，不会停止传播；`stopPropagation()` 停止继续传播，`stopImmediatePropagation()` 还阻止同一目标后续监听器。`passive: true` 承诺监听器不取消默认行为，其中调用 `preventDefault()` 无效，并可能产生控制台警告。确需取消滚动时要显式注册 `{ passive: false }`，但应先评估 CSS `touch-action` 等声明式方案，并验证目标浏览器、事件类型、监听目标和 `event.cancelable` 的默认差异；不能依赖各浏览器对 touch / wheel 的被动默认值一致。`once` 自动移除，`signal` 可统一清理。默认行为时机也由具体事件规范定义。
+
+事件委托利用冒泡在稳定祖先上处理动态子项，但要用 `closest()` 和容器边界确认合法目标，并考虑键盘、非冒泡事件和 Shadow DOM。兼容旧环境时保留直接绑定或功能降级；用真实输入而非只调用 `.click()` 验证默认行为、焦点和事件顺序。
+
+:::
+
+**追问：** 为什么事件委托在 Shadow DOM 组件外可能拿不到内部真实节点？
+
+::: details 追问参考答案
+
+Shadow DOM 通过 retargeting 隐藏封装细节，外部监听器看到的 `event.target` 可能是宿主而非内部节点；只有 `composed` 事件才可能越过边界，`composedPath()` 也不会泄露 closed shadow root 的内部实现。组件应通过宿主状态、属性、方法或明确的 composed 自定义事件暴露语义，不应要求外部依赖内部选择器。回退实现也要保持同一公开契约。
+
+:::
+
+---
+
+### Q3. 常见 Observer API 怎样选择，回调时机有什么边界？
+
+**考察点：** MutationObserver、ResizeObserver、IntersectionObserver、异步通知、循环风险
+
+::: details 参考答案
+
+`MutationObserver` 观察 DOM 变化，通知通过微任务机制在 microtask checkpoint 中交付，适合整合第三方 DOM，不适合替代应用状态管理。`ResizeObserver` 观察元素尺寸，通知发生在渲染更新流程的特定阶段；回调里继续改变被观察尺寸可能形成 resize loop，浏览器会限制并报告未交付通知。默认模式下，`IntersectionObserver` 只异步报告目标与根的几何交叉，适合懒加载、曝光候选和预取，不提供逐像素同步保证。
+
+Observer 都可能批量、延迟或合并通知，回调记录不等于用户刚刚看到那一帧。默认 IntersectionObserver 的交叉也不证明元素未被遮挡。实验性的 `trackVisibility` / `IntersectionObserverEntry.isVisible` 属于 Limited Availability；启用时 `delay` 至少为 100 ms，且算法会保守判断「未受视觉损害」，可能把实际可见元素判为不可保证可见，不能作为精确曝光或安全依据。曝光统计还需叠加可见时长、页面可见性和业务去重。回调应轻量，并在卸载时 `disconnect()` / `unobserve()`。
+
+工程上先做能力检测：无 IntersectionObserver 时可直接加载内容，无 ResizeObserver 时用弹性 CSS 和受控 resize 回退。正确性不能依赖 Observer 必然在某个毫秒触发；测试要覆盖后台页、快速滚动、DOM 移除和尺寸反馈循环。
+
+:::
+
+**追问：** 为什么不建议在 `ResizeObserver` 回调中直接反复改被观察元素尺寸？
+
+::: details 追问参考答案
+
+尺寸写入会触发新的布局和观察结果，若读到的新尺寸又决定下一次写入，就可能在同一渲染更新中形成反馈循环。浏览器会按深度处理并在无法稳定时推迟通知、报告 loop error，页面仍可能抖动。应优先用 CSS 容器查询解决布局；必须写入时让变更幂等、比较旧值，并把非关键写入安排到后续帧，同时监控错误。
+
+:::
+
+---
+
+### Q4. Web Storage、IndexedDB 和 Cookie 应怎样选型？
+
+**考察点：** 同步与异步存储、事务、配额、凭证、隐私与降级
+
+::: details 参考答案
+
+`localStorage` / `sessionStorage` 是同步字符串键值接口，访问可能阻塞主线程，适合很小的偏好或临时状态，不适合大对象和高频写入。`sessionStorage` 按顶级浏览上下文和源隔离，标签页初始复制等行为不代表实时共享。IndexedDB 是异步、事务化的结构化存储，可保存对象、索引和 Blob，适合离线数据与较大缓存；事务可能随事件循环推进自动变为 inactive，不能夹入任意外部异步等待。
+
+Cookie 随匹配请求发送，主要用于服务端会话和小型协议状态，不是通用客户端数据库。敏感会话 Cookie 应由服务端设置 `HttpOnly`、`Secure` 和合适的 `SameSite`。各存储都受源、分区、隐私策略、配额和用户清理影响，第三方上下文限制更严格；客户端存储不是永久可靠的数据源。
+
+工程上按数据所有者、容量、查询、事务和服务端需求选择，并设计版本迁移、过期和清理。写入失败、隐私模式和 API 不可用时，基础功能应继续可用；`navigator.storage.estimate()` 只提供估算，持久化请求也不保证获批。
+
+:::
+
+**追问：** IndexedDB 升级为什么容易阻塞？
+
+::: details 追问参考答案
+
+提升数据库版本会触发 `versionchange` 事务；其他标签页仍持有旧连接时，新连接会收到 `blocked`，旧连接收到 `versionchange`。应用应提示并关闭旧连接，避免在升级事务里做网络请求或长计算，并让迁移可重入、可失败恢复。多标签页发布前要真实测试旧版本页面与新版本页面并存，不能只在单标签空库上验证。
+
+:::
+
+---
+
+### Q5. History API 如何修改历史记录，`popstate` 的语义是什么？
+
+**考察点：** pushState、replaceState、popstate、同文档导航、路由恢复
+
+::: details 参考答案
+
+`pushState()` 新增同源会话历史条目，`replaceState()` 替换当前条目；它们不会触发页面加载，也不会因调用本身触发 `popstate`。当用户或脚本遍历到另一个历史条目，并激活相应同文档状态时，才会收到 `popstate`；首次加载是否产生该事件存在历史兼容差异，业务不能依赖。
+
+state 会被结构化序列化，受大小和可序列化类型限制；URL 必须同源。History API 只改变地址与状态，不替你完成数据获取、DOM 更新、滚动和焦点管理。SPA 路由应把 URL 作为可分享真相，state 只存恢复辅助信息；处理 `popstate` 时根据目标 URL 重建界面，避免再 push 形成循环。
+
+设置 `history.scrollRestoration` 前先明确谁负责恢复，并为无 JavaScript、直接访问、刷新和服务端 fallback 保留可用路径。跨文档与同文档导航的生命周期不同，不能用一个事件处理所有情况。
+
+:::
+
+**追问：** 点击浏览器后退时，为什么不能在 `popstate` 处理器里无条件再调用 `pushState()`？
+
+::: details 追问参考答案
+
+这会篡改用户正在遍历的历史栈，可能造成后退陷阱、重复条目和状态循环，也破坏无障碍与浏览器预期。若有未保存内容，应使用表单持久化和明确提示；`beforeunload` 只能作为有限兜底，且会影响可靠性与 BFCache。路由处理器应渲染目标条目，不是阻止用户离开；确需业务确认时也要保留可退出路径。
+
+:::
+
+---
+
+### Q6. Page Lifecycle 应如何处理可见性、冻结与离开页面？
+
+**考察点：** visibilitychange、pagehide、pageshow、freeze、可靠保存、unload 边界
+
+::: details 参考答案
+
+页面可能经历 active、passive、hidden、frozen、terminated 等状态，但具体事件和冻结策略存在浏览器差异。`visibilitychange` 进入 hidden 是暂停动画、停止轮询和提交轻量遥测的重要信号；`pagehide` 适合处理页面被替换或进入 BFCache，且比 `unload` 更可靠、更兼容 BFCache。移动端进程可能被直接终止，任何离开事件都不是必达。
+
+不要注册 `unload` 做关键清理，它常不可靠，还可能让页面失去 BFCache 资格。`beforeunload` 只在确有未保存用户数据时动态注册，浏览器会限制自定义文案与触发条件。少量遥测可用 `sendBeacon()` 或合适的 keepalive 请求，但不能当作事务提交保证。
+
+正确做法是持续、幂等保存草稿；进入 hidden / pagehide 时只做快速收尾。恢复时重新校验连接、令牌、计时器和数据新鲜度。对不支持 freeze 等扩展事件的环境，visibility 与 pageshow/pagehide 构成基础路径。
+
+:::
+
+**追问：** 为什么关键数据不能等 `unload` 再保存？
+
+::: details 追问参考答案
+
+关闭标签、切后台后系统杀进程、崩溃和网络中断都可能让 `unload` 不触发或来不及完成异步工作；监听它还可能阻止 BFCache。应在用户编辑过程中增量保存，并让服务端接口幂等。离开信号最多用于刷新最后状态或发轻量遥测，不能承担唯一持久化职责；恢复页面时还需检测未确认写入。
+
+:::
+
+---
+
+### Q7. BFCache 是什么，恢复时应怎样处理 `pageshow`？
+
+**考察点：** Back/Forward Cache、pageshow.persisted、pagehide、资格、状态再验证
+
+::: details 参考答案
+
+BFCache 会把离开的完整文档及 JavaScript 堆冻结，在后退或前进时快速恢复，而不是重新加载。恢复会触发 `pageshow`，其 `event.persisted === true` 表示页面来自持久化的页面缓存；普通初次展示或常规加载通常为 false。离开时 `pagehide.persisted` 可提示页面可能被保存，但最终缓存与否由浏览器决定。
+
+恢复不是重新执行入口脚本，旧闭包、DOM 和内存状态仍在；网络连接、锁、服务端数据、权限和令牌却可能已变化。页面应在 persisted pageshow 中恢复暂停任务、重新验证易失资源和刷新必要数据，但避免无条件全量重置破坏瞬时恢复优势。
+
+避免 `unload`，正确释放或暂停不兼容资源，并用 DevTools 的 BFCache 诊断查看阻止原因。资格规则持续演进且因浏览器而异；即使不命中 BFCache，页面也必须走正常导航路径正确工作。
+
+:::
+
+**追问：** `pageshow.persisted === true` 是否表示所有数据都仍然有效？
+
+::: details 追问参考答案
+
+不表示。它只说明文档由持久化缓存恢复，不能证明服务端数据、WebSocket、媒体设备、锁或认证仍有效。应区分可保留的 UI 瞬时状态与必须重新验证的外部状态：先快速显示冻结界面，再恢复监听、检查连接并按版本或时间戳刷新。刷新失败时保留可操作错误状态，不要把整个页面强制 reload 当唯一方案。
+
+:::
+
+---
+
+## 二、并发、通信与离线
+
+### Q8. Web Worker 如何通信，结构化克隆与 Transferable 有什么区别？
+
+**考察点：** Dedicated Worker、消息传递、Structured Clone、Transferable、取消与错误
+
+::: details 参考答案
+
+Dedicated Worker 在独立全局环境中执行脚本，没有 DOM 和 `window`，适合 CPU 密集的解析、编码和计算，不能让本就异步的网络请求神奇变快。主线程与 Worker 通过 `postMessage()` 传递消息；多数值使用结构化克隆算法复制，支持循环引用和多种内建类型，但函数、DOM 节点等不可克隆。
+
+大 `ArrayBuffer`、`MessagePort` 等可作为 Transferable 转移所有权，避免复制；转移后发送方的缓冲区会被 detached。`SharedArrayBuffer` 是共享内存，不属于普通 Transferable 的所有权转移模式，并要求跨源隔离等安全条件，数据竞争还需 Atomics 协调。
+
+工程上设计带 request id、版本、结果和错误的协议，量化序列化成本与任务粒度；小任务频繁往返可能比主线程更慢。提供取消或忽略过期结果机制。能力不支持时可降级为主线程分片，但保持 UI 可响应并限制数据规模。
+
+:::
+
+**追问：** 什么时候 Transferable 反而会引入 Bug？
+
+::: details 追问参考答案
+
+调用方若仍认为自己拥有已转移的 `ArrayBuffer`，后续读取会得到 detached 状态，复用缓存或重试就会失败。对象图中只转移部分缓冲区也可能打破所有权假设。应把「发送即移交」写进 API 契约，必要时显式复制，并在 TypeScript 封装、单测和性能采样中验证；共享读场景不要误用转移来模拟共享。
+
+:::
+
+---
+
+### Q9. Service Worker 的生命周期、更新与缓存版本如何管理？
+
+**考察点：** register、install、activate、fetch、waiting、更新协调、Cache Storage
+
+::: details 参考答案
+
+Service Worker 注册绑定 scope，浏览器发现新脚本后会下载并比较更新。新 worker 先进入 installing，`install` 成功后通常进入 waiting；旧 worker 仍控制已有客户端，直到没有受控客户端或明确协调 `skipWaiting()`。激活时可清理旧缓存，`clients.claim()` 可让新 worker 更快控制当前 scope 下未受控客户端，但二者都会改变默认安全更新节奏，不能机械调用。
+
+`fetch` 事件允许用网络、Cache Storage 或组合策略响应请求。Cache Storage 不遵循 HTTP 缓存的自动更新语义，缓存键、版本、过期和清理都由应用负责；缓存成功不代表响应业务有效。导航、静态资源和 API 数据应采用不同策略，并避免缓存认证私有响应、错误页或无限增长内容。
+
+发布时用内容哈希或明确版本管理预缓存，保证新 worker 的资源集合原子可用；waiting 状态通过 UI 提示并在安全时刷新。更新期间可能同时存在不同 worker 和页面版本，消息协议与数据格式必须兼容。Service Worker 只在安全上下文等条件下可用，失败时应用仍应作为普通在线站点工作。
+
+:::
+
+**追问：** 为什么不能每次都在 `install` 中立即 `skipWaiting()` 并强制刷新所有页面？
+
+::: details 追问参考答案
+
+新 worker 可能接管仍运行旧 JavaScript 的页面，导致资源、消息协议和 IndexedDB schema 版本错配；强刷还会丢失表单与任务上下文。应先保证跨版本兼容，再由页面检测 waiting worker、保存状态并提示用户选择更新时间。只有安全修复或完全兼容发布才考虑自动激活，且要防刷新循环并记录失败回滚路径。
+
+:::
+
+---
+
+### Q10. BroadcastChannel 如何进行多上下文通信，有哪些边界？
+
+**考察点：** 同源广播、消息模型、生命周期、降级、状态一致性
+
+::: details 参考答案
+
+BroadcastChannel 让同源且位于兼容存储分区的窗口、标签页、iframe 和 Worker 按频道名交换消息。调用 `postMessage()` 的那个 BroadcastChannel 对象本身不会收到该消息；同一 JavaScript 上下文中另一个连接到同名频道的 BroadcastChannel 对象可以收到，不能把对象级排除误写成整个发送页面都收不到。消息使用结构化克隆，不支持函数和 DOM，也不提供持久队列、确认、全局顺序或事务语义。
+
+它适合登出通知、缓存失效和轻量状态提示，不应把整份大状态高频广播。协议应包含类型、版本、来源实例和序号，并以服务器或 IndexedDB 中的持久状态作为真相；收到消息后重新读取真相，避免 last-write-wins 被误当强一致。
+
+使用后调用 `close()`。旧浏览器可用 `storage` 事件等方案降级，但语义不同：`storage` 事件不会在执行写入的同一页面触发，只通知其他相关文档。无跨标签通信时，刷新后从持久真相恢复仍应正确。
+
+:::
+
+**追问：** `storage` 事件与 BroadcastChannel 的关键差异是什么？
+
+::: details 追问参考答案
+
+`storage` 事件由 `localStorage` 等实际变更触发，发起写入的页面不会收到，载荷主要是字符串键值且受相应存储范围约束；重复写入相同值也不会形成可靠消息流。BroadcastChannel 是显式同源频道消息，可传结构化克隆值，但同样不持久、不确认。两者都只能作为通知层，关键状态要另存并在恢复时校验。
+
+:::
+
+---
+
+## 三、组件与可安装体验
+
+### Q11. Web Components 和 Shadow DOM 的封装边界是什么？
+
+**考察点：** Custom Elements、生命周期、Shadow DOM、Slot、事件与样式边界
+
+::: details 参考答案
+
+Web Components 主要包括 Custom Elements、Shadow DOM、template / slot 等能力。自定义元素名称必须含连字符；构造函数应保持轻量，DOM 连接后的初始化放在 `connectedCallback()`，断开时清理监听和资源。传统 `insertBefore()` / `appendChild()` 移动会按移除再插入处理，通常依次触发 disconnected / connected 回调；支持 `moveBefore()` 时，组件可实现 `connectedMoveCallback()`，以状态保持移动替代这两个回调，并只更新依赖新祖先的逻辑。该能力需检测 `moveBefore`，旧浏览器继续走传统移动及可重入的连接/断开回退。属性变化通过 `observedAttributes` / `attributeChangedCallback` 接收，属性、property 与内部状态要定义明确反射规则。
+
+Shadow DOM 提供 DOM 与样式封装，但不是安全边界。外部普通选择器通常不能穿透 shadow root，内部样式也不直接泄漏；继承属性和 CSS 自定义属性仍可跨宿主传递，组件可用 `::part` 暴露受控样式面。slot 只投影 light DOM 节点，事件会按 `composed` 和 retargeting 规则跨边界，可访问名称、表单关联和焦点仍需实际验证。
+
+组件 API 应以属性、property、方法、slot、part 和语义自定义事件组成，不暴露内部节点。基础 HTML 在未升级时也应可读可操作，定义完成后再增强；SSR、Declarative Shadow DOM 和 form-associated custom elements 的支持需按矩阵评估。
+
+:::
+
+**追问：** `mode: "closed"` 是否能保护组件内部数据？
+
+::: details 追问参考答案
+
+不能。closed root 只是让常规 `element.shadowRoot` 返回 null，主要表达封装意图，不是权限或机密保护；同一执行环境中的脚本仍可能通过引用、原型修改、调试工具或侧信道观察行为。敏感数据不应放在前端 DOM 或闭包里期待 Shadow DOM 保密。closed 模式还增加测试、可访问性诊断和扩展难度，应基于 API 治理而非安全幻觉选择。
+
+:::
+
+---
+
+### Q12. PWA 的安装条件、离线能力和渐进增强应怎样理解？
+
+**考察点：** Web App Manifest、安装提示、Service Worker、HTTPS、跨浏览器差异
+
+::: details 参考答案
+
+PWA 不是单一 API 或统一认证。Web App Manifest 提供名称、图标、启动 URL、display、主题等安装元数据；安装需要安全上下文等平台基础，但可安装判定、菜单入口、图标尺寸和参与度条件由浏览器与操作系统决定，并持续变化。不能把 Chromium 的 `beforeinstallprompt` 当标准通用流程，它支持有限且浏览器可自行决定何时触发。
+
+Service Worker 常用于离线与可控缓存，但 Web App Manifest 规范本身不把它定义为安装的通用必要条件，部分浏览器的安装判定也已调整。工程上仍应为关键流程设计离线壳、失败提示和重试，区分「可安装」与「离线可用」。Manifest、图标和 scope 要与部署路径一致，缓存不能吞掉登录跳转、错误响应或版本更新。
+
+渐进增强的顺序是：先保证 HTTPS 下的响应式网站和普通导航可用，再增强 manifest、离线、推送、后台同步和安装引导。用能力检测和真实平台安装测试，不承诺所有浏览器出现同一提示；不支持或用户拒绝安装时，网页功能应保持完整。
+
+:::
+
+**追问：** 为什么不能只检测 `beforeinstallprompt` 来判断应用是否是 PWA？
+
+::: details 追问参考答案
+
+该事件不是跨浏览器统一标准能力，可能因平台不支持、应用已安装、浏览器策略或参与度条件而不触发；未触发也不代表 manifest 或离线能力无效。应分别验证 manifest、Service Worker、离线流程和平台安装入口，并把自定义安装按钮作为可选增强。用户拒绝后不要频繁打扰，还要提供浏览器菜单安装说明或继续使用网页的路径。
+
+:::
+
+---
+
+## 四、深层场景题
+
+### D1. 如何解释从 URL 到页面可交互的完整链路？
+
+::: details 参考答案
+
+#### 基础结论
+
+先按导航、响应提交、增量解析、关键资源、脚本执行、样式布局绘制和交互就绪分阶段，再说明 HTTP 缓存、Service Worker、BFCache、预加载与进程模型会让实际路径分叉。可交互不是某个单一 DOM 事件。
+
+#### 原理深挖
+
+HTML 解析器与预加载扫描器可并行发现资源，CSS 可能阻塞渲染和依赖样式的脚本，经典同步脚本阻塞解析；样式计算、布局、绘制、栅格化与合成也可增量执行。普通 task 结束后执行 microtask checkpoint，不直接渲染；用户代理并行发现 rendering opportunity 后排入 update-the-rendering task，事件循环选中它时才运行 rAF 和渲染更新。
+
+#### 工程场景
+
+以服务端可读 HTML 为基础，控制关键 CSS、脚本策略、字体和首屏资源优先级；用 Navigation / Resource Timing 和 trace 区分网络、解析、脚本与渲染成本。分别测试冷启动、热缓存、Service Worker 控制、BFCache 恢复和弱网。
+
+#### 反例 / 踩坑
+
+把所有资源画成严格串行瀑布会误判并行发现；把 `DOMContentLoaded` 当首屏完成或可交互会漏掉长任务与水合。为了分数无条件预加载会抢占真正关键资源，强制 reload 又会掩盖 BFCache 和缓存问题。
+
+#### 资深回答模板
+
+我先确认本次是网络导航、Service Worker 响应还是 BFCache 恢复，再按响应、解析、关键资源、脚本和渲染拆解。每个阶段用对应 Timing 与 trace 证据定位，优化后同时验证内容可见、输入响应、错误回退和目标浏览器，而不是承诺固定事件顺序等于体验完成。
+
+:::
+
+**追问链：**
+1. HTML 流式返回为什么可能提前显示内容？
+2. 脚本 `defer` 与 `async` 如何影响顺序？
+3. 怎样证明瓶颈在主线程而不是网络？
+
+::: details 追问参考答案
+
+**1. HTML 流式返回为什么可能提前显示内容？**
+
+浏览器可边接收边解析并构建部分 DOM，发现样式和资源；当 rendering opportunity 使 update-the-rendering task 入队且被事件循环选中时，就可能更新屏幕，不必等待整个响应结束。但阻塞样式、同步脚本、缓冲代理或过小分块可能延迟呈现。验证要观察响应分块、解析与 Paint 时间线，不能只看 TTFB。
+
+**2. 脚本 `defer` 与 `async` 如何影响顺序？**
+
+经典 defer 脚本并行下载，在解析完成后按文档顺序、`DOMContentLoaded` 前执行；async 脚本下载完成即可执行，相互顺序不保证。模块脚本默认延后，先加载静态依赖图并进入求值；`DOMContentLoaded` 不等待 top-level await 让出后的异步续体。依赖顺序的代码不应使用多个互不协调的 async，依赖异步模块结果时要等待自己的就绪契约。
+
+**3. 怎样证明瓶颈在主线程而不是网络？**
+
+同时记录 Network 与 Performance trace：资源已到达而主线程连续执行长 task、输入处理延迟、样式布局占用高，说明主线程更可疑；若关键响应连接、TTFB 或下载长期空缺，则先查网络。还要用 CPU 与网络分别降速做对照，避免把相关性当因果。
+
+:::
+
+---
+
+### D2. 如何准确解释 Event Loop、渲染机会和长任务？
+
+::: details 参考答案
+
+#### 基础结论
+
+事件循环从可运行任务中选择一个执行，普通 task 结束后通常进行 microtask checkpoint。rendering opportunity 由用户代理并行判断，并据此向 rendering task source 排入 update-the-rendering task；只有事件循环选中该任务时，才运行 `requestAnimationFrame` 回调和样式、布局、绘制等更新。普通 task 后不存在一个必然直达渲染的阶段。
+
+#### 原理深挖
+
+计时器、事件、消息和 rendering task 分属不同 task source，选择策略不等于开发者可依赖的全局 FIFO。Promise reaction 与 `queueMicrotask` 属于微任务，微任务可继续排入微任务；microtask checkpoint 不结束，当前 task 就不能完成，已排队的 rendering task 也无法被选中。`requestAnimationFrame` 回调由 update-the-rendering task 运行，但后台页会被节流或暂停。
+
+#### 工程场景
+
+将大计算按用户可见优先级分片，必要时放 Worker；动画在 rAF 中批量读取和写入，避免布局抖动。用 Long Tasks / Performance 面板、INP 相关交互和帧时间定位阻塞，选择 `scheduler` 等新能力时保留 `setTimeout` 或消息分片回退。
+
+#### 反例 / 踩坑
+
+递归 Promise 会造成微任务饥饿；用 `setTimeout(fn, 0)` 也有最小延迟、节流和排队，不等于立即。把一次 rAF 当作「DOM 已绘制」也不准确，回调发生在相关渲染更新前，回调后的像素何时呈现仍由用户代理决定。
+
+#### 资深回答模板
+
+我会先区分普通 task、microtask、rendering opportunity 与 rendering task source，再看哪类工作持续占住主线程。优化目标是让关键输入和 update-the-rendering task 及时获得调度，不是追求某个 API 的理论顺序；通过分片、Worker 和每帧预算治理，并在前后台与高刷新率设备验证。
+
+:::
+
+**追问链：**
+1. 为什么大量 Promise 会让页面不渲染？
+2. `requestAnimationFrame` 是否保证每 16.7 ms 执行？
+3. `setTimeout(0)` 能否稳定让出一帧？
+
+::: details 追问参考答案
+
+**1. 为什么大量 Promise 会让页面不渲染？**
+
+Promise reaction 作为微任务执行，microtask checkpoint 通常会持续处理到队列清空；若微任务不断续排，当前 task 迟迟不能完成，事件循环就无法选取已排队的 rendering task。应停止无界续排，把工作切到 task、按预算分片或迁移 Worker，并用 trace 验证输入和 Paint 得到执行。
+
+**2. `requestAnimationFrame` 是否保证每 16.7 ms 执行？**
+
+不保证。频率受显示刷新率、浏览器调度、主线程负载、页面可见性和省电策略影响，后台页通常暂停或强节流。动画应使用回调时间戳计算进度，不按固定帧数推进，并尊重减少动画偏好；高刷新率设备也不能硬编码 60 Hz。
+
+**3. `setTimeout(0)` 能否稳定让出一帧？**
+
+它只安排一个未来 timer task，受嵌套最小延迟、后台节流和其他 task source 竞争影响；它既不会直接触发渲染，也不保证下一个被选中的是 rendering task。若目的是动画，用 rAF；若目的是分片，按时间预算并允许取消，同时用真实 trace 确认 update-the-rendering task 和输入确实获得调度。
+
+:::
+
+---
+
+### D3. 如何定位浏览器页面的内存泄漏？
+
+::: details 参考答案
+
+#### 基础结论
+
+先定义可重复的「执行操作—回到基线—强制 GC—观察保留量」流程，再用 Heap Snapshot、Allocation instrumentation 和引用路径定位增长对象。内存波动或缓存增长不自动等于泄漏，关键是对象是否在不再需要后仍被可达引用保留。
+
+#### 原理深挖
+
+常见根包括全局集合、事件监听器、定时器、Observer、闭包、detached DOM、Worker 和未关闭通道。垃圾回收只处理不可达对象；DOM 已移除但仍被监听器或缓存引用就不会释放。BFCache 冻结页面也会保留堆，测试时要区分预期缓存与泄漏。
+
+#### 工程场景
+
+在稳定数据和浏览器版本下重复路由进入退出，比较快照 dominator、retained size 与 detached 节点；从增长对象沿 retaining path 找到业务根。修复时统一使用 AbortSignal、组件卸载钩子和资源 owner，并加长会话自动化回归。
+
+#### 反例 / 踩坑
+
+只看 Task Manager 一次峰值会把 JIT、图片解码和缓存误报为泄漏；反复点「Collect garbage」可能改变时序。看到 detached DOM 就全部删除缓存也可能损害性能，应该先证明引用超出生命周期且增长不可收敛。
+
+#### 资深回答模板
+
+我先固定操作与数据，跑多轮后回到同一 UI 基线并观察堆是否收敛；若不收敛，再比较快照和 retained path，定位哪个生命周期更长的 owner 保留对象。修复后重复原路径、长会话和 BFCache 场景，用斜率而非单点证明改进。
+
+:::
+
+**追问链：**
+1. detached DOM 一定是泄漏吗？
+2. 事件监听器怎样统一清理？
+3. 如何区分缓存与泄漏？
+
+::: details 追问参考答案
+
+**1. detached DOM 一定是泄漏吗？**
+
+不一定。框架可能短暂保留节点用于动画或复用，DevTools 本身也可能影响引用。应看节点是否在功能结束和 GC 后持续被业务根保留、数量是否随重复操作线性增长。沿 retaining path 找到 owner，比仅凭 detached 标签判断更可靠。
+
+**2. 事件监听器怎样统一清理？**
+
+可为一个组件生命周期创建 `AbortController`，注册监听器时传 `{ signal }`，卸载时统一 abort；Observer、计时器、Worker 和通道仍需各自 disconnect、clear、terminate 或 close。封装应明确资源所有者，并测试重复挂载卸载后监听数量不增长。
+
+**3. 如何区分缓存与泄漏？**
+
+缓存应有容量、淘汰、所有者和命中价值，达到上限后内存趋于稳定，并可在压力或生命周期结束时释放；泄漏通常随操作次数持续增长且无业务访问价值。通过清空缓存对照、堆引用路径和多轮稳态曲线验证，不能只听命名。
+
+:::
+
+---
+
+### D4. 多标签页状态同步应如何设计？
+
+::: details 参考答案
+
+#### 基础结论
+
+把服务器或事务化本地库作为真相，BroadcastChannel / storage event 只传「发生了什么」的通知；消息可丢、可晚到、不可确认，所以接收方要按版本重新读取并幂等应用。
+
+#### 原理深挖
+
+BroadcastChannel 受同源和存储分区约束，结构化克隆消息但不持久；`storage` 事件不在发起写入的页面触发。标签页还会冻结、休眠或崩溃，单纯时间戳 last-write-wins 可能受时钟和并发写影响，强一致需求需服务端序列或事务协调。
+
+#### 工程场景
+
+为消息定义 schema version、source id、entity id、revision 和类型。登出广播后各页清理内存凭证并向服务端确认；数据变更广播 revision，接收方若缺版本就重新拉取。启动、pageshow persisted 和 visibility 恢复都执行一次对账。
+
+#### 反例 / 踩坑
+
+广播完整 store 会产生大复制成本并覆盖新状态；把 localStorage 当消息队列没有确认和消费语义。依赖「自己也收到 storage event」会漏更新，忽略分区与隐私策略则会在 iframe 或不同顶级站点下失效。
+
+#### 资深回答模板
+
+我先定义一致性等级和唯一真相，再选 BroadcastChannel 做低延迟通知、storage 做兼容回退。消息带版本且幂等，恢复与缺口时重新读取真相；测试乱序、重复、丢失、冻结、离线和多个版本并存，不把同源通信当可靠消息系统。
+
+:::
+
+**追问链：**
+1. 如何避免两个标签页同时编辑相互覆盖？
+2. 登出广播丢失怎么办？
+3. BroadcastChannel 不支持时如何降级？
+
+::: details 追问参考答案
+
+**1. 如何避免两个标签页同时编辑相互覆盖？**
+
+提交时携带服务端 revision、ETag 或版本号，冲突则提示合并或重新加载，而不是仅按客户端时间覆盖。轻量本地场景可用 IndexedDB 事务和 Web Locks 做协调，但 Web Locks 也要能力检测与超时恢复；锁不能替代服务端跨设备并发控制。
+
+**2. 登出广播丢失怎么办？**
+
+广播只加速通知，真正的会话失效必须在服务端完成。每个标签页的后续请求、恢复可见和 BFCache pageshow 都要重新确认认证状态；收到 401 后幂等清理并跳转。这样即使页面休眠错过消息，也不会继续拥有有效服务端会话。
+
+**3. BroadcastChannel 不支持时如何降级？**
+
+可用 localStorage 写入随机 nonce 触发其他页面的 `storage` 事件，或通过 SharedWorker / Service Worker 消息在支持环境增强；无任何通信能力时，通过短期对账、请求响应和页面恢复重新读取真相。回退语义要显式测试，不能伪装成完全一致。
+
+:::
+
+---
+
+### D5. 如何设计离线缓存与 Service Worker 更新流程？
+
+::: details 参考答案
+
+#### 基础结论
+
+按资源性质选择策略：版本化静态资源可 cache-first，导航可 network-first 配离线壳，易变 API 通常以网络和业务缓存规则为主。更新采用新 worker 安装、等待、用户确认、激活和页面刷新闭环，并保证旧页面与新 worker 短期兼容。
+
+#### 原理深挖
+
+Service Worker 生命周期与页面生命周期解耦；waiting 防止新旧代码直接混用。Cache Storage 只保存 Response，不自动理解 HTTP 新鲜度或业务权限。`skipWaiting()` / `clients.claim()` 会缩短等待，但也扩大版本错配风险；离线写入还涉及冲突、幂等和重放，不能只缓存 GET 就宣称完整离线。
+
+#### 工程场景
+
+预缓存清单使用内容哈希，install 中只有必要资源全部成功才完成；activate 清理明确旧版本，不误删其他应用缓存。页面监听更新状态，保存草稿后提示刷新；API 缓存带用户、版本和过期边界，登出时清理私有数据。在线恢复后按 revision 对账。
+
+#### 反例 / 踩坑
+
+缓存所有请求会保存 401、重定向和敏感响应；以 URL 不变覆盖静态资源易产生半新半旧。install 中缓存过多导致更新反复失败，无限 runtime cache 又耗尽配额。强制刷新所有客户端会丢用户输入并形成刷新循环。
+
+#### 资深回答模板
+
+我先列资源分类、离线期望和数据安全边界，再为每类定义网络与缓存策略。版本发布保持资源原子、协议跨版本兼容，waiting 更新由页面协调；验收覆盖首次安装、旧版升级、断网、缓存损坏、配额不足、登出和回滚。
+
+:::
+
+**追问链：**
+1. stale-while-revalidate 适合所有 API 吗？
+2. 新 Service Worker 激活后为什么页面仍可能是旧代码？
+3. 如何防止缓存版本无限增长？
+
+::: details 追问参考答案
+
+**1. stale-while-revalidate 适合所有 API 吗？**
+
+不适合。它会先返回旧数据，适合可容忍短暂陈旧的公开或低风险内容；余额、权限、库存确认等必须按业务一致性选择网络优先或禁用缓存。缓存键还要包含会影响响应的用户与请求维度，私有数据不得跨账号复用，并提供陈旧标识和失败策略。
+
+**2. 新 Service Worker 激活后为什么页面仍可能是旧代码？**
+
+页面脚本在文档加载时已执行，新 worker 接管 fetch 不会替换内存中的旧模块和状态；若立即提供新协议资源，就会版本错配。应让资源 URL 内容哈希化、协议跨版本兼容，并在安全点提示刷新。用 `controllerchange` 防抖处理，避免多个事件造成循环 reload。
+
+**3. 如何防止缓存版本无限增长？**
+
+在 activate 中维护允许保留的缓存名称集合，只删除本应用 scope 下明确过期版本；runtime cache 设置条目数、年龄或业务淘汰策略。监控存储估算和写入失败，登出清私有缓存。清理逻辑也要兼容回滚，不能激活一次就删掉仍被旧客户端需要的全部资源。
+
+:::
+
+---
+
+### D6. 如何保证 BFCache 兼容并正确恢复页面？
+
+::: details 参考答案
+
+#### 基础结论
+
+以 `pagehide` / `pageshow` 为核心，不依赖 `unload`；在页面隐藏或 pagehide 时暂停非必要工作，在 `pageshow.persisted` 为 true 时恢复监听、连接与时效校验。命中与否都是优化，不得改变业务正确性。
+
+#### 原理深挖
+
+BFCache 冻结文档、DOM 和 JavaScript 堆，返回时不重跑启动代码。浏览器会根据打开资源和特性判断资格，规则持续变化；pagehide 的 persisted 只表示可能缓存，pageshow 的 persisted 才说明此次展示来自 BFCache。外部世界不会随堆一起冻结。
+
+#### 工程场景
+
+集中管理 WebSocket、轮询、Observer、媒体和锁的 suspend / resume。离开前持续保存草稿，恢复时先显示旧 UI，再按版本刷新认证和数据；恢复动作幂等，避免重复监听。使用 DevTools BFCache 测试、真实后退前进和多浏览器矩阵验收。
+
+#### 反例 / 踩坑
+
+全局监听 unload 会降低资格且不可靠；pageshow 一律 reload 会抵消 BFCache。恢复后继续使用旧 WebSocket、旧权限或过期 CSRF 信息会产生隐蔽故障，重复注册事件又会造成一次操作执行多次。
+
+#### 资深回答模板
+
+我把页面资源分为可冻结保留、需暂停恢复、必须重新验证三类，用 pagehide/pageshow 驱动幂等状态机。通过 persisted 区分恢复路径，但两条路径共享业务初始化契约；以 DevTools 阻止原因和真实导航测试优化命中，不维护静态永久黑名单。
+
+:::
+
+**追问链：**
+1. 为什么应使用 `pagehide` 而不是 `unload`？
+2. BFCache 恢复后计时器应该怎样处理？
+3. 如何测试页面确实命中 BFCache？
+
+::: details 追问参考答案
+
+**1. 为什么应使用 `pagehide` 而不是 `unload`？**
+
+`pagehide` 专门覆盖页面隐藏、离开与可能进入 BFCache 的场景，兼容性和可缓存性更好；`unload` 在移动端常不触发，并可能让页面失去 BFCache 资格。关键数据仍要提前增量保存，因为 pagehide 也不是崩溃和杀进程下的持久化保证。
+
+**2. BFCache 恢复后计时器应该怎样处理？**
+
+不能假设冻结期间回调逐个补执行。恢复时根据当前 `performance.now()`、墙上时间或服务端时间重新计算剩余期限，过期任务幂等处理；动画使用当前时间戳更新。轮询和心跳重新建立前先确认旧连接状态，并防止重复 timer。
+
+**3. 如何测试页面确实命中 BFCache？**
+
+在目标浏览器使用 DevTools BFCache 测试或阻止原因面板，同时在页面记录 `pageshow` 的 persisted 值；执行真实的 A → B → 后退流程，而不是 reload。再验证恢复后的输入、连接和数据。一次命中不能证明所有环境，需覆盖浏览器版本和关键页面资源组合。
+
+:::
+
+---
+
+### D7. 如何拆分 Worker 任务并控制数据复制成本？
+
+::: details 参考答案
+
+#### 基础结论
+
+把可独立、CPU 密集、输入输出边界清晰且计算时间足够覆盖通信成本的任务移到 Worker。先测主线程阻塞，再决定任务粒度、Worker 数量、结构化克隆或 Transferable，不为「用了多线程」而拆分。
+
+#### 原理深挖
+
+Worker 与主线程并发但受 CPU 核心、内存和调度限制；消息结构化克隆会遍历和复制数据，Transferable 移交所有权，SharedArrayBuffer 共享则增加同步与安全复杂度。大量小消息、JSON 二次序列化和过多 Worker 都可能放大开销。
+
+#### 工程场景
+
+定义版本化协议和 request id，将解析、搜索索引、图像处理等批量提交；大二进制缓冲区使用 Transferable，并明确发送后不可再用。设置队列上限、取消令牌、超时和过期结果丢弃，Worker 崩溃后可重建。低端设备按硬件并发与测量限制池大小。
+
+#### 反例 / 踩坑
+
+把 DOM 操作移入 Worker 不可行；为每个列表项创建 Worker 会耗尽资源。发送巨大对象后仍在主线程修改原对象，会因克隆快照产生语义误解；转移缓冲后继续复用则访问 detached 数据。共享内存无 Atomics 会出现数据竞争。
+
+#### 资深回答模板
+
+我先用 trace 找到可分离计算及输入输出体积，估算 `计算收益 - 通信与调度成本`。协议支持版本、取消和错误，二进制明确所有权；通过主线程长任务、总耗时、内存和低端设备对比验收，并保留分片回退。
+
+:::
+
+**追问链：**
+1. Worker 是否越多越快？
+2. 结构化克隆与 JSON 序列化怎样选择？
+3. Worker 中的任务如何取消？
+
+::: details 追问参考答案
+
+**1. Worker 是否越多越快？**
+
+不是。数量超过可用核心后会增加上下文切换、内存、初始化与竞争，移动设备还受温控和省电影响。应按任务并行度、`hardwareConcurrency` 的提示值和真实测量设上限；该值也可能为隐私而被限制，不能直接等同物理核心数。
+
+**2. 结构化克隆与 JSON 序列化怎样选择？**
+
+`postMessage` 原生使用结构化克隆，能保留循环引用、Map、Set、ArrayBuffer 等更多类型，通常无需先 JSON 化。JSON 适合协议必须是文本和跨语言持久化的场景，但会丢类型并产生额外字符串内存。大二进制优先评估 Transferable，最终以数据形态和性能测量决定。
+
+**3. Worker 中的任务如何取消？**
+
+协议发送 cancel 消息并让长算法在分块边界检查取消标记；主线程同时用 request id 忽略迟到结果。`worker.terminate()` 可强制结束整个 Worker，但会丢失其中所有任务和状态，适合独占任务或故障恢复。共享取消标记需 Atomics 并满足跨源隔离。
+
+:::
+
+---
+
+### D8. 如何治理 Web API 的兼容性、权限和渐进增强？
+
+::: details 参考答案
+
+#### 基础结论
+
+先定义无增强时仍可完成的核心任务，再用能力检测启用新 API；同时检查安全上下文、Permissions Policy、用户授权、浏览器实现差异与失败状态。兼容不是「对象存在」一个布尔值，而是方法、选项、语义和运行环境的组合。
+
+#### 原理深挖
+
+API 可能只在 HTTPS、顶层上下文或用户激活后可用，权限状态也会变化；Permissions API 并不覆盖所有能力，各浏览器提示策略不同。特性存在不代表没有实现 Bug，UA 检测又会被版本、内嵌 WebView 和伪装破坏。polyfill 只能补 JavaScript 接口，无法创造浏览器权限、安全或底层设备能力。
+
+#### 工程场景
+
+建立支持矩阵和 Baseline / MDN 调研记录，封装 capability adapter，返回成功、拒绝、不支持、暂时失败等明确结果。关键路径提供表单上传、普通导航或服务端处理回退；权限只在用户触发且解释用途后请求。遥测按 API、浏览器和错误分类，但不收集不必要敏感信息。
+
+#### 反例 / 踩坑
+
+页面加载即请求通知、定位会降低授权率；只判断 `if (navigator.foo)` 会漏掉方法选项和运行限制。加载巨大 polyfill 却无法模拟硬件能力浪费性能，把拒绝权限当异常重试则骚扰用户。只在最新版桌面 Chrome 验证也不算渐进增强。
+
+#### 资深回答模板
+
+我先定义基础任务和支持矩阵，再逐层检测 API、方法、上下文和权限。增强失败时回到等价或可理解的基础路径，授权由用户意图触发；用契约测试、真机矩阵和错误遥测持续校正，而不是承诺所有浏览器表现一致。
+
+:::
+
+**追问链：**
+1. 为什么能力检测仍可能不够？
+2. 权限被拒绝后应该怎样处理？
+3. 什么能力无法靠 polyfill 补齐？
+
+::: details 追问参考答案
+
+**1. 为什么能力检测仍可能不够？**
+
+对象存在只能证明暴露了入口，不证明某个参数、编码格式、权限状态或边界行为可用。应检测所需子能力，调用时捕获明确错误，并在目标浏览器做行为测试。对高风险功能可做小规模探测和远程开关，但探测不能未经同意访问敏感设备。
+
+**2. 权限被拒绝后应该怎样处理？**
+
+停止自动重复弹窗，保留可理解的替代流程，并说明功能为何受限和如何在浏览器设置中恢复。拒绝可能是暂时、永久、策略阻止或非安全上下文导致，应按错误分类；不要诱导用户绕过安全设置，也不要把权限状态作为身份或风控唯一信号。
+
+**3. 什么能力无法靠 polyfill 补齐？**
+
+需要浏览器内核、操作系统、硬件、安全边界或权限集成的能力通常无法完整 polyfill，例如真正的 Service Worker 拦截、摄像头权限、WebAuthn、后台执行和原生 Shadow DOM 隔离。polyfill 最多模拟 API 形状或部分语义，工程上应提供替代流程或明确不支持。
+
+:::

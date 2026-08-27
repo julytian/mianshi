@@ -8,7 +8,9 @@
     "docs:preview": "vitepress preview docs",
     "docs:validate": "node scripts/validate-question-bank.mjs",
     "docs:validate:test": "node scripts/validate-question-bank.test.mjs",
-    "docs:check": "pnpm docs:validate && pnpm docs:build"
+    "docs:validate:followups": "node scripts/validate-question-bank.mjs --require-followups",
+    "docs:check": "pnpm docs:validate && pnpm docs:build",
+    "docs:check:followups": "pnpm docs:validate:followups && pnpm docs:build"
   },
   "devDependencies": {
     "vitepress": "^1.6.3",

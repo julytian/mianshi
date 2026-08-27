@@ -35,6 +35,18 @@ export const EXPECTED_QUESTION_FILES = [
   '12-microfrontend.md',
   '13-nestjs.md',
   '14-frontend-architecture.md',
+  '15-database-prisma.md',
+  '16-html-css-a11y.md',
+  '17-browser-web-api.md',
+  '18-network-security.md',
+  '19-hybrid-app.md',
+  '20-performance-ux.md',
+  '21-testing-quality.md',
+  '22-project-behavioral.md',
+  '23-nuxt.md',
+  '24-vite.md',
+  '25-webpack.md',
+  '26-devops.md',
 ]
 
 const PLACEHOLDER_PATTERNS = [
@@ -48,6 +60,53 @@ const PLACEHOLDER_PATTERNS = [
 ]
 
 const DETAILS_MARKER = '::: details 参考答案'
+const FOLLOWUP_MARKER_PATTERN = /^\*\*追问(链)?[：:]\*\*(.*)$/
+const FOLLOWUP_DETAILS_MARKER = '::: details 追问参考答案'
+const FOLLOWUP_HEADING_PATTERN = /^#### (追问|追问链)$/
+const MIN_FOLLOWUP_ANSWER_LENGTH = 40
+
+function createFenceState() {
+  return { inFence: false, char: '', length: 0 }
+}
+
+function consumeFenceLine(state, rawLine) {
+  const line = rawLine.replace(/\r$/, '')
+  if (state.inFence) {
+    const closingMatch = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
+    if (
+      closingMatch &&
+      closingMatch[1][0] === state.char &&
+      closingMatch[1].length >= state.length
+    ) {
+      state.inFence = false
+      state.char = ''
+      state.length = 0
+    }
+    return true
+  }
+
+  const openingMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+  if (!openingMatch) return false
+  const marker = openingMatch[1]
+  const info = openingMatch[2]
+  if (marker[0] === '`' && info.includes('`')) return false
+
+  state.inFence = true
+  state.char = marker[0]
+  state.length = marker.length
+  return true
+}
+
+function parseContainerLine(rawLine) {
+  const match = rawLine
+    .replace(/\r$/, '')
+    .match(/^ {0,3}(:{3,})(?:[ \t]+(.*?))?[ \t]*$/)
+  if (!match) return null
+  return {
+    length: match[1].length,
+    info: (match[2] ?? '').trim(),
+  }
+}
 
 /**
  * @param {string | undefined} raw
@@ -71,8 +130,8 @@ export function parseLimit(raw, name) {
  * @returns {{ min: number, max: number, expected: number | null }}
  */
 export function parseQuestionLimits(env = process.env) {
-  const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '201', 'MIN_TOTAL_QUESTIONS')
-  const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '410', 'MAX_TOTAL_QUESTIONS')
+  const min = parseLimit(env.MIN_TOTAL_QUESTIONS ?? '620', 'MIN_TOTAL_QUESTIONS')
+  const max = parseLimit(env.MAX_TOTAL_QUESTIONS ?? '640', 'MAX_TOTAL_QUESTIONS')
   const expected = env.EXPECTED_TOTAL_QUESTIONS === undefined
     ? null
     : parseLimit(env.EXPECTED_TOTAL_QUESTIONS, 'EXPECTED_TOTAL_QUESTIONS')
@@ -92,26 +151,11 @@ export function findQuestionHeadings(content) {
   const results = []
   const lines = content.split('\n')
   let offset = 0
-  let inFence = false
-  let fenceChar = ''
-  let fenceLen = 0
+  const fenceState = createFenceState()
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]
-    const fenceMatch = line.match(/^(`{3,}|~{3,})(.*)$/)
-
-    if (fenceMatch) {
-      const marker = fenceMatch[1]
-      const char = marker[0]
-      const len = marker.length
-      if (!inFence) {
-        inFence = true
-        fenceChar = char
-        fenceLen = len
-      } else if (char === fenceChar && len >= fenceLen) {
-        inFence = false
-      }
-    } else if (!inFence) {
+    if (!consumeFenceLine(fenceState, line)) {
       const headingMatch = line.match(/^### ([QD]\d+)\.\s+(.+)$/)
       if (headingMatch) {
         results.push({ id: headingMatch[1], index: offset, line: i + 1 })
@@ -130,14 +174,24 @@ export function findQuestionHeadings(content) {
  *   found: boolean,
  *   closed?: boolean,
  *   content?: string,
+ *   startIndex?: number,
+ *   endIndex?: number,
  * }}
  */
-export function extractAnswerDetails(block) {
+export function extractNamedDetails(block, marker) {
   const lines = block.split('\n')
+  const lineOffsets = []
+  let offset = 0
+  for (const line of lines) {
+    lineOffsets.push(offset)
+    offset += line.length + 1
+  }
   let startLine = -1
+  const searchFenceState = createFenceState()
 
   for (let i = 0; i < lines.length; i += 1) {
-    if (lines[i].trim() === DETAILS_MARKER) {
+    if (consumeFenceLine(searchFenceState, lines[i])) continue
+    if (lines[i].trim() === marker) {
       startLine = i
       break
     }
@@ -148,26 +202,31 @@ export function extractAnswerDetails(block) {
   }
 
   const contentLines = []
-  let depth = 1
+  const containerStack = [marker.match(/^(:{3,})/)?.[1].length ?? 3]
+  const contentFenceState = createFenceState()
 
   for (let i = startLine + 1; i < lines.length; i += 1) {
     const line = lines[i]
-    const trimmed = line.trim()
-
-    if (trimmed.startsWith(':::')) {
-      const info = trimmed.slice(3).trim()
-      if (info.length === 0) {
-        depth -= 1
-        if (depth === 0) {
+    if (!consumeFenceLine(contentFenceState, line)) {
+      const container = parseContainerLine(line)
+      if (container?.info) {
+        containerStack.push(container.length)
+      } else if (
+        container &&
+        container.length >= containerStack[containerStack.length - 1]
+      ) {
+        containerStack.pop()
+        if (containerStack.length === 0) {
           return {
             found: true,
             closed: true,
             content: contentLines.join('\n').trim(),
+            startIndex: lineOffsets[startLine],
+            endIndex: lineOffsets[i] + line.length,
           }
         }
         continue
       }
-      depth += 1
     }
 
     contentLines.push(line)
@@ -177,7 +236,315 @@ export function extractAnswerDetails(block) {
     found: true,
     closed: false,
     content: contentLines.join('\n').trim(),
+    startIndex: lineOffsets[startLine],
+    endIndex: block.length,
   }
+}
+
+export function extractAnswerDetails(block) {
+  return extractNamedDetails(block, DETAILS_MARKER)
+}
+
+export function extractFollowupAnswerDetails(block) {
+  return extractNamedDetails(block, FOLLOWUP_DETAILS_MARKER)
+}
+
+/**
+ * @param {string} block
+ * @returns {{
+ *   found: boolean,
+ *   kind: 'single' | 'chain' | null,
+ *   questions: { number: number, text: string }[],
+ *   markerLine: number,
+ * }}
+ */
+export function findFollowupSection(block) {
+  return findFollowupSections(block)[0] ?? {
+    found: false,
+    kind: null,
+    questions: [],
+    markerLine: -1,
+  }
+}
+
+/**
+ * @param {string} block
+ * @returns {{
+ *   found: true,
+ *   kind: 'single' | 'chain',
+ *   questions: { number: number, text: string }[],
+ *   markerLine: number,
+ *   startIndex: number,
+ * }[]}
+ */
+export function findFollowupSections(block) {
+  const lines = block.split('\n')
+  const lineOffsets = []
+  let offset = 0
+  for (const line of lines) {
+    lineOffsets.push(offset)
+    offset += line.length + 1
+  }
+
+  const markers = []
+  const fenceState = createFenceState()
+  const skippedAnswerContainers = []
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].replace(/\r$/, '')
+    if (consumeFenceLine(fenceState, line)) continue
+
+    const container = parseContainerLine(line)
+    if (skippedAnswerContainers.length > 0) {
+      if (container?.info) {
+        skippedAnswerContainers.push(container.length)
+      } else if (
+        container &&
+        container.length >=
+          skippedAnswerContainers[skippedAnswerContainers.length - 1]
+      ) {
+        skippedAnswerContainers.pop()
+      }
+      continue
+    }
+    if (container?.info === 'details 追问参考答案') {
+      skippedAnswerContainers.push(container.length)
+      continue
+    }
+
+    const headingMatch = line.match(FOLLOWUP_HEADING_PATTERN)
+    const boldMatch = line.match(FOLLOWUP_MARKER_PATTERN)
+    if (!headingMatch && !boldMatch) continue
+
+    markers.push({
+      found: true,
+      kind:
+        (headingMatch?.[1] ?? (boldMatch?.[1] ? '追问链' : '追问')) ===
+        '追问链'
+          ? 'chain'
+          : 'single',
+      inlineText: boldMatch?.[2].trim() ?? '',
+      questions: [],
+      markerLine: index + 1,
+      lineIndex: index,
+      startIndex: lineOffsets[index],
+    })
+  }
+
+  for (let markerIndex = 0; markerIndex < markers.length; markerIndex += 1) {
+    const marker = markers[markerIndex]
+    const nextMarkerLine = markers[markerIndex + 1]?.lineIndex ?? lines.length
+    const numberedQuestions = []
+    let firstBodyText = ''
+    const questionFenceState = createFenceState()
+
+    for (
+      let cursor = marker.lineIndex + 1;
+      cursor < nextMarkerLine;
+      cursor += 1
+    ) {
+      const rawCandidate = lines[cursor].replace(/\r$/, '')
+      if (consumeFenceLine(questionFenceState, rawCandidate)) continue
+      const candidate = rawCandidate.trim()
+      if (!candidate) continue
+      if (parseContainerLine(rawCandidate)) break
+
+      const questionMatch = candidate.match(/^(\d+)\.\s+(.+)$/)
+      if (questionMatch) {
+        numberedQuestions.push({
+          number: Number(questionMatch[1]),
+          text: questionMatch[2].trim(),
+        })
+        continue
+      }
+      if (numberedQuestions.length > 0) break
+      firstBodyText = candidate
+      break
+    }
+
+    if (numberedQuestions.length > 0) {
+      marker.questions = numberedQuestions
+    } else if (marker.inlineText) {
+      const inlineQuestions = marker.kind === 'chain'
+        ? marker.inlineText
+        .split('→')
+        .map((text) => text.trim())
+        .filter(Boolean)
+        : [marker.inlineText]
+      marker.questions = inlineQuestions.map((text, questionIndex) => ({
+        number: questionIndex + 1,
+        text,
+      }))
+    } else if (firstBodyText) {
+      marker.questions = [{ number: 1, text: firstBodyText }]
+    }
+  }
+
+  return markers.map(({ inlineText, lineIndex, ...section }) => section)
+}
+
+/**
+ * @param {string} content
+ * @returns {{ number: number, text: string, index: number, length: number }[]}
+ */
+function findFollowupAnswerHeadings(content) {
+  const headings = []
+  const lines = content.split('\n')
+  let offset = 0
+  const fenceState = createFenceState()
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, '')
+    if (!consumeFenceLine(fenceState, line)) {
+      const headingMatch = line.match(/^\*\*(\d+)\.\s+(.+?)\*\*\s*$/)
+      if (headingMatch) {
+        headings.push({
+          number: Number(headingMatch[1]),
+          text: headingMatch[2].trim(),
+          index: offset,
+          length: rawLine.length,
+        })
+      }
+    }
+    offset += rawLine.length + 1
+  }
+
+  return headings
+}
+
+/**
+ * @param {string} block
+ * @returns {{
+ *   failures: string[],
+ *   questionCount: number,
+ *   answerCount: number,
+ * }}
+ */
+export function validateFollowupSection(block) {
+  const sections = findFollowupSections(block)
+  if (sections.length === 0) {
+    return { failures: [], questionCount: 0, answerCount: 0 }
+  }
+
+  const failures = []
+  let questionCount = 0
+  let answerCount = 0
+
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex]
+    questionCount += section.questions.length
+    if (section.questions.length === 0) {
+      failures.push('追问标记后没有有效问题')
+    }
+
+    const end = sections[sectionIndex + 1]?.startIndex ?? block.length
+    const sectionBlock = block.slice(section.startIndex, end)
+    const details = extractFollowupAnswerDetails(sectionBlock)
+    if (!details.found) {
+      failures.push('缺少追问参考答案')
+      continue
+    }
+    if (!details.closed) {
+      failures.push('追问参考答案容器未闭合')
+      continue
+    }
+
+    const content = details.content ?? ''
+    if (findPlaceholders(content).length > 0) {
+      failures.push('追问参考答案含占位文案')
+    }
+
+    const answers = []
+    if (section.kind === 'single' && section.questions.length <= 1) {
+      answers.push({
+        number: 1,
+        text: section.questions[0]?.text ?? '',
+        content,
+      })
+    } else {
+      const headings = findFollowupAnswerHeadings(content)
+      for (let index = 0; index < headings.length; index += 1) {
+        const start = headings[index].index + headings[index].length
+        const answerEnd = headings[index + 1]?.index ?? content.length
+        answers.push({
+          number: headings[index].number,
+          text: headings[index].text,
+          content: content.slice(start, answerEnd).trim(),
+        })
+      }
+    }
+
+    answerCount += answers.length
+    if (answers.length !== section.questions.length) {
+      failures.push(
+        `追问数量 ${section.questions.length} 与答案数量 ${answers.length} 不一致`,
+      )
+    }
+
+    const comparableCount = Math.min(answers.length, section.questions.length)
+    for (let index = 0; index < comparableCount; index += 1) {
+      const question = section.questions[index]
+      const answer = answers[index]
+      if (question.number !== answer.number) {
+        failures.push(`第 ${index + 1} 个追问编号与答案编号不一致`)
+      }
+      if (question.text !== answer.text) {
+        failures.push(`第 ${index + 1} 个追问文本与答案标题不一致`)
+      }
+      const effectiveLength = answer.content.replace(/[#>*`\-|\s]/g, '').length
+      if (effectiveLength < MIN_FOLLOWUP_ANSWER_LENGTH) {
+        failures.push(
+          `第 ${index + 1} 个追问答案少于 ${MIN_FOLLOWUP_ANSWER_LENGTH} 个有效字符`,
+        )
+      }
+    }
+  }
+
+  return { failures, questionCount, answerCount }
+}
+
+/**
+ * @param {string[]} [argv]
+ * @returns {{ requireFollowups: boolean, followupFiles: string[] | null }}
+ */
+export function parseFollowupArgs(argv = process.argv.slice(2)) {
+  const unknownArgs = argv.filter(
+    (arg) =>
+      arg !== '--require-followups' &&
+      !arg.startsWith('--followup-files='),
+  )
+  if (unknownArgs.length > 0) {
+    throw new Error(`未知参数：${unknownArgs.join('、')}`)
+  }
+
+  const requireFollowups = argv.includes('--require-followups')
+  const fileArgs = argv.filter((arg) => arg.startsWith('--followup-files='))
+  if (fileArgs.length > 1) {
+    throw new Error('--followup-files 不能重复')
+  }
+  const fileArg = fileArgs[0]
+  const followupFiles = fileArg
+    ? fileArg
+        .slice('--followup-files='.length)
+        .split(',')
+        .map((file) => file.trim())
+        .filter(Boolean)
+    : null
+
+  if (fileArg && followupFiles?.length === 0) {
+    throw new Error('--followup-files 不能为空')
+  }
+  if (followupFiles && !requireFollowups) {
+    throw new Error('--followup-files 必须与 --require-followups 同时使用')
+  }
+  const invalidFiles = (followupFiles ?? []).filter(
+    (file) => !EXPECTED_QUESTION_FILES.includes(file),
+  )
+  if (invalidFiles.length > 0) {
+    throw new Error(`未知题库文件：${invalidFiles.join('、')}`)
+  }
+
+  return { requireFollowups, followupFiles }
 }
 
 /**
@@ -225,6 +592,8 @@ export function findPlaceholders(text) {
  *   min?: number,
  *   max?: number,
  *   expected?: number | null,
+ *   requireFollowups?: boolean,
+ *   followupFiles?: string[] | null,
  * }} [options]
  * @returns {Promise<{ failures: string[], total: number, fileStats: string[] }>}
  */
@@ -234,6 +603,23 @@ export async function validateQuestionBank(options = {}) {
   const min = options.min ?? limits.min
   const max = options.max ?? limits.max
   const expected = options.expected ?? limits.expected
+  const requireFollowups = options.requireFollowups ?? false
+  const followupFiles = options.followupFiles ?? null
+  if (Array.isArray(followupFiles) && followupFiles.length === 0) {
+    throw new Error('followupFiles 不能为空')
+  }
+  const invalidFollowupFiles = (followupFiles ?? []).filter(
+    (file) => !EXPECTED_QUESTION_FILES.includes(file),
+  )
+  if (followupFiles && !requireFollowups) {
+    throw new Error('followupFiles 必须与 requireFollowups 同时使用')
+  }
+  if (invalidFollowupFiles.length > 0) {
+    throw new Error(`未知题库文件：${invalidFollowupFiles.join('、')}`)
+  }
+  const selectedFollowupFiles = new Set(
+    followupFiles ?? EXPECTED_QUESTION_FILES,
+  )
   const questionDir = path.join(repoRoot, 'docs/interview/questions')
 
   const actualFiles = (await readdir(questionDir))
@@ -261,6 +647,8 @@ export async function validateQuestionBank(options = {}) {
     const matches = findQuestionHeadings(content)
     let normal = 0
     let deep = 0
+    let followups = 0
+    let answered = 0
     const seenIds = new Map()
 
     for (let index = 0; index < matches.length; index += 1) {
@@ -287,8 +675,47 @@ export async function validateQuestionBank(options = {}) {
         failures.push(`${file} ${id} 参考答案为空`)
       }
 
-      for (const pattern of findPlaceholders(block)) {
+      let generalPlaceholderSource = block
+      if (requireFollowups && selectedFollowupFiles.has(file)) {
+        const sections = findFollowupSections(block)
+        const answerRanges = []
+        for (
+          let sectionIndex = 0;
+          sectionIndex < sections.length;
+          sectionIndex += 1
+        ) {
+          const section = sections[sectionIndex]
+          const end = sections[sectionIndex + 1]?.startIndex ?? block.length
+          const details = extractFollowupAnswerDetails(
+            block.slice(section.startIndex, end),
+          )
+          if (
+            details.startIndex !== undefined &&
+            details.endIndex !== undefined
+          ) {
+            answerRanges.push({
+              start: section.startIndex + details.startIndex,
+              end: section.startIndex + details.endIndex,
+            })
+          }
+        }
+        for (const range of answerRanges.reverse()) {
+          generalPlaceholderSource =
+            generalPlaceholderSource.slice(0, range.start) +
+            generalPlaceholderSource.slice(range.end)
+        }
+      }
+      for (const pattern of findPlaceholders(generalPlaceholderSource)) {
         failures.push(`${file} ${id} 含占位文案（${pattern}）`)
+      }
+
+      const followupResult = validateFollowupSection(block)
+      followups += followupResult.questionCount
+      answered += followupResult.answerCount
+      if (requireFollowups && selectedFollowupFiles.has(file)) {
+        for (const failure of followupResult.failures) {
+          failures.push(`${file} ${id} ${failure}`)
+        }
       }
 
       if (id.startsWith('D')) {
@@ -304,7 +731,10 @@ export async function validateQuestionBank(options = {}) {
     }
 
     total += normal + deep
-    fileStats.push(`${file}: Q=${normal} D=${deep} total=${normal + deep}`)
+    fileStats.push(
+      `${file}: Q=${normal} D=${deep} total=${normal + deep} ` +
+        `followups=${followups} answered=${answered}`,
+    )
   }
 
   if (total < min || total > max) {
@@ -319,10 +749,13 @@ export async function validateQuestionBank(options = {}) {
 
 async function main() {
   const { min, max, expected } = parseQuestionLimits()
+  const { requireFollowups, followupFiles } = parseFollowupArgs()
   const { failures, total, fileStats } = await validateQuestionBank({
     min,
     max,
     expected,
+    requireFollowups,
+    followupFiles,
   })
 
   for (const line of fileStats) {

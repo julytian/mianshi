@@ -1,8 +1,32 @@
 # 7 天压缩版
 
-从 [14 天主线](/interview/plans/14-day) 裁剪而来。砍掉手写深挖、系统设计周更、第二场模拟与多端全覆盖；**保留 Vue3、工程化、主项目故事、AI + Java、1 场模拟**。
+> **适合准备时间：** 面试前 7 天、只能做压缩冲刺时使用。完整能力地图与按日主线见 [60 天完整复习路线](/interview/plans/60-day)。本页仍从 [14 天冲刺版](/interview/plans/14-day) 裁剪，**不要**把 60 天按日机械合并。
+
+从 [14 天冲刺版](/interview/plans/14-day) 裁剪而来。砍掉手写深挖、系统设计周更、第二场模拟与多端全覆盖；**保留 Vue3、工程化、主项目故事、AI + Java、1 场模拟**。
 
 先读 [总览与侧重点矩阵](/interview/00-overview)，只加重与目标 JD 强相关的模块。每天默认投入更饱和：题库扫「考察点 + 踩坑」，答案不全背，主故事与模拟优先级最高。
+
+### 从 60 天裁剪时保留的核心
+
+- Vue3 响应式 / 组件 / 状态（对应 60 天 D17–D21）
+- 工程化与一条带数字的性能证据（对应 D25–D26、D29）
+- 主项目 STAR 与 1 场模拟（对应 D58–D60 的最小集）
+- AI + Java 边界叙事（对应 D51）
+
+### 新增题库的最小覆盖
+
+时间只够「标题 + 踩坑 + 1 道口述」，不要另开战线：
+
+| 题库 | 最小抽题 | 怎么塞进 7 天 |
+| ---- | -------- | ------------- |
+| [HTML / CSS / A11y](/interview/questions/16-html-css-a11y) | Q1、Q6、Q11、D8 | 并入 D1 扫标题，或面试前一天 20 分钟 |
+| [浏览器与 Web API](/interview/questions/17-browser-web-api) | Q1、Q2、D2 | 并入 D1 的事件循环 |
+| [网络与 Web 安全](/interview/questions/18-network-security) | Q6、Q11、D3 | 并入 D3 缓存 / 安全各一句话 |
+| [性能与用户体验](/interview/questions/20-performance-ux) | Q1、D3 | 并入 D3 性能 STAR |
+| [测试与质量保障](/interview/questions/21-testing-quality) | Q1、D7 | 并入 D3 质量门禁 |
+| [项目答辩与行为面试](/interview/questions/22-project-behavioral) | Q1、Q2、D1 | 并入 D2 故事、D7 开场 |
+| [数据库与 Prisma](/interview/questions/15-database-prisma) | Q15、D6 | 仅全栈岗，并入 D5 |
+| [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3 | 仅 JD 写 Hybrid / WebView 时，并入 D4 |
 
 ---
 

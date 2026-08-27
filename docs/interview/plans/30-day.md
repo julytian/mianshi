@@ -1,8 +1,41 @@
-# 30 天加练版
+# 30 天强化版
 
-在 [14 天主线](/interview/plans/14-day) 骨架上拉长节奏：全月安排 **7 次必做手写、2 次独立系统设计、4 场周模拟 + 1 场额外综合架构模拟**，可选叠加 **Spring Boot CRUD + Vue 口述闭环**。手写集中在前两周打底，D16 再巩固一次；D27 按状态在半场彩排与轻量复盘中二选一。
+> **适合准备时间：** 约 4 周、需要手写肌肉记忆和多场模拟时使用。完整主线仍是 [60 天完整复习路线](/interview/plans/60-day)；本页在 [14 天冲刺版](/interview/plans/14-day) 上加练，**不要**把 60 天九个阶段按周硬折进 30 天。
+
+在 [14 天冲刺版](/interview/plans/14-day) 骨架上拉长节奏：全月安排 **7 次必做手写、2 次独立系统设计、4 场周模拟 + 1 场额外综合架构模拟**，可选叠加 **Spring Boot CRUD + Vue 口述闭环**。手写集中在前两周打底，D16 再巩固一次；D27 按状态在半场彩排与轻量复盘中二选一。
 
 先读 [总览与侧重点矩阵](/interview/00-overview)。执行原则：**14 天内容不加水稀释，用加练日做深度与肌肉记忆**；忙时优先保住主故事、Vue3、工程化与当周模拟。
+
+### 从 60 天裁剪时保留的核心
+
+- JS / TS + 手写打底（60 天 D1–D4、D2/D10/D18 的手写密度）
+- Vue3 原理与主故事（D17–D24）
+- 工程化、性能、多场模拟（D25–D32，对应本页周模拟）
+- 按 JD 保留多端一条主线 + 另一条扫标题（D33–D42）
+- NestJS / Java / AI 加练（D50–D52）
+- 架构专项与 75 分钟场（D53–D57、D60）
+- 简历 / ATS 与行为题（D58–D59）
+
+HTML / CSS / 浏览器 / 安全 / Hybrid / Prisma 不单独开第二个月，用下方最小覆盖挂到加练日。
+
+### 新增题库的最小覆盖
+
+30 天比 14 天多出的晚上，优先补「会被追问但不值得单开一周」的新库：
+
+| 题库 | 最小抽题 | 挂到哪一段 |
+| ---- | -------- | ---------- |
+| [HTML / CSS / A11y](/interview/questions/16-html-css-a11y) | Q1、Q6、Q11、D2、D8 | W1 手写日收尾，或 D8 多端对照 |
+| [浏览器与 Web API](/interview/questions/17-browser-web-api) | Q1、Q2、Q8、D2 | 并入 D1 / D2 事件循环与手写 |
+| [网络与 Web 安全](/interview/questions/18-network-security) | Q6、Q8–Q11、D3 | 并入 D10 工程化缓存、D12 Java 登录对照 |
+| [性能与用户体验](/interview/questions/20-performance-ux) | Q1–Q3、D3、D7 | 并入 D11 性能加练，替代只背 LCP 定义 |
+| [测试与质量保障](/interview/questions/21-testing-quality) | Q1、Q9、D1、D7 | 并入 D10 门禁、D25 架构场前 |
+| [项目答辩与行为面试](/interview/questions/22-project-behavioral) | Q1–Q5、D1–D3 | 并入 D5 故事、D24 简历、D29 反问 |
+| [数据库与 Prisma](/interview/questions/15-database-prisma) | Q5、Q11、Q15、D6 | 全栈岗并入 D19 / D20 Nest 段；非全栈只扫标题 |
+| [Hybrid App](/interview/questions/19-hybrid-app) | Q1、Q3、D1、D9 | JD 有 App 容器时并入 D8；只抽 Hybrid 边界题，不与当天小程序题混答 |
+| [Nuxt](/interview/questions/23-nuxt) | Q1、Q4、D1、D4 | SSR / SEO 岗并入 Vue 周 |
+| [Vite](/interview/questions/24-vite) | Q1、Q12、D5 | 并入 D10 / D11 工程化 |
+| [Webpack](/interview/questions/25-webpack) | Q10、D7 | 遗留栈或微前端岗并入 D25 |
+| [Jenkins / Docker / k8s](/interview/questions/26-devops) | Q2、Q6、D3 | 并入 D10；教程只读会用到的一篇 |
 
 ---
 
@@ -574,7 +607,7 @@ MR → 生产流水线口述。
 #### 题库链接
 
 - [总览](/interview/00-overview)
-- [14 天主线](/interview/plans/14-day)（对照是否有漏网主题）
+- [14 天冲刺版](/interview/plans/14-day)（对照是否有漏网主题）
 
 #### 口述任务
 

@@ -969,7 +969,7 @@
 #### 题库与材料
 
 - 回看当日方案会引用的题：[工程化](/interview/questions/03-engineering) D3/D4、[测试](/interview/questions/21-testing-quality) D7、[性能](/interview/questions/20-performance-ux) D1/D7
-- [评分表](/interview/mocks/scorecard) · [脚本九 · 性能、测试与质量](/interview/mocks/scripts#脚本九-性能-测试与质量-60-分钟)（或 [单人自测版](/interview/mocks/scripts#单人自测版-无搭档时) 用「讲方案」代替通关脚本）
+- [评分表](/interview/mocks/scorecard) · [脚本九 · 性能、测试与质量](/interview/mocks/scripts#脚本九-性能、测试与质量-60-分钟)（或 [单人自测版](/interview/mocks/scripts#单人自测版-无搭档时) 用「讲方案」代替通关脚本）
 
 #### 必做输出
 

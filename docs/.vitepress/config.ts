@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: '前端面试作战手册',
-  description: 'Vue3 / Lead / Java 全栈偏前 · 面试方案与题库',
+  description: '资深前端备战：8 域 22 库 550 题，含 60 天路线与追问答案',
   lang: 'zh-CN',
   // GitHub Pages 项目站：https://julytian.github.io/mianshi/
   base: '/mianshi/',

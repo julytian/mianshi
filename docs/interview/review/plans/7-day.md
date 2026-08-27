@@ -143,7 +143,7 @@
 
 #### 材料
 
-- 薄弱域自 [速记索引](/interview/review/00-overview#9-篇速记册) 选取
+- 薄弱域自 [速记索引](/interview/review/00-overview#_9-篇速记册) 选取
 - [故事模板](/interview/stories/template)
 - [领导力与求职速记](/interview/review/sheets/09-leadership)
 

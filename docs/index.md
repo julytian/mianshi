@@ -4,7 +4,7 @@ layout: home
 hero:
   name: 前端面试作战手册
   text: 9 个能力域 · 26 个题库 · 630 道主问题
-  tagline: 388 道 Q、242 道 D；所有主问题和追问均有答案。默认走 60 天完整路线，按岗位权重抽题，不是通背 630 题。
+  tagline: 388 道 Q、242 道 D；所有主问题和追问均有答案。长期备战走 60 天，临场走复习模块；按岗位权重抽题，不是通背 630 题。
   actions:
     - theme: brand
       text: 总览
@@ -13,8 +13,8 @@ hero:
       text: 60 天路线
       link: /interview/plans/60-day
     - theme: alt
-      text: 14 天冲刺版
-      link: /interview/plans/14-day
+      text: 临场回炉
+      link: /interview/review/00-overview
 
 features:
   - title: 先对齐再开刷
@@ -44,13 +44,14 @@ features:
 ## 建议路径
 
 1. **第一次使用：** [总览](/interview/00-overview) → 对照矩阵自测加重 / 弱项 → [60 天完整主线](/interview/plans/60-day)
-2. **14 天内面试：** 直接走 [14 天冲刺版](/interview/plans/14-day)；更紧用 [7 天压缩版](/interview/plans/7-day)
-3. **专项补弱：** 按九大能力域进入（见下方），只加深卡住的域
-4. **面试前 24 小时：** [故事模板](/interview/stories/template) · [项目答辩与行为面试](/interview/questions/22-project-behavioral) · [模拟脚本](/interview/mocks/scripts) · [反问清单](/interview/mocks/reverse-questions)
-5. **全栈补强：** [NestJS](/interview/questions/13-nestjs) → [数据库与 Prisma](/interview/questions/15-database-prisma) → [NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)
-6. **上线补强：** [Jenkins 教程](/interview/guides/devops/jenkins) → [Docker 教程](/interview/guides/devops/docker) → [Kubernetes 教程](/interview/guides/devops/k8s) → [运维题库](/interview/questions/26-devops)
+2. **长期备战：** 默认走 [60 天完整主线](/interview/plans/60-day)；时间不够再裁到 [30 天](/interview/plans/30-day) / [14 天冲刺版](/interview/plans/14-day) / [7 天压缩版](/interview/plans/7-day)
+3. **临场回炉：** 已约面或只剩 3 / 7 / 14 天压缩窗口时，走 [复习模块](/interview/review/00-overview)（速记册 + 专题讲义 + 回炉日程），不要和长期学习路线混用
+4. **专项补弱：** 按九大能力域进入（见下方），只加深卡住的域
+5. **面试前 24 小时：** [复习总览](/interview/review/00-overview) · [故事模板](/interview/stories/template) · [项目答辩与行为面试](/interview/questions/22-project-behavioral) · [模拟脚本](/interview/mocks/scripts) · [反问清单](/interview/mocks/reverse-questions)
+6. **全栈补强：** [NestJS](/interview/questions/13-nestjs) → [数据库与 Prisma](/interview/questions/15-database-prisma) → [NestJS + Prisma 教程](/interview/guides/backend/nestjs-prisma)
+7. **上线补强：** [Jenkins 教程](/interview/guides/devops/jenkins) → [Docker 教程](/interview/guides/devops/docker) → [Kubernetes 教程](/interview/guides/devops/k8s) → [运维题库](/interview/questions/26-devops)
 
-时间更宽或需要加练时，用 [30 天强化版](/interview/plans/30-day)。默认完整路线始终是 60 天。
+**长期备战走 60 天，临场走复习模块。** 默认完整路线始终是 60 天。
 
 ## 九大能力域
 

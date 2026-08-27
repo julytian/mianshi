@@ -14,7 +14,7 @@
 - 所有主问题和追问均有答案
 - 7 / 14 / 30 / 60 天四条路线
 
-630 题是题库容量，按岗位权重抽题，不是必须全部背诵的清单。默认完整路线是 60 天。
+630 题是题库容量，按岗位权重抽题，不是必须全部背诵的清单。**长期备战走 60 天，临场走复习模块**（见下方建议学习路径）。
 
 ## 在线站点
 
@@ -48,13 +48,14 @@ pnpm docs:preview
 ## 建议学习路径
 
 1. **第一次使用：** [总览](docs/interview/00-overview.md) → 对照矩阵自测 → [60 天完整主线](docs/interview/plans/60-day.md)
-2. **14 天内面试：** [14 天冲刺版](docs/interview/plans/14-day.md)（更紧用 [7 天](docs/interview/plans/7-day.md)）
-3. **专项补弱：** 按下方九大能力域分组进入对应题库
-4. **面试前 24 小时：** [故事模板](docs/interview/stories/template.md) · [项目答辩与行为面试](docs/interview/questions/22-project-behavioral.md) · [模拟脚本](docs/interview/mocks/scripts.md) · [反问清单](docs/interview/mocks/reverse-questions.md)
-5. **全栈补强：** [NestJS](docs/interview/questions/13-nestjs.md) → [数据库与 Prisma](docs/interview/questions/15-database-prisma.md) → [NestJS + Prisma 教程](docs/interview/guides/backend/nestjs-prisma.md)
-6. **上线补强：** [Jenkins 教程](docs/interview/guides/devops/jenkins.md) → [Docker 教程](docs/interview/guides/devops/docker.md) → [Kubernetes 教程](docs/interview/guides/devops/k8s.md)
+2. **长期备战：** 默认 [60 天完整主线](docs/interview/plans/60-day.md)；不够再裁到 [30 天](docs/interview/plans/30-day.md) / [14 天冲刺版](docs/interview/plans/14-day.md) / [7 天](docs/interview/plans/7-day.md)
+3. **临场回炉：** [复习总览](docs/interview/review/00-overview.md)（9 速记 + 12 专题 + 面试前 3 / 7 / 14 天日程）
+4. **专项补弱：** 按下方九大能力域分组进入对应题库
+5. **面试前 24 小时：** [复习总览](docs/interview/review/00-overview.md) · [故事模板](docs/interview/stories/template.md) · [项目答辩与行为面试](docs/interview/questions/22-project-behavioral.md) · [模拟脚本](docs/interview/mocks/scripts.md) · [反问清单](docs/interview/mocks/reverse-questions.md)
+6. **全栈补强：** [NestJS](docs/interview/questions/13-nestjs.md) → [数据库与 Prisma](docs/interview/questions/15-database-prisma.md) → [NestJS + Prisma 教程](docs/interview/guides/backend/nestjs-prisma.md)
+7. **上线补强：** [Jenkins 教程](docs/interview/guides/devops/jenkins.md) → [Docker 教程](docs/interview/guides/devops/docker.md) → [Kubernetes 教程](docs/interview/guides/devops/k8s.md)
 
-加练用 [30 天强化版](docs/interview/plans/30-day.md)。
+**长期备战走 60 天，临场走复习模块。** 加练用 [30 天强化版](docs/interview/plans/30-day.md)。
 
 > 源码阅读用 `docs/...` 相对路径；站点路由带 `/mianshi/` 前缀。
 

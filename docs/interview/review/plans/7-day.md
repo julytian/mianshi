@@ -34,7 +34,7 @@
 
 - 框架与数据域结论卡可口述
 - JS 运行时与 TS 类型各建立 5 分钟入口印象
-- 标出本周要深挖的 2 个专题
+- 标出本周要深挖的 2 个专题（专题一默认 Vue3；专题二 D4 四选一）
 
 #### 材料
 
@@ -42,10 +42,14 @@
 - [Web 与计算机基础速记](/interview/review/sheets/01-web-fundamentals)
 - [JS 运行时与异步](/interview/review/topics/01-js-runtime)
 - [TypeScript 类型系统](/interview/review/topics/02-ts-types)
+- 真源快链：[01 JS/TS 题库](/interview/questions/01-js-ts)、[02 Vue3 题库](/interview/questions/02-vue3)
 
 #### 必做输出
 
-本页正文在后续批次写满（具体口述任务与题号在 Task 5 填入）。
+- 遮稿口述 [02 框架与数据](/interview/review/sheets/02-framework-data) 核心结论卡 8～10 分钟；卡点回链题库题号
+- [01 JS 运行时](/interview/review/topics/01-js-runtime)、[02 TS 类型](/interview/review/topics/02-ts-types) 各做 5 分钟入口口述（战场句 + 知识地图即可）
+- 写下本周专题二选题（构建 / 微前端 / 全栈 / Hybrid 四选一）及理由一句
+- 卡点清单起步 ≥ 3 条
 
 #### 验收标准
 
@@ -67,10 +71,14 @@
 
 - [Vue3 响应式与渲染](/interview/review/topics/05-vue-reactivity)
 - [框架与数据速记](/interview/review/sheets/02-framework-data)
+- 真源：[02 Vue3 题库](/interview/questions/02-vue3)
 
 #### 必做输出
 
-本页正文在后续批次写满（具体口述任务与题号在 Task 5 填入）。
+- 按专题「完整讲解」讲满 15 分钟主线；对照页末「15 分钟口述验收清单」勾选
+- 追问树至少选 2 条主问走到 L2；卡点写回 [02 Vue3](/interview/questions/02-vue3) 对应 Q/D
+- 用自己的项目填 1 个证据坑位（大列表 / 水合 / KeepAlive 任选），禁止抄示例数字
+- 与 [02 速记](/interview/review/sheets/02-framework-data) 交叉核对版本红线（Suspense / KeepAlive / Vite 生产默认等）
 
 #### 验收标准
 
@@ -93,10 +101,14 @@
 - [工程与质量速记](/interview/review/sheets/03-engineering-quality)
 - [性能、测试与质量门禁](/interview/review/topics/08-perf-testing)
 - [浏览器渲染与性能底座](/interview/review/topics/03-browser-rendering)
+- 真源快链：[03 工程化](/interview/questions/03-engineering)、[20 性能](/interview/questions/20-performance-ux)、[21 测试](/interview/questions/21-testing-quality)
 
 #### 必做输出
 
-本页正文在后续批次写满（具体口述任务与题号在 Task 5 填入）。
+- 口述「规范 → 构建 → CI → 发布 / 回滚」3 分钟（材料：[03 工程速记](/interview/review/sheets/03-engineering-quality)）
+- [08 性能 / 测试专题](/interview/review/topics/08-perf-testing) 讲 10～15 分钟入口主线；[03 浏览器渲染](/interview/review/topics/03-browser-rendering) 只补与性能相关的 5 分钟
+- 写下 **一条** 带自己数字的性能或门禁 STAR 提纲（基线 → 手段 → 验证 → 防护）
+- 卡点回链对应题库，不另开通刷
 
 #### 验收标准
 
@@ -116,14 +128,17 @@
 
 #### 材料（按 JD 四选一）
 
-- [Vite 与 Webpack 构建器](/interview/review/topics/07-vite-webpack)
-- [微前端与前端架构](/interview/review/topics/09-microfrontend-architecture)
-- [全栈数据与 Nest / Prisma](/interview/review/topics/10-fullstack-data)
-- [Hybrid / 小程序 / H5](/interview/review/topics/11-hybrid-miniapp-h5)
+- [Vite 与 Webpack 构建器](/interview/review/topics/07-vite-webpack) + [工程与质量速记](/interview/review/sheets/03-engineering-quality)
+- [微前端与前端架构](/interview/review/topics/09-microfrontend-architecture) + [架构与系统设计速记](/interview/review/sheets/06-architecture)
+- [全栈数据与 Nest / Prisma](/interview/review/topics/10-fullstack-data) + [全栈、数据与 AI 速记](/interview/review/sheets/08-fullstack-ai)
+- [Hybrid / 小程序 / H5](/interview/review/topics/11-hybrid-miniapp-h5) + [移动端与跨平台速记](/interview/review/sheets/05-mobile-cross)
 
 #### 必做输出
 
-本页正文在后续批次写满（具体口述任务与题号在 Task 5 填入）。
+- 选定一篇专题，按「战场 → 知识地图 → 完整讲解」讲满 15 分钟；勾选该页验收清单过半
+- 写 1 则「约束 → 方案 → 取舍 → 验证」故障 / 选型案例（数字用自己的）
+- 配套速记结论卡遮稿快讲 5 分钟，标出与专题冲突的口径（若有则回题库）
+- 无相关经历时：只保留「边界叙事 + 够用边界」，并在笔记标明「不上深水区」
 
 #### 验收标准
 
@@ -143,13 +158,18 @@
 
 #### 材料
 
-- 薄弱域自 [速记索引](/interview/review/00-overview#_9-篇速记册) 选取
+- 薄弱域自 [速记索引](/interview/review/00-overview#_9-篇速记册) 选取（常见： [04 后台业务](/interview/review/sheets/04-admin-business)、[06 架构](/interview/review/sheets/06-architecture)、[07 运维](/interview/review/sheets/07-devops)、[01 Web 基础](/interview/review/sheets/01-web-fundamentals)）
 - [故事模板](/interview/stories/template)
+- [故事示例](/interview/stories/examples)
 - [领导力与求职速记](/interview/review/sheets/09-leadership)
+- [Lead、行为与项目答辩](/interview/review/topics/12-lead-behavioral)（预读战场句）
 
 #### 必做输出
 
-本页正文在后续批次写满（具体口述任务与题号在 Task 5 填入）。
+- 选 1～2 个薄弱域，各遮稿口述 5～8 分钟；卡点写回对应题库模块
+- 按模板产出 5 分钟 STAR + 90 秒电梯版；录音第二遍只看提纲
+- 准备失败 / 取舍两个追问分支，并与简历数字一一勾对
+- [09 领导力速记](/interview/review/sheets/09-leadership) 扫结论卡，标出明日模拟要用的协作 / 决策钩子
 
 #### 验收标准
 
@@ -169,13 +189,18 @@
 
 #### 材料
 
-- [模拟脚本](/interview/mocks/scripts)
+- [模拟脚本](/interview/mocks/scripts)（推荐 [脚本一](/interview/mocks/scripts#脚本一-业务型中小厂-可抽查-java-联调) / [脚本三](/interview/mocks/scripts#脚本三-lead-面-分工、质量、技术选型) / [脚本九 性能质量](/interview/mocks/scripts#脚本九-性能、测试与质量-60-分钟)）
 - [评分表](/interview/mocks/scorecard)
 - [Lead、行为与项目答辩](/interview/review/topics/12-lead-behavioral)
+- [领导力与求职速记](/interview/review/sheets/09-leadership)
+- 真源：[22 项目答辩与行为](/interview/questions/22-project-behavioral)
 
 #### 必做输出
 
-本页正文在后续批次写满（具体口述任务与题号在 Task 5 填入）。
+- 完整跑完 1 场脚本（无搭档用单人自测版）；复盘用评分表打分
+- 写下本场 Top 5 卡点，并标注回炉材料（速记 / 专题 / 题库）
+- [12 Lead / 行为专题](/interview/review/topics/12-lead-behavioral) 追问树至少走完 2 条主问到 L2
+- 主故事电梯版在模拟开场再练 1 遍，修正超时与空话
 
 #### 验收标准
 
@@ -196,12 +221,16 @@
 #### 材料
 
 - [反问清单](/interview/mocks/reverse-questions)
-- D1～D6 卡点对应速记 / 专题
-- 可选第二场：[模拟脚本](/interview/mocks/scripts)
+- [评分表](/interview/mocks/scorecard)
+- D1～D6 卡点对应速记 / 专题（见 [复习总览](/interview/review/00-overview)）
+- 可选第二场：[模拟脚本](/interview/mocks/scripts)（建议换画像，如 [脚本十](/interview/mocks/scripts#脚本十-项目答辩与行为面试-60-分钟) 或 [脚本十一](/interview/mocks/scripts#脚本十一-综合终场-75-分钟)）
 
 #### 必做输出
 
-本页正文在后续批次写满（具体口述任务与题号在 Task 5 填入）。
+- **二选一：**（A）第二场完整模拟并评分；或（B）只回炉 D6 Top 5 卡点，每条遮稿口述通过
+- 合并一周卡点为「上场最高频 5 条」，全部口述勾选
+- 从 [反问清单](/interview/mocks/reverse-questions) 定 3～5 条上场版
+- 禁止新开专题；睡眠优先于通宵背题
 
 #### 验收标准
 

@@ -93,7 +93,7 @@
 #### 材料
 
 - [浏览器渲染与性能底座](/interview/review/topics/03-browser-rendering)
-- [网络与 Web 安全速记入口见域速记](/interview/review/sheets/01-web-fundamentals)
+- [Web 与计算机基础速记（含网络 / 安全入口）](/interview/review/sheets/01-web-fundamentals)
 - [网络与 Web 安全专题](/interview/review/topics/04-network-security)（预读标题）
 
 #### 必做输出

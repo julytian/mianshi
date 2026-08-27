@@ -2,7 +2,7 @@
 
 > **适合场景：** 约一周窗口，回炉薄弱域 + 2 个专题 + 1～2 场模拟。
 >
-> **每日时长：** 90～150 分钟。
+> **每日时长：** 90～150 分钟。**场次时长计入当日预算**（模拟净时长 + 简短复盘都算进当天）。
 >
 > **完成标准：** 当天主题可遮稿口述；卡点写入笔记；薄弱域至少回炉一次。
 >
@@ -19,7 +19,7 @@
 | D1 | 主栈速记：框架与数据 + JS / TS 专题入口 | `r7-d1-core-sheets` |
 | D2 | 专题一：Vue3 响应式与渲染 | `r7-d2-vue-topic` |
 | D3 | 工程与质量速记 + 性能专题入口 | `r7-d3-eng-perf` |
-| D4 | 专题二：按 JD 二选一（构建 / 微前端 / 全栈 / Hybrid） | `r7-d4-jd-topic` |
+| D4 | 专题二：按 JD 四选一（构建 / 微前端 / 全栈 / Hybrid） | `r7-d4-jd-topic` |
 | D5 | 薄弱域速记回炉 + 主故事 | `r7-d5-weak-story` |
 | D6 | 模拟 ×1 + 行为 / Lead | `r7-d6-mock` |
 | D7 | 第二场模拟或终检 + 反问 | `r7-d7-final` |
@@ -90,6 +90,8 @@
 
 任务 ID：`r7-d3-eng-perf`
 
+> **砍枝优先级：** ① 工程链路 3 分钟口述 + 性能/门禁主线口述 → ② 一条带数字的 STAR 提纲 → ③ 浏览器渲染补丁 / 更深 L2。超时先砍 ③，再缩短 ② 到关键词提纲。
+
 #### 学习目标
 
 - 工程与质量速记可讲一条交付链路
@@ -106,9 +108,9 @@
 #### 必做输出
 
 - 口述「规范 → 构建 → CI → 发布 / 回滚」3 分钟（材料：[03 工程速记](/interview/review/sheets/03-engineering-quality)）
-- [08 性能 / 测试专题](/interview/review/topics/08-perf-testing) 讲 10～15 分钟入口主线；[03 浏览器渲染](/interview/review/topics/03-browser-rendering) 只补与性能相关的 5 分钟
+- [08 性能 / 测试专题](/interview/review/topics/08-perf-testing) 讲 10～15 分钟入口主线（必做）
 - 写下 **一条** 带自己数字的性能或门禁 STAR 提纲（基线 → 手段 → 验证 → 防护）
-- 卡点回链对应题库，不另开通刷
+- **可选（预算有余）：** [03 浏览器渲染](/interview/review/topics/03-browser-rendering) 只补与性能相关的 ≤5 分钟；超时则跳过，卡点回链题库即可
 
 #### 验收标准
 
@@ -181,6 +183,8 @@
 
 任务 ID：`r7-d6-mock`
 
+> **时长提醒：** 场次时长计入当日预算。本场优先 **60 分钟** 档脚本；Lead 追问树预算不够可砍到 1 条主问。
+
 #### 学习目标
 
 - 完成第 1 场完整模拟
@@ -189,7 +193,7 @@
 
 #### 材料
 
-- [模拟脚本](/interview/mocks/scripts)（推荐 [脚本一](/interview/mocks/scripts#脚本一-业务型中小厂-可抽查-java-联调) / [脚本三](/interview/mocks/scripts#脚本三-lead-面-分工、质量、技术选型) / [脚本九 性能质量](/interview/mocks/scripts#脚本九-性能、测试与质量-60-分钟)）
+- [模拟脚本](/interview/mocks/scripts)（推荐 60 分钟档：[脚本一](/interview/mocks/scripts#脚本一-业务型中小厂-可抽查-java-联调) / [脚本三](/interview/mocks/scripts#脚本三-lead-面-分工、质量、技术选型) / [脚本九 性能质量](/interview/mocks/scripts#脚本九-性能、测试与质量-60-分钟)）
 - [评分表](/interview/mocks/scorecard)
 - [Lead、行为与项目答辩](/interview/review/topics/12-lead-behavioral)
 - [领导力与求职速记](/interview/review/sheets/09-leadership)
@@ -197,9 +201,9 @@
 
 #### 必做输出
 
-- 完整跑完 1 场脚本（无搭档用单人自测版）；复盘用评分表打分
+- 完整跑完 1 场 **60 分钟档**脚本（无搭档用单人自测版）；复盘用评分表打分（复盘限 5～10 分钟，计入预算）
 - 写下本场 Top 5 卡点，并标注回炉材料（速记 / 专题 / 题库）
-- [12 Lead / 行为专题](/interview/review/topics/12-lead-behavioral) 追问树至少走完 2 条主问到 L2
+- [12 Lead / 行为专题](/interview/review/topics/12-lead-behavioral) 追问树：预算够则走 2 条到 L2；超时砍到 1 条主问即可
 - 主故事电梯版在模拟开场再练 1 遍，修正超时与空话
 
 #### 验收标准
@@ -212,6 +216,8 @@
 
 任务 ID：`r7-d7-final`
 
+> **时长提醒：** 若选第二场模拟，**优先 60 分钟档**（脚本十等）；勿默认上 75 分钟脚本十一。场次时长计入当日预算。
+
 #### 学习目标
 
 - 按精力选：第二场模拟，或只回炉卡点
@@ -223,12 +229,12 @@
 - [反问清单](/interview/mocks/reverse-questions)
 - [评分表](/interview/mocks/scorecard)
 - D1～D6 卡点对应速记 / 专题（见 [复习总览](/interview/review/00-overview)）
-- 可选第二场：[模拟脚本](/interview/mocks/scripts)（建议换画像，如 [脚本十](/interview/mocks/scripts#脚本十-项目答辩与行为面试-60-分钟) 或 [脚本十一](/interview/mocks/scripts#脚本十一-综合终场-75-分钟)）
+- 可选第二场：[模拟脚本](/interview/mocks/scripts)（**优先** [脚本十 · 60 分钟](/interview/mocks/scripts#脚本十-项目答辩与行为面试-60-分钟) / [脚本一](/interview/mocks/scripts#脚本一-业务型中小厂-可抽查-java-联调)；仅精力充足且目标 Staff/Lead 终场时再考虑 [脚本十一 · 75 分钟](/interview/mocks/scripts#脚本十一-综合终场-75-分钟)）
 
 #### 必做输出
 
-- **二选一：**（A）第二场完整模拟并评分；或（B）只回炉 D6 Top 5 卡点，每条遮稿口述通过
-- 合并一周卡点为「上场最高频 5 条」，全部口述勾选
+- **二选一：**（A）第二场完整模拟并评分（默认 60 分钟档）；或（B）只回炉 D6 Top 5 卡点，每条遮稿口述通过
+- 合并一周卡点为「上场最高频 5 条」，全部口述勾选（若已做模拟且预算紧，可与模拟复盘合并，不重复两轮）
 - 从 [反问清单](/interview/mocks/reverse-questions) 定 3～5 条上场版
 - 禁止新开专题；睡眠优先于通宵背题
 
